@@ -1,5 +1,5 @@
 ---
-name: libs/langserve CI
+name: CI
 
 on:
   push:
@@ -10,7 +10,9 @@ on:
       - '.github/workflows/_lint.yml'
       - '.github/workflows/_test.yml'
       - '.github/workflows/langserve_ci.yml'
-      - 'libs/langserve/**'
+      - 'langserve/**'
+      - 'pyproject.toml'
+      - 'Makefile'
   workflow_dispatch:  # Allows to trigger the workflow manually in GitHub UI
 
 # If another push to the same PR or branch happens while this workflow is still running,
@@ -25,14 +27,14 @@ concurrency:
 
 env:
   POETRY_VERSION: "1.5.1"
-  WORKDIR: "libs/langserve"
+  WORKDIR: "."
 
 jobs:
   lint:
     uses:
       ./.github/workflows/_lint.yml
     with:
-      working-directory: libs/langserve
+      working-directory: .
     secrets: inherit
 
   test:
@@ -56,7 +58,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           poetry-version: ${{ env.POETRY_VERSION }}
-          working-directory: libs/langserve
+          working-directory: .
           cache-key: langserve-all
 
       - name: Install dependencies
