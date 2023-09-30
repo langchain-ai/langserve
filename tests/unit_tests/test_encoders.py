@@ -70,48 +70,49 @@ from langserve.serialization import simple_dumps, simple_loads
                 "world",
             ],
         ),
-        # Attention: This test is not correct right now
-        # Test with full and chunk messages
-        (
-            [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-            ],
-        ),
-        # Attention: This test is not correct right now
-        # Test with full and chunk messages
-        (
-            [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-            ],
-        ),
+        # Uncomment when langchain 0.0.306 is released
+        # # Attention: This test is not correct right now
+        # # Test with full and chunk messages
+        # (
+        #     [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
+        #     [
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hello",
+        #             "example": False,
+        #             "type": "human",
+        #             "is_chunk": False,
+        #         },
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hi",
+        #             "example": False,
+        #             "type": "human",
+        #             "is_chunk": True,
+        #         },
+        #     ],
+        # ),
+        # # Attention: This test is not correct right now
+        # # Test with full and chunk messages
+        # (
+        #     [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
+        #     [
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hello",
+        #             "example": False,
+        #             "type": "human",
+        #             "is_chunk": True,
+        #         },
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hi",
+        #             "example": False,
+        #             "type": "human",
+        #             "is_chunk": False,
+        #         },
+        #     ],
+        # ),
         # Test with a dictionary containing mixed elements
         (
             {
