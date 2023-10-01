@@ -4,7 +4,6 @@ from typing import Any
 import pytest
 from langchain.schema.messages import (
     HumanMessage,
-    HumanMessageChunk,
     SystemMessage,
 )
 
@@ -33,7 +32,6 @@ from langserve.serialization import simple_dumps, simple_loads
                         "additional_kwargs": {},
                         "type": "human",
                         "example": False,
-                        "is_chunk": False,
                     }
                 ]
             },
@@ -46,7 +44,6 @@ from langserve.serialization import simple_dumps, simple_loads
                 "content": "Hello",
                 "example": False,
                 "type": "human",
-                "is_chunk": False,
             },
         ),
         # Test with a list containing mixed elements
@@ -58,60 +55,55 @@ from langserve.serialization import simple_dumps, simple_loads
                     "content": "Hello",
                     "example": False,
                     "type": "human",
-                    "is_chunk": False,
                 },
                 {
                     "additional_kwargs": {},
                     "content": "Hi",
                     "type": "system",
-                    "is_chunk": False,
                 },
                 42,
                 "world",
             ],
         ),
-        # Attention: This test is not correct right now
-        # Test with full and chunk messages
-        (
-            [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-            ],
-        ),
-        # Attention: This test is not correct right now
-        # Test with full and chunk messages
-        (
-            [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-            ],
-        ),
+        # Uncomment when langchain 0.0.306 is released
+        # # Attention: This test is not correct right now
+        # # Test with full and chunk messages
+        # (
+        #     [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
+        #     [
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hello",
+        #             "example": False,
+        #             "type": "human",
+        #         },
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hi",
+        #             "example": False,
+        #             "type": "human",
+        #         },
+        #     ],
+        # ),
+        # # Attention: This test is not correct right now
+        # # Test with full and chunk messages
+        # (
+        #     [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
+        #     [
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hello",
+        #             "example": False,
+        #             "type": "human",
+        #         },
+        #         {
+        #             "additional_kwargs": {},
+        #             "content": "Hi",
+        #             "example": False,
+        #             "type": "human",
+        #         },
+        #     ],
+        # ),
         # Test with a dictionary containing mixed elements
         (
             {
@@ -125,7 +117,6 @@ from langserve.serialization import simple_dumps, simple_loads
                     "content": "Greetings",
                     "example": False,
                     "type": "human",
-                    "is_chunk": False,
                 },
                 "numbers": [1, 2, 3],
                 "boom": "Hello, world!",
