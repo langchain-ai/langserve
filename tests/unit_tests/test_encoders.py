@@ -4,7 +4,6 @@ from typing import Any
 import pytest
 from langchain.schema.messages import (
     HumanMessage,
-    HumanMessageChunk,
     SystemMessage,
 )
 
