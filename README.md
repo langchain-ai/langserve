@@ -27,21 +27,17 @@ app = FastAPI(
 )
 
 
-# Serve Open AI and Anthropic models
-LLMInput = Union[List[Union[SystemMessage, HumanMessage, str]], str]
-
 add_routes(
     app,
     ChatOpenAI(),
     path="/openai",
-    input_type=LLMInput,
     config_keys=[],
 )
+
 add_routes(
     app,
     ChatAnthropic(),
     path="/anthropic",
-    input_type=LLMInput,
     config_keys=[],
 )
 
@@ -61,7 +57,6 @@ if __name__ == "__main__":
 
     uvicorn.run(app, host="localhost", port=8000)
 ```
-
 
 ### Client
 
@@ -106,7 +101,7 @@ chain.batch([{ "topic": "parrots" }, { "topic": "cats" }])
 ## Installation
 
 ```bash
-# pip install langserve[all] -- has not been published to pypi yet
+pip install langserve[all]
 ```
 
 or use `client` extra for client code, and `server` extra for server code.
