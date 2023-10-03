@@ -15,11 +15,6 @@ model = ChatOpenAI().configurable_alternatives(
     mid_temp=ChatOpenAI(temperature=0.5),
 )
 
-# prompt = ChatPromptTemplate.from_messages(
-#     [("system", "tell the user a joke about {topic}")]
-# )
-#
-
 prompt = PromptTemplate.from_template(
     "tell me a joke about {topic}"
 ).configurable_fields(
@@ -37,14 +32,7 @@ app = FastAPI(
 )
 
 
-class ChainInput(TypedDict):
-    """The input to the chain."""
-
-    topic: str
-    """The topic of the joke."""
-
-
-add_routes(app, chain, input_type=ChainInput, config_keys=["configurable"])
+add_routes(app, chain, config_keys=["configurable"])
 
 if __name__ == "__main__":
     import uvicorn
