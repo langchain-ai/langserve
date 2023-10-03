@@ -21,7 +21,11 @@ from langchain.schema.messages import (
     SystemMessage,
     SystemMessageChunk,
 )
-from pydantic import BaseModel, ValidationError
+
+try:
+    from pydantic.v1 import BaseModel, ValidationError
+except ImportError:
+    from pydantic import BaseModel, ValidationError
 
 
 class WellKnownLCObject(BaseModel):
