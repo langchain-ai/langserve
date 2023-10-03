@@ -227,3 +227,18 @@ def add_routes(
             yield {"event": "end"}
 
         return EventSourceResponse(_stream_log())
+
+    @app.get(f"{namespace}/input_schema")
+    async def input_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.input_schema.schema()
+
+    @app.get(f"{namespace}/output_schema")
+    async def output_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.output_schema.schema()
+
+    @app.get(f"{namespace}/config_schema")
+    async def config_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.config_schema().schema()

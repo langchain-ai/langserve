@@ -43,7 +43,7 @@ def create_invoke_request_model(
     invoke_request_type = create_model(
         f"{namespace}InvokeRequest",
         input=(input_type, ...),
-        config=(config, Field(default_factory=dict)),
+        config=(dict, Field(default_factory=dict)),
         kwargs=(dict, Field(default_factory=dict)),
     )
     invoke_request_type.update_forward_refs()
