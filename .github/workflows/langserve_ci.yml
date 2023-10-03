@@ -37,6 +37,12 @@ jobs:
       working-directory: .
     secrets: inherit
 
+  pydantic-compatibility:
+    uses:
+      ./.github/workflows/_pydantic_compatibility.yml
+    with:
+      working-directory: .
+    secrets: inherit
   test:
     runs-on: ubuntu-latest
     defaults:
@@ -49,7 +55,7 @@ jobs:
           - "3.9"
           - "3.10"
           - "3.11"
-    name: Python ${{ matrix.python-version }} extended tests
+    name: Python ${{ matrix.python-version }} tests
     steps:
       - uses: actions/checkout@v3
 
@@ -80,4 +86,6 @@ jobs:
 
           # grep will exit non-zero if the target message isn't found,
           # and `set -e` above will cause the step to fail.
-          echo "$STATUS" | grep 'nothing to commit, working tree clean'
+          echo "$STATUS" | grep 'nothing to commit, working tree clean
+          
+
