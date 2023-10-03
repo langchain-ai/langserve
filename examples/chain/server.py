@@ -18,7 +18,7 @@ prompt = PromptTemplate.from_template(
     "tell me a joke about {topic}"
 ).configurable_fields(
     template=ConfigurableField(
-        id="topic", name="Topic", description="The topic of the joke"
+        id="template", name="Topic", description="The topic of the joke"
     )
 )
 
