@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a chain composed of a prompt and an LLM."""
 from fastapi import FastAPI
-from typing_extensions import TypedDict
-
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
+from langchain.prompts import PromptTemplate
 from langchain.schema.runnable.utils import ConfigurableField
+
 from langserve import add_routes
 
 model = ChatOpenAI().configurable_alternatives(
@@ -31,8 +30,7 @@ app = FastAPI(
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
 
-
-add_routes(app, chain, config_keys=["configurable"])
+add_routes(app, chain)
 
 if __name__ == "__main__":
     import uvicorn

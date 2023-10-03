@@ -152,7 +152,6 @@ def add_routes(
 
     InvokeRequest = create_invoke_request_model(model_namespace, input_type_, config)
     BatchRequest = create_batch_request_model(model_namespace, input_type_, config)
-    # Stream request is the same as invoke request, but with a different response type
     StreamRequest = create_stream_request_model(model_namespace, input_type_, config)
     StreamLogRequest = create_stream_log_request_model(
         model_namespace, input_type_, config
