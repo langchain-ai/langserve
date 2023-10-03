@@ -489,7 +489,7 @@ async def test_openapi_docs_with_identical_runnables(
         app,
         server_runnable2,
         path="/2",
-        config_keys=["tags", "run_name", "metadata", "configurable"],
+        config_keys=["tags", "run_name", "metadata"],
     )
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
