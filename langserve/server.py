@@ -11,6 +11,7 @@ from typing import (
     Union,
 )
 
+from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
@@ -34,9 +35,15 @@ except ImportError:
     APIRouter = FastAPI = Any
 
 
-def _project_dict(d: Mapping, keys: Sequence[str]) -> Dict[str, Any]:
+def _unpack_config(d: BaseModel, keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
-    return {k: d[k] for k in keys if k in d}
+    _d = d.dict()
+
+    new_keys = list(keys)
+    if "configurable" not in new_keys:
+        new_keys = ["configurable"] + new_keys
+
+    return {k: _d[k] for k in new_keys if k in _d}
 
 
 class InvokeResponse(BaseModel):
@@ -68,9 +75,14 @@ class BatchResponse(BaseModel):
 def _unpack_input(validated_model: BaseModel) -> Any:
     """Unpack the decoded input from the validated model."""
     if hasattr(validated_model, "__root__"):
-        return validated_model.__root__
+        model = validated_model.__root__
     else:
-        return validated_model
+        model = validated_model
+
+    if isinstance(model, Serializable):
+        return model
+    else:
+        return model.dict()
 
 
 _MODEL_REGISTRY = {}
@@ -108,7 +120,7 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     model_with_unique_name = create_model(
         f"{namespace}{model.__name__}",
         config=Config,
-        **{name: (field.type_, ...) for name, field in model.__fields__.items()},
+        **{name: (field.type_, None) for name, field in model.__fields__.items()},
     )
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
@@ -177,7 +189,7 @@ def add_routes(
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
-        config = _project_dict(request.config, config_keys)
+        config = _unpack_config(request.config, config_keys)
         output = await runnable.ainvoke(
             _unpack_input(request.input), config=config, **request.kwargs
         )
@@ -189,9 +201,9 @@ def add_routes(
     async def batch(request: Annotated[BatchRequest, BatchRequest]) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
         if isinstance(request.config, list):
-            config = [_project_dict(config, config_keys) for config in request.config]
+            config = [_unpack_config(config, config_keys) for config in request.config]
         else:
-            config = _project_dict(request.config, config_keys)
+            config = _unpack_config(request.config, config_keys)
         inputs = [_unpack_input(input_) for input_ in request.inputs]
         output = await runnable.abatch(inputs, config=config, **request.kwargs)
 
@@ -206,7 +218,7 @@ def add_routes(
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
         input_ = _unpack_input(request.input)
-        config = _project_dict(request.config, config_keys)
+        config = _unpack_config(request.config, config_keys)
 
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
@@ -229,7 +241,7 @@ def add_routes(
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
         input_ = _unpack_input(request.input)
-        config = _project_dict(request.config, config_keys)
+        config = _unpack_config(request.config, config_keys)
 
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
