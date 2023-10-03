@@ -100,6 +100,19 @@ def test_server(app: FastAPI) -> None:
         "output": [2],
     }
 
+    # Test schema
+    input_schema = sync_client.get("/input_schema").json()
+    assert isinstance(input_schema, dict)
+    assert input_schema["title"] == "RunnableLambdaInput"
+
+    output_schema = sync_client.get("/output_schema").json()
+    assert isinstance(output_schema, dict)
+    assert output_schema["title"] == "RunnableLambdaOutput"
+
+    output_schema = sync_client.get("/config_schema").json()
+    assert isinstance(output_schema, dict)
+    assert output_schema["title"] == "RunnableLambdaConfig"
+
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     ## Test stream
     # response = sync_client.post("/stream", json={"input": 1})

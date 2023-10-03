@@ -5,7 +5,7 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from typing_extensions import TypedDict, Type
+from typing_extensions import Type, TypedDict
 
 InputValidator = Union[Type[BaseModel], type]
 # The following langchain objects are considered to be safe to load.

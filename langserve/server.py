@@ -90,12 +90,21 @@ def _resolve_input_type(input_type: Union[Type, BaseModel]) -> BaseModel:
     return _MODEL_REGISTRY[hash_]
 
 
-def _create_unique_name(namespace: str, model: Type[BaseModel]) -> Type[BaseModel]:
-    """Create a unique name for the given model."""
+def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[BaseModel]:
+    """Create a unique name for the given model.
+
+    Args:
+        namespace: The namespace to use for the model.
+        model: The model to create a unique name for.
+
+    Returns:
+        A new model with name prepended with the given namespace.
+    """
 
     class Config:
         arbitrary_types_allowed = True
 
+    # TODO(Team): Propagate defaults
     model_with_unique_name = create_model(
         f"{namespace}{model.__name__}",
         config=Config,
@@ -146,7 +155,7 @@ def add_routes(
 
     model_namespace = path.strip("/").replace("/", "_")
 
-    config = _create_unique_name(
+    config = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
 
@@ -243,3 +252,18 @@ def add_routes(
             yield {"event": "end"}
 
         return EventSourceResponse(_stream_log())
+
+    @app.get(f"{namespace}/input_schema")
+    async def input_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.input_schema.schema()
+
+    @app.get(f"{namespace}/output_schema")
+    async def output_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.output_schema.schema()
+
+    @app.get(f"{namespace}/config_schema")
+    async def config_schema() -> Any:
+        """Return the input schema of the runnable."""
+        return runnable.config_schema(include=config_keys).schema()
