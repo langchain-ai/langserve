@@ -23,7 +23,6 @@ from langserve.serialization import simple_dumpd, simple_dumps
 from langserve.validation import (
     create_batch_request_model,
     create_invoke_request_model,
-    create_runnable_config_model,
     create_stream_log_request_model,
     create_stream_request_model,
 )
@@ -91,6 +90,21 @@ def _resolve_input_type(input_type: Union[Type, BaseModel]) -> BaseModel:
     return _MODEL_REGISTRY[hash_]
 
 
+def _create_unique_name(namespace: str, model: Type[BaseModel]) -> Type[BaseModel]:
+    """Create a unique name for the given model."""
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    model_with_unique_name = create_model(
+        f"{namespace}{model.__name__}",
+        config=Config,
+        **{name: (field.type_, ...) for name, field in model.__fields__.items()},
+    )
+    model_with_unique_name.update_forward_refs()
+    return model_with_unique_name
+
+
 # PUBLIC API
 
 
@@ -132,7 +146,10 @@ def add_routes(
 
     model_namespace = path.strip("/").replace("/", "_")
 
-    config = create_runnable_config_model(model_namespace, config_keys)
+    config = _create_unique_name(
+        model_namespace, runnable.config_schema(include=config_keys)
+    )
+
     InvokeRequest = create_invoke_request_model(model_namespace, input_type_, config)
     BatchRequest = create_batch_request_model(model_namespace, input_type_, config)
     # Stream request is the same as invoke request, but with a different response type
@@ -227,18 +244,3 @@ def add_routes(
             yield {"event": "end"}
 
         return EventSourceResponse(_stream_log())
-
-    @app.get(f"{namespace}/input_schema")
-    async def input_schema() -> Any:
-        """Return the input schema of the runnable."""
-        return runnable.input_schema.schema()
-
-    @app.get(f"{namespace}/output_schema")
-    async def output_schema() -> Any:
-        """Return the input schema of the runnable."""
-        return runnable.output_schema.schema()
-
-    @app.get(f"{namespace}/config_schema")
-    async def config_schema() -> Any:
-        """Return the input schema of the runnable."""
-        return runnable.config_schema().schema()
