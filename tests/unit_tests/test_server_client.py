@@ -364,8 +364,8 @@ async def test_input_validation(
         """Add one to simulate a valid function"""
         return x + 1
 
-    server_runnable = RunnableLambda(func=add_one, afunc=add_one)
-    server_runnable2 = RunnableLambda(func=add_one, afunc=add_one)
+    server_runnable = RunnableLambda(func=add_one)
+    server_runnable2 = RunnableLambda(func=add_one)
 
     app = FastAPI()
     add_routes(
@@ -380,7 +380,7 @@ async def test_input_validation(
         server_runnable2,
         input_type=int,
         path="/add_one_config",
-        config_keys=["tags", "run_name"],
+        config_keys=["tags", "run_name", "metadata"],
     )
 
     async with get_async_client(app, path="/add_one") as runnable:
@@ -393,7 +393,7 @@ async def test_input_validation(
         with pytest.raises(httpx.HTTPError):
             await runnable.abatch(["hello"])
 
-    config = {"tags": ["test"]}
+    config = {"tags": ["test"], "metadata": {"a": 5}}
 
     invoke_spy_1 = mocker.spy(server_runnable, "ainvoke")
     # Verify config is handled correctly
@@ -408,7 +408,11 @@ async def test_input_validation(
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
-        assert invoke_spy_2.call_args[1]["config"] == config
+        assert invoke_spy_2.call_args[1]["config"] == {
+            "tags": ["test"],
+            "metadata": {"a": 5},
+            "run_name": None,  # At the moment this is added by default
+        }
 
 
 @pytest.mark.asyncio
@@ -433,6 +437,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
 
         # Valid
         result = await passthrough_runnable.ainvoke([HumanMessage(content="hello")])
+
+        # Valid
+        result = await passthrough_runnable.ainvoke(
+            [HumanMessage(content="hello")], config={"tags": ["test"]}
+        )
+
         assert isinstance(result, list)
         assert isinstance(result[0], HumanMessage)
 
@@ -495,14 +505,14 @@ async def test_openapi_docs_with_identical_runnables(
     add_routes(
         app,
         server_runnable,
-        path="/1",
+        path="/a",
     )
     # Add another route that uses the same schema (inferred from runnable input schema)
     add_routes(
         app,
         server_runnable2,
-        path="/2",
-        config_keys=["tags", "run_name", "metadata"],
+        path="/b",
+        config_keys=["tags"],
     )
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:

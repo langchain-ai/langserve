@@ -18,7 +18,7 @@ from typing_extensions import Annotated
 try:
     from pydantic.v1 import BaseModel, create_model
 except ImportError:
-    from pydantic import BaseModel, create_model
+    from pydantic import BaseModel, Field, create_model
 
 from langserve.serialization import simple_dumpd, simple_dumps
 from langserve.validation import (
@@ -38,11 +38,7 @@ except ImportError:
 def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
     _d = d.dict() if isinstance(d, BaseModel) else d
-    new_keys = list(keys)
-    if "configurable" not in new_keys:
-        new_keys = ["configurable"] + new_keys
-
-    return {k: _d[k] for k in new_keys if k in _d}
+    return {k: _d[k] for k in keys if k in _d}
 
 
 class InvokeResponse(BaseModel):
@@ -119,11 +115,20 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     class Config:
         arbitrary_types_allowed = True
 
-    # TODO(Team): Propagate defaults
     model_with_unique_name = create_model(
         f"{namespace}{model.__name__}",
         config=Config,
-        **{name: (field.type_, None) for name, field in model.__fields__.items()},
+        **{
+            name: (
+                field.annotation,
+                Field(
+                    field.default,
+                    title=name,
+                    description=field.field_info.description,
+                ),
+            )
+            for name, field in model.__fields__.items()
+        },
     )
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
