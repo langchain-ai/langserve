@@ -15,21 +15,15 @@ app = FastAPI(
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
 
-LLMInput = Union[List[Union[SystemMessage, HumanMessage, str]], str, ChatPromptValue]
-
 add_routes(
     app,
     ChatOpenAI(),
     path="/openai",
-    input_type=LLMInput,
-    config_keys=[],
 )
 add_routes(
     app,
     ChatAnthropic(),
     path="/anthropic",
-    input_type=LLMInput,
-    config_keys=[],
 )
 
 if __name__ == "__main__":

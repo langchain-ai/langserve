@@ -18,6 +18,9 @@ app = FastAPI(
 )
 
 
+# The input type is automatically inferred from the runnable
+# interface; however, if you want to override it, you can do so
+# by passing in the input_type argument to add_routes.
 class ChainInput(TypedDict):
     """The input to the chain."""
 
@@ -26,6 +29,10 @@ class ChainInput(TypedDict):
 
 
 add_routes(app, chain, input_type=ChainInput)
+
+# Alternatively, you can rely on langchain's type inference
+# to infer the input type from the runnable interface.
+# add_routes(app, chain)
 
 if __name__ == "__main__":
     import uvicorn

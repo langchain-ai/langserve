@@ -31,26 +31,17 @@ add_routes(
     app,
     ChatOpenAI(),
     path="/openai",
-    config_keys=[],
 )
 
 add_routes(
     app,
     ChatAnthropic(),
     path="/anthropic",
-    config_keys=[],
 )
-
-# Serve a joke chain
-class ChainInput(TypedDict):
-    """The input to the chain."""
-
-    topic: str
-    """The topic of the joke."""
 
 model = ChatAnthropic()
 prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
-add_routes(app, prompt | model, path="/chain", input_type=ChainInput)
+add_routes(app, prompt | model, path="/chain")
 
 if __name__ == "__main__":
     import uvicorn
