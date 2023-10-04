@@ -11,13 +11,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
+from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
 from langserve.server import add_routes
+from tests.unit_tests.utils import FakeListLLM
 
 
 @pytest.fixture(scope="session")
@@ -518,3 +521,51 @@ async def test_openapi_docs_with_identical_runnables(
     async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
         response = await async_client.get("/openapi.json")
         assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
+    """Add tests for using langchain's configurable runnables"""
+
+    template = PromptTemplate.from_template("say {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    llm = FakeListLLM(responses=["hello Mr. Kitten!"]).configurable_alternatives(
+        ConfigurableField(
+            id="llm",
+            name="LLM",
+        ),
+        passthrough_llm=(
+            RunnablePassthrough() | RunnableLambda(lambda prompt: prompt.text)
+        ),
+    )
+
+    chain = template | llm
+    assert chain.invoke({"name": "cat"}) == "hello Mr. Kitten!"  # Hard-coded LLM
+
+    app = FastAPI()
+    add_routes(app, chain, config_keys=["tags"])
+
+    async with get_async_client(app) as remote_runnable:
+        # Test with hard-coded LLM
+        assert await remote_runnable.ainvoke({"name": "cat"}) == "hello Mr. Kitten!"
+        # Test with alternative passthrough LLM
+        assert (
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"llm": "passthrough_llm"}, "tags": ["h"]},
+            )
+            == "say foo"
+        )
+        # Test with alternative passthrough LLM and configured template
+        assert (
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"llm": "passthrough_llm", "template": "hear {name}"}},
+            )
+            == "hear foo"
+        )
