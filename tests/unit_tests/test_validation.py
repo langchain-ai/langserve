@@ -1,6 +1,10 @@
 from typing import List, Optional
 
 import pytest
+from langchain.prompts import PromptTemplate
+from langchain.schema.runnable.utils import ConfigurableField
+
+from langserve.server import _unpack_config
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
@@ -132,3 +136,47 @@ def test_validation(test_case) -> None:
     else:
         with pytest.raises(ValidationError):
             model(**test_case)
+
+
+def test_invoke_request_with_runnables() -> None:
+    """Test that the invoke request model is created correctly."""
+    runnable = PromptTemplate.from_template("say hello to {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    config = runnable.config_schema(include=["tags", "run_name"])
+    Model = create_invoke_request_model("", runnable.input_schema, config)
+
+    assert (
+        _unpack_config(
+            Model(
+                input={"name": "bob"},
+            ).config,
+            [],
+        )
+        == {}
+    )
+
+    # Test that the config is unpacked correctly
+    request = Model(
+        input={"name": "bob"},
+        config={
+            "tags": ["hello"],
+            "run_name": "run",
+            "configurable": {"template": "goodbye {name}"},
+        },
+    )
+    assert request.input == {"name": "bob"}
+    assert request.config.tags == ["hello"]
+    assert request.config.run_name == "run"
+    assert isinstance(request.config.configurable, BaseModel)
+    assert request.config.configurable.dict() == {
+        "template": "goodbye {name}",
+    }
+
+    assert _unpack_config(request.config, []) == {
+        "configurable": {"template": "goodbye {name}"},
+    }

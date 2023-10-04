@@ -38,7 +38,12 @@ except ImportError:
 def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
     _d = d.dict() if isinstance(d, BaseModel) else d
-    return {k: _d[k] for k in keys if k in _d}
+    new_keys = list(keys)
+
+    if "configurable" not in new_keys:
+        new_keys.append("configurable")
+
+    return {k: _d[k] for k in new_keys if k in _d}
 
 
 class InvokeResponse(BaseModel):
@@ -178,7 +183,6 @@ def add_routes(
     config = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
-
     InvokeRequest = create_invoke_request_model(model_namespace, input_type_, config)
     BatchRequest = create_batch_request_model(model_namespace, input_type_, config)
     StreamRequest = create_stream_request_model(model_namespace, input_type_, config)
@@ -196,7 +200,6 @@ def add_routes(
         """Invoke the runnable with the given input and config."""
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
-        # After validation, the input is loaded using LangChain's load function.
         config = _unpack_config(request.config, config_keys)
         output = await runnable.ainvoke(
             _unpack_input(request.input), config=config, **request.kwargs
