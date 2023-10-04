@@ -2,26 +2,13 @@
 """Example LangChain server exposes a chain composed of a prompt and an LLM."""
 from fastapi import FastAPI
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.schema.runnable.utils import ConfigurableField
+from langchain.prompts import ChatPromptTemplate
+from typing_extensions import TypedDict
 
 from langserve import add_routes
 
-model = ChatOpenAI().configurable_alternatives(
-    ConfigurableField(id="llm", name="LLM"),
-    high_temp=ChatOpenAI(temperature=0.9),
-    low_temp=ChatOpenAI(temperature=0.1, max_tokens=1),
-    mid_temp=ChatOpenAI(temperature=0.5),
-)
-
-prompt = PromptTemplate.from_template(
-    "tell me a joke about {topic}"
-).configurable_fields(
-    template=ConfigurableField(
-        id="template", name="Topic", description="The topic of the joke"
-    )
-)
-
+model = ChatOpenAI()
+prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
 chain = prompt | model
 
 app = FastAPI(
@@ -30,7 +17,15 @@ app = FastAPI(
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
 
-add_routes(app, chain)
+
+class ChainInput(TypedDict):
+    """The input to the chain."""
+
+    topic: str
+    """The topic of the joke."""
+
+
+add_routes(app, chain, input_type=ChainInput)
 
 if __name__ == "__main__":
     import uvicorn
