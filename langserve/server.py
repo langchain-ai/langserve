@@ -35,10 +35,9 @@ except ImportError:
     APIRouter = FastAPI = Any
 
 
-def _unpack_config(d: BaseModel, keys: Sequence[str]) -> Dict[str, Any]:
+def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
-    _d = d.dict()
-
+    _d = d.dict() if isinstance(d, BaseModel) else d
     new_keys = list(keys)
     if "configurable" not in new_keys:
         new_keys = ["configurable"] + new_keys
@@ -79,10 +78,14 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     else:
         model = validated_model
 
-    if isinstance(model, Serializable):
-        return model
-    else:
+    if isinstance(model, BaseModel) and not isinstance(model, Serializable):
+        # If the model is a pydantic model, but not a Serializable, then
+        # it was created by the server as part of validation and isn't expected
+        # to be accepted by the runnables as input as a pydantic model,
+        # instead we need to convert it into a corresponding python dict.
         return model.dict()
+
+    return model
 
 
 _MODEL_REGISTRY = {}
