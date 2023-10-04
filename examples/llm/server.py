@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 """Example LangChain server exposes multiple runnables (LLMs in this case)."""
-from typing import List, Union
 
 from fastapi import FastAPI
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
-from langchain.prompts.chat import ChatPromptValue
-from langchain.schema.messages import HumanMessage, SystemMessage
 
 from langserve import add_routes
 
