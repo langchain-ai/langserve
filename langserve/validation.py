@@ -71,6 +71,7 @@ def create_stream_log_request_model(
         f"{namespace}StreamLogRequest",
         input=(input_type, ...),
         config=(config, Field(default_factory=dict)),
+        diff=(Optional[bool], False),
         include_names=(Optional[Sequence[str]], None),
         include_types=(Optional[Sequence[str]], None),
         include_tags=(Optional[Sequence[str]], None),

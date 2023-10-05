@@ -3,11 +3,19 @@ from __future__ import annotations
 import asyncio
 import weakref
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, AsyncIterator, Iterator, List, Optional, Sequence, Union
+from typing import (
+    Any,
+    AsyncIterator,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Union,
+)
 from urllib.parse import urljoin
 
 import httpx
-from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import (
@@ -359,6 +367,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         input: Input,
         config: Optional[RunnableConfig] = None,
         *,
+        diff: bool = False,
         include_names: Optional[Sequence[str]] = None,
         include_types: Optional[Sequence[str]] = None,
         include_tags: Optional[Sequence[str]] = None,
@@ -366,8 +375,9 @@ class RemoteRunnable(Runnable[Input, Output]):
         exclude_types: Optional[Sequence[str]] = None,
         exclude_tags: Optional[Sequence[str]] = None,
         **kwargs: Optional[Any],
-    ) -> AsyncIterator[RunLogPatch]:
+    ) -> Union[AsyncIterator[RunLogPatch], AsyncIterator[RunLog]]:
         """Stream all output from a runnable, as reported to the callback system.
+
         This includes all inner runs of LLMs, Retrievers, Tools, etc.
 
         Output is streamed as Log objects, which include a list of
@@ -392,6 +402,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "input": simple_dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
+            "diff": diff,
             "include_names": include_names,
             "include_types": include_types,
             "include_tags": include_tags,
@@ -413,11 +424,18 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = simple_loads(sse.data)
-                        chunk = RunLogPatch(*data["ops"])
+                        if diff:
+                            chunk = RunLogPatch(*data["ops"])
+                        else:
+                            chunk = RunLog(*data["ops"], state=data["state"])
+
                         yield chunk
 
-                        if final_output:
-                            final_output += chunk
+                        if diff:
+                            if final_output:
+                                final_output += chunk
+                            else:
+                                final_output = chunk
                         else:
                             final_output = chunk
                     elif sse.event == "end":

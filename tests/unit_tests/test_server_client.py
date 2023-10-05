@@ -10,7 +10,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
@@ -205,27 +205,75 @@ async def test_astream(async_client: RemoteRunnable) -> None:
 
 
 @pytest.mark.asyncio
-async def test_astream_log(async_client: RemoteRunnable) -> None:
+async def test_astream_log_no_diff(async_client: RemoteRunnable) -> None:
     """Test async stream."""
-    outputs = []
+    run_logs = []
 
-    async for chunk in async_client.astream_log(1):
-        outputs.append(chunk)
+    async for chunk in async_client.astream_log(1, diff=False):
+        run_logs.append(chunk)
 
-    assert len(outputs) == 3
+    assert len(run_logs) == 3
 
-    op = outputs[0].ops[0]
+    op = run_logs[0].ops[0]
     uuid = op["value"]["id"]
-    assert op == {
-        "op": "replace",
-        "path": "",
-        "value": {
-            "final_output": {"output": 2},
+
+    for run_log in run_logs:
+        assert isinstance(run_log, RunLog)
+
+    states = [run_log.state for run_log in run_logs]
+
+    assert states == [
+        {
+            "final_output": None,
             "id": uuid,
-            "logs": [],
+            "logs": {},
             "streamed_output": [],
         },
-    }
+        {
+            "final_output": {"output": 2},
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [],
+        },
+        {
+            "final_output": {"output": 2},
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [2],
+        },
+    ]
+
+    # Check that we're picking up one extra op on each chunk
+    assert [len(run_log.ops) for run_log in run_logs] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_astream_log(async_client: RemoteRunnable) -> None:
+    """Test async stream."""
+    run_log_patches = []
+
+    async for chunk in async_client.astream_log(1, diff=True):
+        run_log_patches.append(chunk)
+
+    op = run_log_patches[0].ops[0]
+    uuid = op["value"]["id"]
+
+    assert [run_log_patch.ops for run_log_patch in run_log_patches] == [
+        [
+            {
+                "op": "replace",
+                "path": "",
+                "value": {
+                    "final_output": {"output": 2},
+                    "id": uuid,
+                    "logs": {},
+                    "streamed_output": [],
+                },
+            }
+        ],
+        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
+        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+    ]
 
 
 def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
