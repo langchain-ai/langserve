@@ -582,38 +582,39 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
             description="The template to use for the prompt",
         )
     )
-    llm = FakeListLLM(responses=["hello Mr. Kitten!"]).configurable_alternatives(
+    llm = (
+        RunnablePassthrough() | RunnableLambda(lambda prompt: prompt.text)
+    ).configurable_alternatives(
         ConfigurableField(
             id="llm",
             name="LLM",
         ),
-        passthrough_llm=(
-            RunnablePassthrough() | RunnableLambda(lambda prompt: prompt.text)
-        ),
+        hardcoded_llm=FakeListLLM(responses=["hello Mr. Kitten!"]),
     )
-
     chain = template | llm
-    assert chain.invoke({"name": "cat"}) == "hello Mr. Kitten!"  # Hard-coded LLM
+    # Check server side
+    assert chain.invoke({"name": "cat"}) == "say cat"
 
     app = FastAPI()
     add_routes(app, chain, config_keys=["tags", "configurable"])
 
     async with get_async_client(app) as remote_runnable:
         # Test with hard-coded LLM
-        assert await remote_runnable.ainvoke({"name": "cat"}) == "hello Mr. Kitten!"
-        # # Test with alternative passthrough LLM
+        assert chain.invoke({"name": "cat"}) == "say cat"
+        # Test with different prompt
+
         assert (
             await remote_runnable.ainvoke(
                 {"name": "foo"},
-                {"configurable": {"llm": "passthrough_llm"}, "tags": ["h"]},
-            )
-            == "say foo"
-        )
-        # Test with alternative passthrough LLM and configured template
-        assert (
-            await remote_runnable.ainvoke(
-                {"name": "foo"},
-                {"configurable": {"llm": "passthrough_llm", "template": "hear {name}"}},
+                {"configurable": {"template": "hear {name}"}, "tags": ["h"]},
             )
             == "hear foo"
+        )
+        # Test with alternative passthrough LLM
+        assert (
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"llm": "hardcoded_llm"}, "tags": ["h"]},
+            )
+            == "hello Mr. Kitten!"
         )
