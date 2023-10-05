@@ -474,7 +474,7 @@ def add_routes(
     @app.get(namespace + "/playground/{file_path:path}")
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
-        res = await serve_playground(
+        return await serve_playground(
             runnable.with_config(
                 _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
             ),
@@ -482,4 +482,3 @@ def add_routes(
             f"{namespace}/playground",
             file_path,
         )
-        return res
