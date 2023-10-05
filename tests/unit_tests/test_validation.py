@@ -147,7 +147,7 @@ def test_invoke_request_with_runnables() -> None:
             description="The template to use for the prompt",
         )
     )
-    config = runnable.config_schema(include=["tags", "run_name"])
+    config = runnable.config_schema(include=["tags", "run_name", "configurable"])
     Model = create_invoke_request_model("", runnable.input_schema, config)
 
     assert (

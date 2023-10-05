@@ -365,7 +365,7 @@ async def test_invoke_as_part_of_sequence_async(async_client: RemoteRunnable) ->
         "value": {
             "final_output": None,
             "id": first_op["value"]["id"],
-            "logs": [],
+            "logs": {},
             "streamed_output": [],
         },
     }
@@ -596,12 +596,12 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
     assert chain.invoke({"name": "cat"}) == "hello Mr. Kitten!"  # Hard-coded LLM
 
     app = FastAPI()
-    add_routes(app, chain, config_keys=["tags"])
+    add_routes(app, chain, config_keys=["tags", "configurable"])
 
     async with get_async_client(app) as remote_runnable:
         # Test with hard-coded LLM
         assert await remote_runnable.ainvoke({"name": "cat"}) == "hello Mr. Kitten!"
-        # Test with alternative passthrough LLM
+        # # Test with alternative passthrough LLM
         assert (
             await remote_runnable.ainvoke(
                 {"name": "foo"},
