@@ -1,20 +1,43 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a chain composed of a prompt and an LLM."""
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import PromptTemplate
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.runnable import ConfigurableField
 from typing_extensions import TypedDict
 
 from langserve import add_routes
 
-model = ChatOpenAI()
-prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
-chain = prompt | model
+model = ChatOpenAI(temperature=0.5).configurable_alternatives(
+    ConfigurableField(id="llm", name="LLM"),
+    high_temp=ChatOpenAI(temperature=0.9),
+    low_temp=ChatOpenAI(temperature=0.1, max_tokens=1),
+)
+prompt = PromptTemplate.from_template(
+    "tell me a joke about {topic}"
+).configurable_fields(
+    template=ConfigurableField(
+        id="prompt", name="Prompt", description="The prompt to use."
+    )
+)
+chain = prompt | model | StrOutputParser()
 
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
     description="Spin up a simple api server using Langchain's Runnable interfaces",
+)
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -28,7 +51,7 @@ class ChainInput(TypedDict):
     """The topic of the joke."""
 
 
-add_routes(app, chain, input_type=ChainInput)
+add_routes(app, chain, input_type=ChainInput, config_keys=["configurable"])
 
 # Alternatively, you can rely on langchain's type inference
 # to infer the input type from the runnable interface.
@@ -37,4 +60,4 @@ add_routes(app, chain, input_type=ChainInput)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="localhost", port=8003)

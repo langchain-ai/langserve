@@ -33,6 +33,7 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
+from langserve.playground import serve_playground
 from langserve.serialization import simple_dumpd, simple_dumps
 from langserve.validation import (
     create_batch_request_model,
@@ -468,3 +469,17 @@ def add_routes(
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         return ConfigPayload.schema()
+
+    @app.get(namespace + "/h{config_hash}/playground/{file_path:path}")
+    @app.get(namespace + "/playground/{file_path:path}")
+    async def playground(file_path: str, config_hash: str = "") -> Any:
+        """Return the playground of the runnable."""
+        res = await serve_playground(
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ),
+            config_keys,
+            f"{namespace}/playground",
+            file_path,
+        )
+        return res
