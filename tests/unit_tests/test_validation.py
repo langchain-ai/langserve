@@ -177,6 +177,6 @@ def test_invoke_request_with_runnables() -> None:
         "template": "goodbye {name}",
     }
 
-    assert _unpack_config(request.config, []) == {
+    assert _unpack_config(request.config, ["configurable"]) == {
         "configurable": {"template": "goodbye {name}"},
     }

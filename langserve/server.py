@@ -39,12 +39,7 @@ except ImportError:
 def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
     _d = d.dict() if isinstance(d, BaseModel) else d
-    new_keys = list(keys)
-
-    if "configurable" not in new_keys:
-        new_keys.append("configurable")
-
-    return {k: _d[k] for k in new_keys if k in _d}
+    return {k: _d[k] for k in keys if k in _d}
 
 
 class InvokeResponse(BaseModel):
