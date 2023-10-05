@@ -57,7 +57,6 @@ export function useStreamLog() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input, config }),
       onmessage(msg) {
-        console.log(msg);
         if (msg.event === "data") {
           updateLatest(JSON.parse(msg.data)?.ops);
         }
