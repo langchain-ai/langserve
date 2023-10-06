@@ -2,12 +2,12 @@
 import asyncio
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import pytest
 import pytest_asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
@@ -15,7 +15,6 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
-
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
@@ -407,6 +406,44 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
 
 
 @pytest.mark.asyncio
+async def test_config_updater(
+    event_loop: AbstractEventLoop, mocker: MockerFixture
+) -> None:
+    """Test updating the config based on the raw request object."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+
+    def config_updater(config: Dict[str, Any], request: Request) -> Dict[str, Any]:
+        """Update the config"""
+        config = config.copy()
+        if "metadata" in config:
+            config["metadata"] = config["metadata"].copy()
+        else:
+            config["metadata"] = {}
+        config["metadata"]["headers"] = request.headers
+        return config
+
+    server_runnable = RunnableLambda(add_one)
+
+    add_routes(app, server_runnable, path="/add_one", config_updater=config_updater)
+
+    invoke_spy_1 = mocker.spy(server_runnable, "ainvoke")
+    # Verify config is handled correctly
+    async with get_async_client(app, path="/add_one") as runnable1:
+        # Verify that can be invoked with valid input
+        # Config ignored for runnable1
+        assert await runnable1.ainvoke(1, config={}) == 2
+        assert (
+            invoke_spy_1.call_args[1]["config"]["metadata"]["headers"]["content-type"]
+            == "application/json"
+        )
+
+
+@pytest.mark.asyncio
 async def test_input_validation(
     event_loop: AbstractEventLoop, mocker: MockerFixture
 ) -> None:
@@ -542,7 +579,7 @@ async def test_async_client_close() -> None:
 
 @pytest.mark.asyncio
 async def test_openapi_docs_with_identical_runnables(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
+    event_loop: AbstractEventLoop,
 ) -> None:
     """Test client side and server side exceptions."""
 

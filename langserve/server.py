@@ -2,23 +2,22 @@ from inspect import isclass
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Dict,
     List,
     Literal,
     Mapping,
+    Optional,
     Sequence,
     Type,
     Union,
-    Callable,
-    Optional,
 )
 
+from fastapi import Request
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
-
-from fastapi import Request
 
 try:
     from pydantic.v1 import BaseModel, create_model
