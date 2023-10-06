@@ -11,6 +11,7 @@ from typing import (
     Union,
 )
 
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
@@ -38,12 +39,7 @@ except ImportError:
 def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
     """Project the given keys from the given dict."""
     _d = d.dict() if isinstance(d, BaseModel) else d
-    new_keys = list(keys)
-
-    if "configurable" not in new_keys:
-        new_keys.append("configurable")
-
-    return {k: _d[k] for k in new_keys if k in _d}
+    return {k: _d[k] for k in keys if k in _d}
 
 
 class InvokeResponse(BaseModel):
@@ -256,9 +252,10 @@ def add_routes(
 
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
-            async for run_log_patch in runnable.astream_log(
+            async for chunk in runnable.astream_log(
                 input_,
                 config=config,
+                diff=request.diff,
                 include_names=request.include_names,
                 include_types=request.include_types,
                 include_tags=request.include_tags,
@@ -267,9 +264,28 @@ def add_routes(
                 exclude_tags=request.exclude_tags,
                 **request.kwargs,
             ):
+                if request.diff:  # Run log patch
+                    if not isinstance(chunk, RunLogPatch):
+                        raise AssertionError(
+                            f"Expected a RunLog instance got {type(chunk)}"
+                        )
+                    data = {
+                        "ops": chunk.ops,
+                    }
+                else:
+                    # Then it's a run log
+                    if not isinstance(chunk, RunLog):
+                        raise AssertionError(
+                            f"Expected a RunLog instance got {type(chunk)}"
+                        )
+                    data = {
+                        "state": chunk.state,
+                        "ops": chunk.ops,
+                    }
+
                 # Temporary adapter
                 yield {
-                    "data": simple_dumps({"ops": run_log_patch.ops}),
+                    "data": simple_dumps(data),
                     "event": "data",
                 }
             yield {"event": "end"}
