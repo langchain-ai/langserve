@@ -6,7 +6,6 @@ from langchain.schema.messages import (
     HumanMessage,
     HumanMessageChunk,
     SystemMessage,
-    HumanMessageChunk,
 )
 
 try:
