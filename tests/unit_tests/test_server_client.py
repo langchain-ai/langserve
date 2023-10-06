@@ -15,6 +15,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
+
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 

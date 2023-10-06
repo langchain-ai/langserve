@@ -156,6 +156,7 @@ def test_invoke_request_with_runnables() -> None:
                 input={"name": "bob"},
             ).config,
             [],
+            None,  # type: ignore # This is the raw request (not used for test)
         )
         == {}
     )
@@ -177,6 +178,11 @@ def test_invoke_request_with_runnables() -> None:
         "template": "goodbye {name}",
     }
 
-    assert _unpack_config(request.config, ["configurable"]) == {
+    raw_request = None  # Not used for test
+    config = _unpack_config(
+        request.config, ["configurable"], raw_request  # type: ignore
+    )
+
+    assert config == {
         "configurable": {"template": "goodbye {name}"},
     }
