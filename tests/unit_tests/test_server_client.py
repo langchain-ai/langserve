@@ -10,14 +10,17 @@ import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
+from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
 from langserve.server import add_routes
+from tests.unit_tests.utils import FakeListLLM
 
 
 @pytest.fixture(scope="session")
@@ -99,6 +102,19 @@ def test_server(app: FastAPI) -> None:
     assert response.json() == {
         "output": [2],
     }
+
+    # Test schema
+    input_schema = sync_client.get("/input_schema").json()
+    assert isinstance(input_schema, dict)
+    assert input_schema["title"] == "RunnableLambdaInput"
+
+    output_schema = sync_client.get("/output_schema").json()
+    assert isinstance(output_schema, dict)
+    assert output_schema["title"] == "RunnableLambdaOutput"
+
+    output_schema = sync_client.get("/config_schema").json()
+    assert isinstance(output_schema, dict)
+    assert output_schema["title"] == "RunnableLambdaConfig"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     ## Test stream
@@ -189,27 +205,75 @@ async def test_astream(async_client: RemoteRunnable) -> None:
 
 
 @pytest.mark.asyncio
-async def test_astream_log(async_client: RemoteRunnable) -> None:
+async def test_astream_log_no_diff(async_client: RemoteRunnable) -> None:
     """Test async stream."""
-    outputs = []
+    run_logs = []
 
-    async for chunk in async_client.astream_log(1):
-        outputs.append(chunk)
+    async for chunk in async_client.astream_log(1, diff=False):
+        run_logs.append(chunk)
 
-    assert len(outputs) == 3
+    assert len(run_logs) == 3
 
-    op = outputs[0].ops[0]
+    op = run_logs[0].ops[0]
     uuid = op["value"]["id"]
-    assert op == {
-        "op": "replace",
-        "path": "",
-        "value": {
-            "final_output": {"output": 2},
+
+    for run_log in run_logs:
+        assert isinstance(run_log, RunLog)
+
+    states = [run_log.state for run_log in run_logs]
+
+    assert states == [
+        {
+            "final_output": None,
             "id": uuid,
-            "logs": [],
+            "logs": {},
             "streamed_output": [],
         },
-    }
+        {
+            "final_output": {"output": 2},
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [],
+        },
+        {
+            "final_output": {"output": 2},
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [2],
+        },
+    ]
+
+    # Check that we're picking up one extra op on each chunk
+    assert [len(run_log.ops) for run_log in run_logs] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_astream_log(async_client: RemoteRunnable) -> None:
+    """Test async stream."""
+    run_log_patches = []
+
+    async for chunk in async_client.astream_log(1, diff=True):
+        run_log_patches.append(chunk)
+
+    op = run_log_patches[0].ops[0]
+    uuid = op["value"]["id"]
+
+    assert [run_log_patch.ops for run_log_patch in run_log_patches] == [
+        [
+            {
+                "op": "replace",
+                "path": "",
+                "value": {
+                    "final_output": {"output": 2},
+                    "id": uuid,
+                    "logs": {},
+                    "streamed_output": [],
+                },
+            }
+        ],
+        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
+        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+    ]
 
 
 def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
@@ -301,7 +365,7 @@ async def test_invoke_as_part_of_sequence_async(async_client: RemoteRunnable) ->
         "value": {
             "final_output": None,
             "id": first_op["value"]["id"],
-            "logs": [],
+            "logs": {},
             "streamed_output": [],
         },
     }
@@ -351,8 +415,8 @@ async def test_input_validation(
         """Add one to simulate a valid function"""
         return x + 1
 
-    server_runnable = RunnableLambda(func=add_one, afunc=add_one)
-    server_runnable2 = RunnableLambda(func=add_one, afunc=add_one)
+    server_runnable = RunnableLambda(func=add_one)
+    server_runnable2 = RunnableLambda(func=add_one)
 
     app = FastAPI()
     add_routes(
@@ -367,7 +431,7 @@ async def test_input_validation(
         server_runnable2,
         input_type=int,
         path="/add_one_config",
-        config_keys=["tags", "run_name"],
+        config_keys=["tags", "run_name", "metadata"],
     )
 
     async with get_async_client(app, path="/add_one") as runnable:
@@ -380,7 +444,7 @@ async def test_input_validation(
         with pytest.raises(httpx.HTTPError):
             await runnable.abatch(["hello"])
 
-    config = {"tags": ["test"]}
+    config = {"tags": ["test"], "metadata": {"a": 5}}
 
     invoke_spy_1 = mocker.spy(server_runnable, "ainvoke")
     # Verify config is handled correctly
@@ -395,7 +459,11 @@ async def test_input_validation(
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
-        assert invoke_spy_2.call_args[1]["config"] == config
+        assert invoke_spy_2.call_args[1]["config"] == {
+            "tags": ["test"],
+            "metadata": {"a": 5},
+            "run_name": None,  # At the moment this is added by default
+        }
 
 
 @pytest.mark.asyncio
@@ -420,6 +488,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
 
         # Valid
         result = await passthrough_runnable.ainvoke([HumanMessage(content="hello")])
+
+        # Valid
+        result = await passthrough_runnable.ainvoke(
+            [HumanMessage(content="hello")], config={"tags": ["test"]}
+        )
+
         assert isinstance(result, list)
         assert isinstance(result[0], HumanMessage)
 
@@ -482,16 +556,65 @@ async def test_openapi_docs_with_identical_runnables(
     add_routes(
         app,
         server_runnable,
-        path="/1",
+        path="/a",
     )
     # Add another route that uses the same schema (inferred from runnable input schema)
     add_routes(
         app,
         server_runnable2,
-        path="/2",
-        config_keys=["tags", "run_name"],
+        path="/b",
+        config_keys=["tags"],
     )
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
         response = await async_client.get("/openapi.json")
         assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
+    """Add tests for using langchain's configurable runnables"""
+
+    template = PromptTemplate.from_template("say {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    llm = (
+        RunnablePassthrough() | RunnableLambda(lambda prompt: prompt.text)
+    ).configurable_alternatives(
+        ConfigurableField(
+            id="llm",
+            name="LLM",
+        ),
+        hardcoded_llm=FakeListLLM(responses=["hello Mr. Kitten!"]),
+    )
+    chain = template | llm
+    # Check server side
+    assert chain.invoke({"name": "cat"}) == "say cat"
+
+    app = FastAPI()
+    add_routes(app, chain, config_keys=["tags", "configurable"])
+
+    async with get_async_client(app) as remote_runnable:
+        # Test with hard-coded LLM
+        assert chain.invoke({"name": "cat"}) == "say cat"
+        # Test with different prompt
+
+        assert (
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"template": "hear {name}"}, "tags": ["h"]},
+            )
+            == "hear foo"
+        )
+        # Test with alternative passthrough LLM
+        assert (
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"llm": "hardcoded_llm"}, "tags": ["h"]},
+            )
+            == "hello Mr. Kitten!"
+        )

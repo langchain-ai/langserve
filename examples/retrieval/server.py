@@ -20,7 +20,7 @@ app = FastAPI(
 # /invoke
 # /batch
 # /stream
-add_routes(app, retriever, input_type=str)
+add_routes(app, retriever)
 
 if __name__ == "__main__":
     import uvicorn

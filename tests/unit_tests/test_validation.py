@@ -1,6 +1,10 @@
-from typing import Optional
+from typing import List, Optional
 
 import pytest
+from langchain.prompts import PromptTemplate
+from langchain.schema.runnable.utils import ConfigurableField
+
+from langserve.server import _unpack_config
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
@@ -10,7 +14,6 @@ except ImportError:
 from langserve.validation import (
     create_batch_request_model,
     create_invoke_request_model,
-    create_runnable_config_model,
 )
 
 
@@ -65,9 +68,11 @@ def test_create_invoke_and_batch_models(test_case: dict) -> None:
         b: Optional[str] = None
 
     valid = test_case.pop("valid")
-    config = create_runnable_config_model("test", ["tags"])
 
-    model = create_invoke_request_model("namespace", Input, config)
+    class Config(BaseModel):
+        tags: Optional[List[str]] = None
+
+    model = create_invoke_request_model("namespace", Input, Config)
 
     if valid:
         model(**test_case)
@@ -78,7 +83,7 @@ def test_create_invoke_and_batch_models(test_case: dict) -> None:
     # Validate batch request
     # same structure as input request, but
     # 'input' is a list of inputs and is called 'inputs'
-    batch_model = create_batch_request_model("namespace", Input, config)
+    batch_model = create_batch_request_model("namespace", Input, Config)
 
     test_case["inputs"] = [test_case.pop("input")]
     if valid:
@@ -120,11 +125,58 @@ def test_create_invoke_and_batch_models(test_case: dict) -> None:
 )
 def test_validation(test_case) -> None:
     """Test that the invoke request model is created correctly."""
-    config = create_runnable_config_model("test", [])
-    model = create_invoke_request_model("namespace", test_case.pop("type"), config)
+
+    class Config(BaseModel):
+        tags: Optional[List[str]] = None
+
+    model = create_invoke_request_model("namespace", test_case.pop("type"), Config)
 
     if test_case["valid"]:
         model(**test_case)
     else:
         with pytest.raises(ValidationError):
             model(**test_case)
+
+
+def test_invoke_request_with_runnables() -> None:
+    """Test that the invoke request model is created correctly."""
+    runnable = PromptTemplate.from_template("say hello to {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    config = runnable.config_schema(include=["tags", "run_name", "configurable"])
+    Model = create_invoke_request_model("", runnable.input_schema, config)
+
+    assert (
+        _unpack_config(
+            Model(
+                input={"name": "bob"},
+            ).config,
+            [],
+        )
+        == {}
+    )
+
+    # Test that the config is unpacked correctly
+    request = Model(
+        input={"name": "bob"},
+        config={
+            "tags": ["hello"],
+            "run_name": "run",
+            "configurable": {"template": "goodbye {name}"},
+        },
+    )
+    assert request.input == {"name": "bob"}
+    assert request.config.tags == ["hello"]
+    assert request.config.run_name == "run"
+    assert isinstance(request.config.configurable, BaseModel)
+    assert request.config.configurable.dict() == {
+        "template": "goodbye {name}",
+    }
+
+    assert _unpack_config(request.config, ["configurable"]) == {
+        "configurable": {"template": "goodbye {name}"},
+    }

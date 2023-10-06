@@ -1,37 +1,16 @@
-from typing import List, Optional, Sequence, Type, Union
-
-from langchain.schema.runnable import RunnableConfig
+from typing import List, Optional, Sequence, Union
 
 try:
     from pydantic.v1 import BaseModel, Field, create_model
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from typing_extensions import TypedDict
+from typing_extensions import Type, TypedDict
 
 InputValidator = Union[Type[BaseModel], type]
 # The following langchain objects are considered to be safe to load.
 
 # PUBLIC API
-
-
-def create_runnable_config_model(
-    ns: str, config_keys: Sequence[str]
-) -> type(TypedDict):
-    """Create a projection of the runnable config type.
-
-    Args:
-        ns: The namespace of the runnable config type.
-        config_keys: The keys to include in the projection.
-    """
-    subset_dict = {}
-    for key in config_keys:
-        if key in RunnableConfig.__annotations__:
-            subset_dict[key] = RunnableConfig.__annotations__[key]
-        else:
-            raise AssertionError(f"Key {key} not in RunnableConfig.")
-
-    return TypedDict(f"{ns}RunnableConfig", subset_dict, total=False)
 
 
 def create_invoke_request_model(
@@ -92,6 +71,7 @@ def create_stream_log_request_model(
         f"{namespace}StreamLogRequest",
         input=(input_type, ...),
         config=(config, Field(default_factory=dict)),
+        diff=(Optional[bool], False),
         include_names=(Optional[Sequence[str]], None),
         include_types=(Optional[Sequence[str]], None),
         include_tags=(Optional[Sequence[str]], None),
