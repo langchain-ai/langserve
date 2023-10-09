@@ -64,8 +64,9 @@ export function useStreamLog() {
       onclose() {
         setController(null);
       },
-      onerror() {
+      onerror(error) {
         setController(null);
+        throw error;
       },
     });
   }, []);
