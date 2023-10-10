@@ -82,3 +82,29 @@ def create_stream_log_request_model(
     )
     stream_log_request.update_forward_refs()
     return stream_log_request
+
+
+def create_invoke_response_model(
+    namespace: str,
+    output_type: InputValidator,
+) -> Type[BaseModel]:
+    """Create a pydantic model for the invoke response."""
+    invoke_response_type = create_model(
+        f"{namespace}InvokeResponse",
+        output=(output_type, ...),
+    )
+    invoke_response_type.update_forward_refs()
+    return invoke_response_type
+
+
+def create_batch_response_model(
+    namespace: str,
+    output_type: InputValidator,
+) -> Type[BaseModel]:
+    """Create a pydantic model for the batch response."""
+    batch_response_type = create_model(
+        f"{namespace}BatchResponse",
+        output=(List[output_type], ...),
+    )
+    batch_response_type.update_forward_refs()
+    return batch_response_type
