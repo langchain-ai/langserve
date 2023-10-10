@@ -28,24 +28,21 @@ except ImportError:
     from pydantic import BaseModel, ValidationError
 
 
-class WellKnownLCObject(BaseModel):
-    """A well known LangChain object."""
-
-    __root__: Union[
-        Document,
-        HumanMessage,
-        SystemMessage,
-        ChatMessage,
-        FunctionMessage,
-        AIMessage,
-        HumanMessageChunk,
-        SystemMessageChunk,
-        ChatMessageChunk,
-        FunctionMessageChunk,
-        AIMessageChunk,
-        StringPromptValue,
-        ChatPromptValueConcrete,
-    ]
+def _recurse_obj(obj: Any) -> Any:
+    """Recursively convert a pydantic object to a dict."""
+    if isinstance(obj, BaseModel):
+        d = {
+            field_name: _recurse_obj(getattr(obj, field_name))
+            for field_name in obj.__fields__
+        }
+        d["__typename"] = obj.__class__.__name__
+        return d
+    elif isinstance(obj, list):
+        return [_recurse_obj(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: _recurse_obj(value) for key, value in obj.items()}
+    else:
+        return obj
 
 
 # Custom JSON Encoder
@@ -53,9 +50,26 @@ class _LangChainEncoder(json.JSONEncoder):
     """Custom JSON Encoder that can encode pydantic objects as well."""
 
     def default(self, obj) -> Any:
-        if isinstance(obj, BaseModel):
-            return obj.dict()
-        return super().default(obj)
+        return _recurse_obj(obj)
+
+
+WellKnownTypes = [
+    Document,
+    HumanMessage,
+    SystemMessage,
+    ChatMessage,
+    FunctionMessage,
+    AIMessage,
+    HumanMessageChunk,
+    SystemMessageChunk,
+    ChatMessageChunk,
+    FunctionMessageChunk,
+    AIMessageChunk,
+    StringPromptValue,
+    ChatPromptValueConcrete,
+]
+
+NAME_TO_TYPE = {type_.__name__: type_ for type_ in WellKnownTypes}
 
 
 # Custom JSON Decoder
@@ -69,11 +83,15 @@ class _LangChainDecoder(json.JSONDecoder):
     def decoder(self, value) -> Any:
         """Decode the value."""
         if isinstance(value, dict):
-            try:
-                obj = WellKnownLCObject.parse_obj(value)
-                return obj.__root__
-            except ValidationError:
-                return {key: self.decoder(v) for key, v in value.items()}
+            new_value = {
+                key: self.decoder(v) for key, v in value.items() if key != "__typename"
+            }
+
+            if "__typename" in value:
+                type_ = NAME_TO_TYPE[value["__typename"]]
+                return type_.parse_obj(new_value)
+            else:
+                return new_value
         elif isinstance(value, list):
             return [self.decoder(item) for item in value]
         else:

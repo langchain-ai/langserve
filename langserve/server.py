@@ -42,6 +42,15 @@ def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[st
     return {k: _d[k] for k in keys if k in _d}
 
 
+from typing_extensions import TypedDict
+
+class CallbackEvent(TypedDict):
+    """Serialized representation of a callback event."""
+    type: str
+    data: Dict
+
+
+
 class InvokeResponse(BaseModel):
     """Response from invoking a runnable.
 
@@ -53,6 +62,8 @@ class InvokeResponse(BaseModel):
 
     An object that can be serialized to JSON using LangChain serialization.
     """
+
+    callback_events: List[CallbackEvent]
 
 
 class BatchResponse(BaseModel):
@@ -168,6 +179,7 @@ def add_routes(
         )
 
     if input_type == "auto":
+
         input_type_ = _resolve_input_type(runnable.input_schema)
     else:
         input_type_ = _resolve_input_type(input_type)
