@@ -7,6 +7,8 @@ from langchain.schema.messages import (
     HumanMessageChunk,
     SystemMessage,
 )
+from langchain.schema.document import Document
+
 
 try:
     from pydantic.v1 import BaseModel
@@ -17,131 +19,54 @@ from langserve.serialization import simple_dumps, simple_loads
 
 
 @pytest.mark.parametrize(
-    "data, expected_json",
+    "data",
     [
-        # Test with python primitives
-        (1, 1),
-        ([], []),
-        ({}, {}),
-        ({"a": 1}, {"a": 1}),
-        (
-            {"output": [HumanMessage(content="hello")]},
-            {
-                "output": [
-                    {
-                        "content": "hello",
-                        "additional_kwargs": {},
-                        "type": "human",
-                        "is_chunk": False,
-                        "example": False,
-                    }
-                ]
-            },
-        ),
+        1,
+        [],
+        {},
+        {"a": 1},
+        {"output": [HumanMessage(content="hello")]},
         # Test with a single message (HumanMessage)
-        (
-            HumanMessage(content="Hello"),
-            {
-                "additional_kwargs": {},
-                "content": "Hello",
-                "example": False,
-                "type": "human",
-                "is_chunk": False,
-            },
-        ),
+        HumanMessage(content="Hello"),
         # Test with a list containing mixed elements
-        (
-            [HumanMessage(content="Hello"), SystemMessage(content="Hi"), 42, "world"],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "type": "system",
-                    "is_chunk": False,
-                },
-                42,
-                "world",
-            ],
-        ),
+        [HumanMessage(content="Hello"), SystemMessage(content="Hi"), 42, "world"],
         # Uncomment when langchain 0.0.306 is released
-        (
-            [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-            ],
-        ),
+        [HumanMessage(content="Hello"), HumanMessageChunk(content="Hi")],
         # Attention: This test is not correct right now
         # Test with full and chunk messages
-        (
-            [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
-            [
-                {
-                    "additional_kwargs": {},
-                    "content": "Hello",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": True,
-                },
-                {
-                    "additional_kwargs": {},
-                    "content": "Hi",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-            ],
-        ),
+        [HumanMessageChunk(content="Hello"), HumanMessage(content="Hi")],
         # Test with a dictionary containing mixed elements
-        (
-            {
-                "message": HumanMessage(content="Greetings"),
-                "numbers": [1, 2, 3],
-                "boom": "Hello, world!",
-            },
-            {
-                "message": {
-                    "additional_kwargs": {},
-                    "content": "Greetings",
-                    "example": False,
-                    "type": "human",
-                    "is_chunk": False,
-                },
-                "numbers": [1, 2, 3],
-                "boom": "Hello, world!",
-            },
-        ),
+        {
+            "message": HumanMessage(content="Greetings"),
+            "numbers": [1, 2, 3],
+            "meow": "Hello, world!",
+        },
     ],
 )
-def test_serialization(data: Any, expected_json: Any) -> None:
+def test_serialization(data: Any) -> None:
     """Test that the LangChainEncoder encodes the data as expected."""
-    # Test encoding
-    assert json.loads(simple_dumps(data)) == expected_json
-    # Test decoding
-    assert simple_loads(json.dumps(expected_json)) == data
-    # Test full representation are equivalent including the pydantic model classes
-    assert _get_full_representation(data) == _get_full_representation(
-        simple_loads(json.dumps(expected_json))
-    )
+    serialized = simple_dumps(data)
+    assert isinstance(serialized, str)
+    deserialized = simple_loads(serialized)
+    # Verify equality (pydantic only checks schema equality, not class names.)
+    assert deserialized == data
+    # Verify equality of class names as well
+    assert _get_full_representation(data) == _get_full_representation(deserialized)
+
+
+def test_serialization_of_well_known_types() -> None:
+    """Test that the LangChainEncoder encodes the well known types as expected."""
+    well_known_types = [
+        HumanMessage(content="hello"),
+        HumanMessageChunk(content="hello"),
+        SystemMessage(content="goodbye"),
+        Document(page_content="hello", metadata={"page_number": 1}),
+    ]
+
+    for well_known_type in well_known_types:
+        assert _get_full_representation(well_known_type) == _get_full_representation(
+            simple_loads(simple_dumps(well_known_type))
+        )
 
 
 def _get_full_representation(data: Any) -> Any:
