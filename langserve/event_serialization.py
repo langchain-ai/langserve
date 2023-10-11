@@ -1,8 +1,4 @@
-"""Serialization module for Well Known LangChain objects.
-
-Specialized JSON serialization for well known LangChain objects that
-can be expected to be frequently transmitted between chains.
-"""
+"""Serialization for LangChain event data."""
 import json
 from typing import Any, Union
 
@@ -47,6 +43,7 @@ class WellKnownLCObject(BaseModel):
         ChatPromptValueConcrete,
     ]
 
+from uuid import UUID
 
 # Custom JSON Encoder
 class _LangChainEncoder(json.JSONEncoder):
@@ -55,7 +52,25 @@ class _LangChainEncoder(json.JSONEncoder):
     def default(self, obj) -> Any:
         if isinstance(obj, BaseModel):
             return obj.dict()
+        elif isinstance(obj, UUID):
+            return {
+                "__typna"
+            }
         return super().default(obj)
+
+
+def _decoder(value: Any) -> Any:
+    """Decode the value."""
+    if isinstance(value, dict):
+        try:
+            obj = WellKnownLCObject.parse_obj(value)
+            return obj.__root__
+        except ValidationError:
+            return {key: _decoder(v) for key, v in value.items()}
+    elif isinstance(value, list):
+        return [_decoder(item) for item in value]
+    else:
+        return value
 
 
 # Custom JSON Decoder
@@ -66,18 +81,9 @@ class _LangChainDecoder(json.JSONDecoder):
         """Initialize the LangChainDecoder."""
         super().__init__(object_hook=self.decoder, *args, **kwargs)
 
-    def decoder(self, value) -> Any:
+    def decoder(self, value: Any) -> Any:
         """Decode the value."""
-        if isinstance(value, dict):
-            try:
-                obj = WellKnownLCObject.parse_obj(value)
-                return obj.__root__
-            except ValidationError:
-                return {key: self.decoder(v) for key, v in value.items()}
-        elif isinstance(value, list):
-            return [self.decoder(item) for item in value]
-        else:
-            return value
+        return _decoder(value)
 
 
 # PUBLIC API

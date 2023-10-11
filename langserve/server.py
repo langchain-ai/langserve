@@ -16,6 +16,8 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
+from langserve.schema import CallbackEvent
+
 try:
     from pydantic.v1 import BaseModel, create_model
 except ImportError:
@@ -40,15 +42,6 @@ def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[st
     """Project the given keys from the given dict."""
     _d = d.dict() if isinstance(d, BaseModel) else d
     return {k: _d[k] for k in keys if k in _d}
-
-
-from typing_extensions import TypedDict
-
-class CallbackEvent(TypedDict):
-    """Serialized representation of a callback event."""
-    type: str
-    data: Dict
-
 
 
 class InvokeResponse(BaseModel):
