@@ -1,3 +1,10 @@
+"""FastAPI integration for langchain runnables.
+
+This code contains integration for langchain runnables with FastAPI.
+
+The main entry point is the `add_routes` function which adds the routes to an existing
+FastAPI app or APIRouter.
+"""
 from inspect import isclass
 from typing import (
     Any,
@@ -66,7 +73,7 @@ def _unpack_input(validated_model: BaseModel) -> Any:
 _MODEL_REGISTRY = {}
 
 
-def _resolve_model(type_: Union[Type, BaseModel], default_name: str) -> BaseModel:
+def _resolve_model(type_: Union[Type, BaseModel], default_name: str) -> Type[BaseModel]:
     """Resolve the input type to a BaseModel."""
     if isclass(type_) and issubclass(type_, BaseModel):
         model = type_
@@ -82,7 +89,10 @@ def _resolve_model(type_: Union[Type, BaseModel], default_name: str) -> BaseMode
 
 
 def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[BaseModel]:
-    """Create a unique name for the given model.
+    """Prefix the name of the given model with the given namespace.
+
+    Code is used to help avoid name collisions when hosting multiple runnables
+    that may use the same underlying models.
 
     Args:
         namespace: The namespace to use for the model.
@@ -127,6 +137,17 @@ def add_routes(
     config_keys: Sequence[str] = (),
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
+
+
+    The following routes are added per runnable under the specified `path`:
+
+    * /invoke - for invoking a runnable with a single input
+    * /batch - for invoking a runnable with multiple inputs
+    * /stream - for streaming the output of a runnable
+    * /stream_log - for streaming intermediate outputs for a runnable
+    * /input_schema - for returning the input schema of the runnable
+    * /output_schema - for returning the output schema of the runnable
+    * /config_schema - for returning the config schema of the runnable
 
     Args:
         app: The FastAPI app or APIRouter to which routes should be added.
@@ -209,7 +230,37 @@ def add_routes(
     async def stream(
         request: Annotated[StreamRequest, StreamRequest],
     ) -> EventSourceResponse:
-        """Invoke the runnable stream the output."""
+        """Invoke the runnable stream the output.
+
+        This endpoint allows to stream the output of the runnable.
+
+        The endpoint uses a server sent event stream to stream the output.
+
+        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+        Important: Set the "text/event-stream" media type for request headers if
+                   not using an existing SDK.
+
+        This endpoint uses two different types of events:
+
+        * data - for streaming the output of the runnable
+
+            {
+                "event": "data",
+                "data": {
+                ...
+                }
+            }
+
+        * end - for signaling the end of the stream.
+
+            This helps the client to know when to stop listening for events and
+            know that the streaming has ended successfully.
+
+            {
+                "event": "end",
+            }
+        """
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
@@ -232,7 +283,38 @@ def add_routes(
     async def stream_log(
         request: Annotated[StreamLogRequest, StreamLogRequest],
     ) -> EventSourceResponse:
-        """Invoke the runnable stream the output."""
+        """Invoke the runnable stream_log the output.
+
+        This endpoint allows to stream the output of the runnable, including
+        the output of all intermediate steps.
+
+        The endpoint uses a server sent event stream to stream the output.
+
+        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+        Important: Set the "text/event-stream" media type for request headers if
+                   not using an existing SDK.
+
+        This endpoint uses two different types of events:
+
+        * data - for streaming the output of the runnable
+
+            {
+                "event": "data",
+                "data": {
+                ...
+                }
+            }
+
+        * end - for signaling the end of the stream.
+
+            This helps the client to know when to stop listening for events and
+            know that the streaming has ended successfully.
+
+            {
+                "event": "end",
+            }
+        """
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
@@ -288,10 +370,10 @@ def add_routes(
 
     @app.get(f"{namespace}/output_schema")
     async def output_schema() -> Any:
-        """Return the input schema of the runnable."""
+        """Return the output schema of the runnable."""
         return runnable.output_schema.schema()
 
     @app.get(f"{namespace}/config_schema")
     async def config_schema() -> Any:
-        """Return the input schema of the runnable."""
+        """Return the config schema of the runnable."""
         return runnable.config_schema(include=config_keys).schema()
