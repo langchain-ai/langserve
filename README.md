@@ -2,8 +2,26 @@
 
 ## Overview
 
-`LangServe` is a library that allows developers to host their Langchain runnables / 
-call into them remotely from a runnable interface.
+`LangServe` helps developers deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expression_language/) as a REST API.
+
+This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
+
+In addition, it provides a client that can be used to call into runnables deployed on a server.
+A javascript client is available in [LangChainJS](https://js.langchain.com/docs/get_started/introduction).
+
+## Features
+
+- Deploy runnables with [FastAPI](https://fastapi.tiangolo.com/) -- async by default
+- Runnable endpoints are automatically generated for given runnable, including input and output validation and documentation.
+- Client can use remote runnables almost as if they were local
+  - Supports async
+  - Supports batch
+  - Supports streaming
+- Integrates with [LangSmith](https://www.langchain.com/langsmith)
+
+### Limitations
+
+- Client callbacks are not yet supported for events that originate on the server
 
 ## Examples
 
@@ -11,13 +29,15 @@ For more examples, see the [examples](./examples) directory.
 
 ### Server
 
+Here's a server that deploys an OpenAI chat model, an Anthropic chat model, and a chain that uses
+the Anthropic model to tell a joke about a topic.
+
 ```python
 #!/usr/bin/env python
 from fastapi import FastAPI
 from langchain.prompts import ChatPromptTemplate
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langserve import add_routes
-from typing_extensions import TypedDict
 
 
 app = FastAPI(
@@ -48,6 +68,14 @@ if __name__ == "__main__":
 
     uvicorn.run(app, host="localhost", port=8000)
 ```
+
+## The server is working
+
+```sh
+curl localhost:8000/docs
+```
+
+
 
 ### Client
 
@@ -89,22 +117,35 @@ chain = prompt | RunnableMap({
 chain.batch([{ "topic": "parrots" }, { "topic": "cats" }])
 ```
 
+## Endpoints 
+
+The following code:
+
+```python
+...
+add_routes(
+  app,
+  runnable,
+  path="/my_runnable",
+)
+```
+
+adds of these endpoints to the server:
+
+- `POST /my_runnable/invoke` - invoke the runnable on a single input
+- `POST /my_runnable/batch` - invoke the runnable on a batch of inputs
+- `POST /my_runnable/stream` - invoke on a single input and stream the output
+- `POST /my_runnable/stream_log` - invoke on a single input and stream the output, including partial outputs of intermediate steps
+- `GET /my_runnable/input_schema` - json schema for input to the runnable
+- `GET /my_runnable/output_schema` - json schema for output of the runnable
+- `GET /my_runnable/config_schema` - json schema for config of the runnable
+
 ## Installation
 
+For both client and server:
+
 ```bash
-pip install langserve[all]
+pip install "langserve[all]"
 ```
 
 or use `client` extra for client code, and `server` extra for server code.
-
-## Features
-
-- Deploy runnables with FastAPI
-- Client can use remote runnables almost as if they were local
-    - Supports async
-    - Supports batch
-    - Supports stream
-
-### Limitations
-
-- Chain callbacks cannot be passed from the client to the server
