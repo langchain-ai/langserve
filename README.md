@@ -22,6 +22,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 ### Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
+- Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
 
 ## Examples
 
@@ -69,13 +70,13 @@ if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=8000)
 ```
 
-## The server is working
+### Docs
+
+If you've deployed the server above, you can view the generated OpenAPI docs using:
 
 ```sh
 curl localhost:8000/docs
 ```
-
-
 
 ### Client
 
@@ -149,3 +150,11 @@ pip install "langserve[all]"
 ```
 
 or use `client` extra for client code, and `server` extra for server code.
+
+
+## Handling Authentication
+
+If you need to add authentication to your server, 
+please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
+and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
+
