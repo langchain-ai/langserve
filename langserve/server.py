@@ -186,9 +186,7 @@ def add_routes(
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         config = _unpack_config(request.config, config_keys)
-        output = await runnable.ainvoke(
-            _unpack_input(request.input), config=config, **request.kwargs
-        )
+        output = await runnable.ainvoke(_unpack_input(request.input), config=config)
 
         return InvokeResponse(output=simple_dumpd(output))
 
@@ -201,7 +199,7 @@ def add_routes(
         else:
             config = _unpack_config(request.config, config_keys)
         inputs = [_unpack_input(input_) for input_ in request.inputs]
-        output = await runnable.abatch(inputs, config=config, **request.kwargs)
+        output = await runnable.abatch(inputs, config=config)
 
         return BatchResponse(output=simple_dumpd(output))
 
@@ -221,7 +219,6 @@ def add_routes(
             async for chunk in runnable.astream(
                 input_,
                 config=config,
-                **request.kwargs,
             ):
                 yield {"data": simple_dumps(chunk), "event": "data"}
             yield {"event": "end"}
@@ -251,7 +248,6 @@ def add_routes(
                 exclude_names=request.exclude_names,
                 exclude_types=request.exclude_types,
                 exclude_tags=request.exclude_tags,
-                **request.kwargs,
             ):
                 if request.diff:  # Run log patch
                     if not isinstance(chunk, RunLogPatch):
