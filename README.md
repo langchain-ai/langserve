@@ -26,16 +26,16 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 
 ## LangChain CLI  🛠️
 
-The `LangChain` CLI can be used to spin up a package with langserve configured.
+Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
-To use the langchain CLI make sure that you have a recent version of langchain installed
+To use the langchain CLI make sure that you have a recent version of `langchain` installed
 and also `typer`. (`pip install langchain typer` or `pip install "langchain[cli]"`)
 
 ```sh
 langchain [directory-where-to-create-package]
 ```
 
-And follow the instructions. 
+And follow the instructions...
 
 ## Examples
 
