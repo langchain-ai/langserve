@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a conversational retrieval chain."""
 from fastapi import FastAPI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
 
 from langserve import add_routes
 
