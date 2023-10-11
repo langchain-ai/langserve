@@ -231,7 +231,7 @@ def add_routes(
         config = _unpack_config(invoke_request.config, config_keys)
         _add_tracing_info_to_metadata(config, request)
         output = await runnable.ainvoke(
-            _unpack_input(invoke_request.input), config=config, **invoke_request.kwargs
+            _unpack_input(invoke_request.input), config=config
         )
 
         return InvokeResponse(output=simple_dumpd(output))
@@ -254,7 +254,7 @@ def add_routes(
             config = _unpack_config(batch_request.config, config_keys)
             _add_tracing_info_to_metadata(config, request)
         inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
-        output = await runnable.abatch(inputs, config=config, **batch_request.kwargs)
+        output = await runnable.abatch(inputs, config=config)
 
         return BatchResponse(output=simple_dumpd(output))
 
@@ -306,7 +306,6 @@ def add_routes(
             async for chunk in runnable.astream(
                 input_,
                 config=config,
-                **stream_request.kwargs,
             ):
                 yield {"data": simple_dumps(chunk), "event": "data"}
             yield {"event": "end"}
@@ -369,7 +368,6 @@ def add_routes(
                 exclude_names=stream_log_request.exclude_names,
                 exclude_types=stream_log_request.exclude_types,
                 exclude_tags=stream_log_request.exclude_tags,
-                **stream_log_request.kwargs,
             ):
                 if stream_log_request.diff:  # Run log patch
                     if not isinstance(chunk, RunLogPatch):
