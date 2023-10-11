@@ -452,24 +452,18 @@ async def test_input_validation(
         # Verify that can be invoked with valid input
         # Config ignored for runnable1
         assert await runnable1.ainvoke(1, config=config) == 2
-        # Config should be ignored but default debug information
-        # will still be added
-        config_seen = invoke_spy_1.call_args[1]["config"]
-        assert "metadata" in config_seen
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
+        assert invoke_spy_1.call_args[1]["config"] == {}
 
     invoke_spy_2 = mocker.spy(server_runnable2, "ainvoke")
     async with get_async_client(app, path="/add_one_config") as runnable2:
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
-
-        config_seen = invoke_spy_2.call_args[1]["config"]
-        assert config_seen["tags"] == ["test"]
-        assert config_seen["metadata"]["a"] == 5
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
+        assert invoke_spy_2.call_args[1]["config"] == {
+            "tags": ["test"],
+            "metadata": {"a": 5},
+            "run_name": None,  # At the moment this is added by default
+        }
 
 
 @pytest.mark.asyncio
