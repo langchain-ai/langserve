@@ -29,7 +29,12 @@ except ImportError:
 
 
 class WellKnownLCObject(BaseModel):
-    """A well known LangChain object."""
+    """A well known LangChain object.
+
+    A pydantic model that defines what constitutes a well known LangChain object.
+
+    All well-known objects are allowed to be serialized and de-serialized.
+    """
 
     __root__: Union[
         Document,
