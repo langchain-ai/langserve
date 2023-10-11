@@ -24,9 +24,23 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Client callbacks are not yet supported for events that originate on the server
 - Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
 
+## LangChain CLI  🛠️
+
+The `LangChain` CLI can be used to spin up a package with langserve configured.
+
+To use the langchain CLI make sure that you have a recent version of langchain installed
+and also `typer`. (`pip install langchain typer` or `pip install "langchain[cli]"`)
+
+```sh
+langchain [directory-where-to-create-package]
+```
+
+And follow the instructions. 
+
 ## Examples
 
 For more examples, see the [examples](./examples) directory.
+
 
 ### Server
 
