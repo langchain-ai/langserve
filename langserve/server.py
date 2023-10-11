@@ -1,6 +1,4 @@
 from inspect import isclass
-from fastapi import Request
-
 from typing import (
     Any,
     AsyncIterator,
@@ -12,11 +10,13 @@ from typing import (
     Union,
 )
 
+from fastapi import Request
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
-from langserve import __version__
+
+from langserve.version import __version__
 
 try:
     from pydantic.v1 import BaseModel, create_model
