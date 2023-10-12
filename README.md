@@ -97,6 +97,8 @@ curl localhost:8000/docs
 
 ### Client
 
+Python SDK
+
 ```python
 
 from langchain.schema import SystemMessage, HumanMessage
@@ -134,6 +136,41 @@ chain = prompt | RunnableMap({
 
 chain.batch([{ "topic": "parrots" }, { "topic": "cats" }])
 ```
+
+In TypeScript (requires LangChain.js version 0.0.166 or later):
+
+```typescript
+import { RemoteRunnable } from "langchain/runnables/remote";
+
+const chain = new RemoteRunnable({ url: `http://localhost:8000/chain/invoke/` });
+const result = await chain.invoke({
+  "topic": "cats", 
+});
+```
+
+Python using `requests`:
+
+```python
+import requests
+response = requests.post(
+    "http://localhost:8000/chain/invoke/",
+    json={'input': {'topic': 'cats'}}
+)
+response.json()
+```
+
+You can also use `curl`:
+
+```sh
+curl --location --request POST 'http://localhost:8000/chain/invoke/' \
+    --header 'Content-Type: application/json' \
+    --data-raw '{
+        "input": {
+            "topic": "cats"
+        }
+    }'
+```
+
 
 ## Endpoints 
 
