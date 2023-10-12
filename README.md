@@ -182,3 +182,12 @@ If you need to add authentication to your server,
 please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
 and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
 
+## Deployment
+
+### Deploy to GCP
+
+You can deploy to GCP Cloud Run using the following command:
+
+```
+gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
+```
