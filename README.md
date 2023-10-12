@@ -179,3 +179,7 @@ If you need to add authentication to your server,
 please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
 and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
 
+
+## LangSmith 
+
+Follow the [Quick Start](https://docs.smith.langchain.com/#quick-start) instructions to configure [LangSmith](https://www.langchain.com/langsmith).
