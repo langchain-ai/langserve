@@ -172,7 +172,7 @@ or use `client` extra for client code, and `server` extra for server code.
 ## Legacy Chains
 
 LangServe works with both Runnables (constructed via [LangChain Expression Language](https://python.langchain.com/docs/expression_language/)) and legacy chains (inheriting from `Chain`).
-However, some of the input schemas for legacy chains may be incorrect, leading to errors.
+However, some of the input schemas for legacy chains may be incomplete/incorrect, leading to errors.
 This can be fixed by updating the `input_schema` property of those chains in LangChain.
 If you encounter any errors, please open an issue on THIS repo, and we will work to address it.
 
