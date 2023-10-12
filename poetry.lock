@@ -1648,13 +1648,13 @@ test = ["hatch", "ipykernel", "openapi-core (>=0.18.0,<0.19.0)", "openapi-spec-v
 
 [[package]]
 name = "langchain"
-version = "0.0.312"
+version = "0.0.313"
 description = "Building applications with LLMs through composability"
 optional = false
 python-versions = ">=3.8.1,<4.0"
 files = [
-    {file = "langchain-0.0.312-py3-none-any.whl", hash = "sha256:2c7ea6e80195b8747c25ca4b905bd4814f26f47719a27edcb369cb6cd2186df3"},
-    {file = "langchain-0.0.312.tar.gz", hash = "sha256:4629233c158f23dcfb0cbc249b27d7d8bde1e71ce1d8972d53ae54c7504fc78a"},
+    {file = "langchain-0.0.313-py3-none-any.whl", hash = "sha256:12d6797797e4b91e715a449da7eab2a094157180112680fdfaed0ae7c1614481"},
+    {file = "langchain-0.0.313.tar.gz", hash = "sha256:6ad3e366f8cc2ef97a63aecc86e265cc261f04e2bc5e0d3ef79fc99a8cd81248"},
 ]
 
 [package.dependencies]
@@ -3778,4 +3778,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "f6e1b5d9e6cc711d9ef1888856276551398b03ff804e9b5c34faead6234bf680"
+content-hash = "5c10b2c8e0c87eb71bc9c9d56a009fb1c861cad22833c41cae33fee09cb860a9"
