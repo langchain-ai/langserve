@@ -11,13 +11,13 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 
 ## Features
 
-- Deploy runnables with [FastAPI](https://fastapi.tiangolo.com/) -- async by default
-- Runnable endpoints are automatically generated for given runnable, including input and output validation and documentation.
-- Client can use remote runnables almost as if they were local
-  - Supports async
-  - Supports batch
-  - Supports streaming
-- Integrates with [LangSmith](https://www.langchain.com/langsmith)
+- Input and Output schemas automatically inferred from your LangChain object, and enforced on every API call, with rich error messages
+- API docs page with JSONSchema and Swagger (insert example link)
+- Efficient `/invoke`, `/batch` and `/stream` endpoints with support for many concurrent requests on a single server
+- `/stream_log` endpoint for streaming all (or some) intermediate steps from your chain/agent
+- Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key
+- All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
+- Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
 
 ### Limitations
 
@@ -60,7 +60,6 @@ app = FastAPI(
   version="1.0",
   description="A simple api server using Langchain's Runnable interfaces",
 )
-
 
 add_routes(
     app,
@@ -154,7 +153,7 @@ adds of these endpoints to the server:
 - `POST /my_runnable/invoke` - invoke the runnable on a single input
 - `POST /my_runnable/batch` - invoke the runnable on a batch of inputs
 - `POST /my_runnable/stream` - invoke on a single input and stream the output
-- `POST /my_runnable/stream_log` - invoke on a single input and stream the output, including partial outputs of intermediate steps
+- `POST /my_runnable/stream_log` - invoke on a single input and stream the output, including output of intermediate steps as it's generated
 - `GET /my_runnable/input_schema` - json schema for input to the runnable
 - `GET /my_runnable/output_schema` - json schema for output of the runnable
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
@@ -167,7 +166,7 @@ For both client and server:
 pip install "langserve[all]"
 ```
 
-or use `client` extra for client code, and `server` extra for server code.
+or `pip install "langserve[client]"` for client code, and `pip install "langserve[server]"` for server code.
 
 ## Legacy Chains
 
