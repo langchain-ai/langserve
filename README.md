@@ -7,7 +7,7 @@
 This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
 
 In addition, it provides a client that can be used to call into runnables deployed on a server.
-A javascript client is available in [LangChainJS](https://js.langchain.com/docs/get_started/introduction).
+A javascript client is available in [LangChainJS](https://js.langchain.com/docs/api/runnables_remote/classes/RemoteRunnable).
 
 ## Features
 
