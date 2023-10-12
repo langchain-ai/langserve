@@ -32,7 +32,7 @@ To use the langchain CLI make sure that you have a recent version of `langchain`
 and also `typer`. (`pip install langchain typer` or `pip install "langchain[cli]"`)
 
 ```sh
-langchain [directory-where-to-create-package]
+langchain ../path/to/directory
 ```
 
 And follow the instructions...
