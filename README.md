@@ -76,7 +76,11 @@ add_routes(
 
 model = ChatAnthropic()
 prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
-add_routes(app, prompt | model, path="/chain")
+add_routes(
+    app,
+    prompt | model,
+    path="/chain",
+)
 
 if __name__ == "__main__":
     import uvicorn
