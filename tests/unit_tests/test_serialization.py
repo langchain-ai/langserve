@@ -12,7 +12,7 @@ try:
 except ImportError:
     from pydantic import BaseModel
 
-from langserve.serialization import simple_dumps, simple_loads
+from langserve.serialization import WellKnownLCSerializer
 
 
 @pytest.mark.parametrize(
@@ -44,12 +44,15 @@ from langserve.serialization import simple_dumps, simple_loads
 def test_serialization(data: Any) -> None:
     """There and back again! :)"""
     # Test encoding
-    assert isinstance(simple_dumps(data), str)
+    lc_serializer = WellKnownLCSerializer()
+    assert lc_serializer.dumpd({"a": 1}) == '{"a": 1}'
+
+    assert isinstance(lc_serializer.dumpd(data), str)
     # Test simple equality (does not include pydantic class names)
-    assert simple_loads(simple_dumps(data)) == data
+    assert lc_serializer.loads(lc_serializer.dumps(data)) == data
     # Test full representation equality (includes pydantic class names)
     assert _get_full_representation(
-        simple_loads(simple_dumps(data))
+        lc_serializer.loads(lc_serializer.dumps(data))
     ) == _get_full_representation(data)
 
 

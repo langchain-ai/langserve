@@ -23,14 +23,13 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.schema import CallbackEvent
-
 try:
     from pydantic.v1 import BaseModel, create_model
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from langserve.serialization import simple_dumpd, simple_dumps
+from langserve.serialization import WellKnownLCSerializer
+from langserve.version import __version__
 from langserve.validation import (
     create_batch_request_model,
     create_batch_response_model,
@@ -192,6 +191,8 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    well_known_lc_serializer = WellKnownLCSerializer()
+
     input_type_ = _resolve_model(
         runnable.input_schema if input_type == "auto" else input_type, "Input"
     )
@@ -234,7 +235,7 @@ def add_routes(
             _unpack_input(invoke_request.input), config=config
         )
 
-        return InvokeResponse(output=simple_dumpd(output))
+        return InvokeResponse(output=well_known_lc_serializer.dumpd(output))
 
     #
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
@@ -256,7 +257,7 @@ def add_routes(
         inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
         output = await runnable.abatch(inputs, config=config)
 
-        return BatchResponse(output=simple_dumpd(output))
+        return BatchResponse(output=well_known_lc_serializer.dumpd(output))
 
     @app.post(f"{namespace}/stream")
     async def stream(
@@ -307,7 +308,7 @@ def add_routes(
                 input_,
                 config=config,
             ):
-                yield {"data": simple_dumps(chunk), "event": "data"}
+                yield {"data": well_known_lc_serializer.dumps(chunk), "event": "data"}
             yield {"event": "end"}
 
         return EventSourceResponse(_stream())
@@ -390,7 +391,7 @@ def add_routes(
 
                 # Temporary adapter
                 yield {
-                    "data": simple_dumps(data),
+                    "data": well_known_lc_serializer.dumps(data),
                     "event": "data",
                 }
             yield {"event": "end"}
