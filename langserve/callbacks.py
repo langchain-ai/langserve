@@ -1,7 +1,10 @@
-from typing import List, Dict, Any, Optional
+from __future__ import annotations
+
+from typing import List, Dict, Any, Optional, Sequence
 from uuid import UUID
 
 from langchain.callbacks.base import AsyncCallbackHandler
+from langchain.callbacks.manager import AsyncCallbackManager, CallbackManager
 from langchain.schema import AgentAction, AgentFinish
 
 from langserve.schema import CallbackEvent
@@ -273,3 +276,75 @@ class EventAggregatorHandler(AsyncCallbackHandler):
                 },
             }
         )
+
+
+async def ahandle_callbacks(
+    callback_manager: AsyncCallbackManager,
+    callback_events: Sequence[CallbackEvent],
+) -> None:
+    """Invoke all the callbacks."""
+    # 1. Do I need inheritable handlers
+    for callback_event in callback_events:
+        event_type = callback_event["type"]
+        data = callback_event["data"]
+        if data["parent_run_id"] is None:  # How do we make sure it's None!?
+            data["parent_run_id"] = callback_manager.parent_run_id
+
+        for handler in callback_manager.handlers:
+            if event_type == "on_tool_start":
+                await handler.on_tool_start(**data)
+            elif event_type == "on_tool_end":
+                await handler.on_tool_end(**data)
+            elif event_type == "on_chain_start":
+                await handler.on_chain_start(**data)
+            elif event_type == "on_chain_end":
+                await handler.on_chain_end(**data)
+            elif event_type == "on_chain_error":
+                await handler.on_chain_error(**data)
+            elif event_type == "on_llm_start":
+                await handler.on_llm_start(**data)
+            else:
+                # Not handled yet
+                pass
+
+
+def handle_callbacks(
+    callback_manager: CallbackManager,
+    run_id: UUID,
+    callback_events: Sequence[CallbackEvent],
+) -> None:
+    """Invoke all the callbacks."""
+    new_callback_events = []
+    for callback_event in callback_events:
+        event_type = callback_event["type"]
+        data = callback_event["data"]
+        if data["parent_run_id"] is None:  # How do we make sure it's None!?
+            data["parent_run_id"] = run_id
+        event = callback_event
+
+        # print("Event type:", event_type)
+        # print("parent: ", event["data"]["parent_run_id"])
+        # print("current:", event["data"]["run_id"])
+        #
+        new_callback_events.append(callback_event)
+
+        for handler in (
+            callback_manager.handlers
+        ):
+            if event_type == "on_tool_start":
+                handler.on_tool_start(**data)
+            elif event_type == "on_tool_end":
+                handler.on_tool_end(**data)
+            elif event_type == "on_chain_start":
+                handler.on_chain_start(**data)
+            elif event_type == "on_chain_end":
+                handler.on_chain_end(**data)
+            elif event_type == "on_chain_error":
+                handler.on_chain_error(**data)
+            elif event_type == "on_llm_start":
+                handler.on_llm_start(**data)
+            else:
+                # Not handled yet
+                pass
+
+    return new_callback_events

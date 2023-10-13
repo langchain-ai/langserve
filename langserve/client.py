@@ -11,10 +11,12 @@ from typing import (
     Optional,
     Sequence,
     Union,
+    Tuple,
 )
 from urllib.parse import urljoin
 
 import httpx
+from langchain.callbacks.manager import CallbackManagerForChainRun
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
@@ -25,6 +27,8 @@ from langchain.schema.runnable.config import (
     get_callback_manager_for_config,
 )
 from langchain.schema.runnable.utils import Input, Output
+from langserve.callbacks import handle_callbacks, ahandle_callbacks
+from langserve.schema import CallbackEvent
 
 from langserve.serialization import CallbackEventSerializer, WellKnownLCSerializer
 
@@ -92,7 +96,7 @@ def _close_clients(sync_client: httpx.Client, async_client: httpx.AsyncClient) -
         asyncio.run(async_client.aclose())
 
 
-def _decode_response(response: httpx.Response) -> Any:
+def _decode_response(response: httpx.Response) -> Tuple[Any, List[CallbackEvent]]:
     """Decode the response."""
     _raise_for_status(response)
     obj = response.json()
@@ -111,10 +115,7 @@ def _decode_response(response: httpx.Response) -> Any:
     else:
         callback_events = []
 
-    return {
-        "output": output,
-        "callback_events": callback_events,
-    }
+    return output, callback_events
 
 
 class RemoteRunnable(Runnable[Input, Output]):
@@ -148,29 +149,41 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         # Register cleanup handler once RemoteRunnable is garbage collected
         weakref.finalize(self, _close_clients, self.sync_client, self.async_client)
-        self.lc_serializer = WellKnownLCSerializer()
-
-    def _invoke(
-        self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
-    ) -> Output:
-        """Invoke the runnable with the given input and config."""
-        response = self.sync_client.post(
-            "/invoke",
-            json={
-                "input": self.lc_serializer.dumpd(input),
-                "config": _without_callbacks(config),
-                "kwargs": kwargs,
-            },
-        )
-        decoded_response = _decode_response(response)
-        return decoded_response["output"]
+        self._lc_serializer = WellKnownLCSerializer()
 
     def invoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
     ) -> Output:
         if kwargs:
             raise NotImplementedError("kwargs not implemented yet.")
-        return self._call_with_config(self._invoke, input, config=config)
+
+        config = ensure_config(config)
+        callback_manager = get_callback_manager_for_config(config)
+        run_manager = callback_manager.on_chain_start(
+            dumpd(self),
+            input,
+            run_type=kwargs.get("run_type"),
+            name=config.get("run_name"),
+        )
+        try:
+            response = self.sync_client.post(
+                "/invoke",
+                json={
+                    "input": self._lc_serializer.dumpd(input),
+                    "config": _without_callbacks(config),
+                    "kwargs": kwargs,
+                },
+            )
+            output, callback_events = _decode_response(response)
+
+            if callback_events:
+                handle_callbacks(callback_manager, run_manager.run_id, callback_events)
+        except BaseException as e:
+            run_manager.on_chain_error(e)
+            raise
+        else:
+            run_manager.on_chain_end(dumpd(output))
+            return output
 
     async def _ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -179,13 +192,19 @@ class RemoteRunnable(Runnable[Input, Output]):
         response = await self.async_client.post(
             "/invoke",
             json={
-                "input": self.lc_serializer.dumpd(input),
+                "input": self._lc_serializer.dumpd(input),
                 "config": _without_callbacks(config),
                 "kwargs": kwargs,
             },
         )
-        decoded_response = _decode_response(response)
-        return decoded_response["output"]
+
+        # Handle callbacks
+        output, callback_events = _decode_response(response)
+        config = ensure_config(config)
+        await ahandle_callbacks(
+            get_async_callback_manager_for_config(config), callback_events
+        )
+        return output
 
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -217,13 +236,13 @@ class RemoteRunnable(Runnable[Input, Output]):
         response = self.sync_client.post(
             "/batch",
             json={
-                "inputs": self.lc_serializer.dumpd(inputs),
+                "inputs": self._lc_serializer.dumpd(inputs),
                 "config": _config,
                 "kwargs": kwargs,
             },
         )
-        decoded_response = _decode_response(response)
-        return decoded_response["output"]
+        output, callback_events = _decode_response(response)
+        return output
 
     def batch(
         self,
@@ -259,13 +278,13 @@ class RemoteRunnable(Runnable[Input, Output]):
         response = await self.async_client.post(
             "/batch",
             json={
-                "inputs": self.lc_serializer.dumpd(inputs),
+                "inputs": self._lc_serializer.dumpd(inputs),
                 "config": _config,
                 "kwargs": kwargs,
             },
         )
-        decoded_response = _decode_response(response)
-        return decoded_response["output"]
+        output, callback_events = _decode_response(response)
+        return output
 
     async def abatch(
         self,
@@ -296,11 +315,11 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         run_manager = callback_manager.on_chain_start(
             dumpd(self),
-            self.lc_serializer.dumpd(input),
+            self._lc_serializer.dumpd(input),
             name=config.get("run_name"),
         )
         data = {
-            "input": self.lc_serializer.dumpd(input),
+            "input": self._lc_serializer.dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
@@ -320,7 +339,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             ) as event_source:
                 for sse in event_source.iter_sse():
                     if sse.event == "data":
-                        chunk = self.lc_serializer.loads(sse.data)
+                        chunk = self._lc_serializer.loads(sse.data)
                         yield chunk
 
                         if final_output:
@@ -350,11 +369,11 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         run_manager = await callback_manager.on_chain_start(
             dumpd(self),
-            self.lc_serializer.dumpd(input),
+            self._lc_serializer.dumpd(input),
             name=config.get("run_name"),
         )
         data = {
-            "input": self.lc_serializer.dumpd(input),
+            "input": self._lc_serializer.dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
@@ -371,7 +390,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             ) as event_source:
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
-                        chunk = self.lc_serializer.loads(sse.data)
+                        chunk = self._lc_serializer.loads(sse.data)
                         yield chunk
 
                         if final_output:
@@ -422,11 +441,11 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         run_manager = await callback_manager.on_chain_start(
             dumpd(self),
-            self.lc_serializer.dumpd(input),
+            self._lc_serializer.dumpd(input),
             name=config.get("run_name"),
         )
         data = {
-            "input": self.lc_serializer.dumpd(input),
+            "input": self._lc_serializer.dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
             "diff": diff,
@@ -450,7 +469,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             ) as event_source:
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
-                        data = self.lc_serializer.loads(sse.data)
+                        data = self._lc_serializer.loads(sse.data)
                         if diff:
                             chunk = RunLogPatch(*data["ops"])
                         else:
