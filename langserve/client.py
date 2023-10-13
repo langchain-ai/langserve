@@ -159,12 +159,18 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         config = ensure_config(config)
         callback_manager = get_callback_manager_for_config(config)
+        print('Parent ID Of invoke')
+        print(callback_manager.parent_run_id)
         run_manager = callback_manager.on_chain_start(
             dumpd(self),
             input,
             run_type=kwargs.get("run_type"),
             name=config.get("run_name"),
         )
+        print('Parent ID of invoke according to run manager')
+        print(run_manager.parent_run_id)
+        print('ID of invoke according to run manager')
+        print(run_manager.run_id)
         try:
             response = self.sync_client.post(
                 "/invoke",
@@ -185,33 +191,42 @@ class RemoteRunnable(Runnable[Input, Output]):
             run_manager.on_chain_end(dumpd(output))
             return output
 
-    async def _ainvoke(
-        self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
-    ) -> Output:
-        """Invoke the runnable with the given input and config."""
-        response = await self.async_client.post(
-            "/invoke",
-            json={
-                "input": self._lc_serializer.dumpd(input),
-                "config": _without_callbacks(config),
-                "kwargs": kwargs,
-            },
-        )
-
-        # Handle callbacks
-        output, callback_events = _decode_response(response)
-        config = ensure_config(config)
-        await ahandle_callbacks(
-            get_async_callback_manager_for_config(config), callback_events
-        )
-        return output
-
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
     ) -> Output:
+        """Invoke the runnable with the given input and config."""
         if kwargs:
             raise NotImplementedError("kwargs not implemented yet.")
-        return await self._acall_with_config(self._ainvoke, input, config)
+
+        config = ensure_config(config)
+        callback_manager = get_async_callback_manager_for_config(config)
+        run_manager = await callback_manager.on_chain_start(
+            dumpd(self),
+            input,
+            run_type=kwargs.get("run_type"),
+            name=config.get("run_name"),
+        )
+        try:
+            response = await self.async_client.post(
+                "/invoke",
+                json={
+                    "input": self._lc_serializer.dumpd(input),
+                    "config": _without_callbacks(config),
+                    "kwargs": kwargs,
+                },
+            )
+            output, callback_events = _decode_response(response)
+
+            if callback_events:
+                await ahandle_callbacks(
+                    callback_manager, run_manager.run_id, callback_events
+                )
+        except BaseException as e:
+            await run_manager.on_chain_error(e)
+            raise
+        else:
+            await run_manager.on_chain_end(dumpd(output))
+            return output
 
     def _batch(
         self,

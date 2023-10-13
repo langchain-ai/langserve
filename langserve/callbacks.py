@@ -278,8 +278,12 @@ class EventAggregatorHandler(AsyncCallbackHandler):
         )
 
 
+from langchain.callbacks.manager import _ahandle_event, _handle_event
+
+
 async def ahandle_callbacks(
     callback_manager: AsyncCallbackManager,
+    parent_id: UUID,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
     """Invoke all the callbacks."""
@@ -288,63 +292,101 @@ async def ahandle_callbacks(
         event_type = callback_event["type"]
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
-            data["parent_run_id"] = callback_manager.parent_run_id
+            data["parent_run_id"] = parent_id
+        event = callback_event
+        print("--")
+        print(event["type"])
+        print(event["data"])
 
-        for handler in callback_manager.handlers:
-            if event_type == "on_tool_start":
-                await handler.on_tool_start(**data)
-            elif event_type == "on_tool_end":
-                await handler.on_tool_end(**data)
-            elif event_type == "on_chain_start":
-                await handler.on_chain_start(**data)
-            elif event_type == "on_chain_end":
-                await handler.on_chain_end(**data)
-            elif event_type == "on_chain_error":
-                await handler.on_chain_error(**data)
-            elif event_type == "on_llm_start":
-                await handler.on_llm_start(**data)
-            else:
-                # Not handled yet
-                pass
+        event_name_to_ignore_condition = {
+            "on_llm_start": "ignore_llm",
+            "on_chat_model_start": "ignore_chat_model",
+            "on_chain_start": "ignore_chain",
+            "on_tool_start": "ignore_agent",
+            "on_retriever_start": "ignore_retriever",
+        }
+
+        ignore_condition = event_name_to_ignore_condition.get(event["type"], None)
+
+        await _ahandle_event(
+            # Unpacking like this may not work
+            callback_manager.handlers,
+            event["type"],
+            ignore_condition_name=ignore_condition,
+            **event["data"],
+        )
+
+
+from collections import defaultdict
+
+#
+#
+# def _sort_callback_events(events: List[CallbackEvent]) -> List[CallbackEvent]:
+#     """Sort callback events by parent_uid and uid."""
+#     child_to_parent = {
+#         event["data"]["run_id"]: event["data"]["parent_run_id"] for event in events
+#     }
+#
+#     parent_to_children = defaultdict(list)
+#     for child, parent in child_to_parent.items():
+#         parent_to_children[parent].append(child)
+#
+#     sorted_events = []
+#
+#     nodes_to_add = parent_to_children[None]
+#
+#     while nodes_to_add:
+#         sorted_events.extend(nodes_to_add)
+#         new_nodes_to_add = []
+#
+#     return sorted_events
 
 
 def handle_callbacks(
     callback_manager: CallbackManager,
-    run_id: UUID,
+    parent_id: UUID,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
     """Invoke all the callbacks."""
-    new_callback_events = []
     for callback_event in callback_events:
         event_type = callback_event["type"]
+        print("-")
+        print(event_type)
+        print("ID ", callback_event["data"]["run_id"])
+        print("Parent ", callback_event["data"]["parent_run_id"])
+    print('Debug End')
+
+    new_callback_events = []
+
+    for callback_event in callback_events:
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
-            data["parent_run_id"] = run_id
+            data["parent_run_id"] = parent_id
         event = callback_event
 
-        # print("Event type:", event_type)
-        # print("parent: ", event["data"]["parent_run_id"])
-        # print("current:", event["data"]["run_id"])
-        #
-        new_callback_events.append(callback_event)
+        event_name_to_ignore_condition = {
+            "on_llm_start": "ignore_llm",
+            "on_chat_model_start": "ignore_chat_model",
+            "on_chain_start": "ignore_chain",
+            "on_tool_start": "ignore_agent",
+            "on_retriever_start": "ignore_retriever",
+        }
 
-        for handler in (
-            callback_manager.handlers
-        ):
-            if event_type == "on_tool_start":
-                handler.on_tool_start(**data)
-            elif event_type == "on_tool_end":
-                handler.on_tool_end(**data)
-            elif event_type == "on_chain_start":
-                handler.on_chain_start(**data)
-            elif event_type == "on_chain_end":
-                handler.on_chain_end(**data)
-            elif event_type == "on_chain_error":
-                handler.on_chain_error(**data)
-            elif event_type == "on_llm_start":
-                handler.on_llm_start(**data)
-            else:
-                # Not handled yet
-                pass
+        new_callback_events.append(event)
 
-    return new_callback_events
+        ignore_condition = event_name_to_ignore_condition.get(event["type"], None)
+        _handle_event(
+            # Unpacking like this may not work
+            callback_manager.handlers,
+            event["type"],
+            ignore_condition_name=ignore_condition,
+            **event["data"],
+        )
+
+    for callback_event in new_callback_events:
+        event_type = callback_event["type"]
+        print("-")
+        print(event_type)
+        print("ID ", callback_event["data"]["run_id"])
+        print("Parent ", callback_event["data"]["parent_run_id"])
+    print('Remapping End')
