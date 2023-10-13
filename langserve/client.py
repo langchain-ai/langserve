@@ -92,6 +92,31 @@ def _close_clients(sync_client: httpx.Client, async_client: httpx.AsyncClient) -
         asyncio.run(async_client.aclose())
 
 
+def _decode_response(response: httpx.Response) -> Any:
+    """Decode the response."""
+    _raise_for_status(response)
+    obj = response.json()
+    if not isinstance(obj, dict):
+        raise ValueError(f"Expected a dictionary, got {obj}")
+
+    if "output" not in obj:
+        raise ValueError(f"Expected a dictionary with an 'output' key.")
+
+    serializer = WellKnownLCSerializer()
+    output = serializer.loadd(obj["output"])
+
+    if "callback_events" in obj:
+        event_serializer = CallbackEventSerializer()
+        callback_events = event_serializer.loadd(obj["callback_events"])
+    else:
+        callback_events = []
+
+    return {
+        "output": output,
+        "callback_events": callback_events,
+    }
+
+
 class RemoteRunnable(Runnable[Input, Output]):
     """A RemoteRunnable is a runnable that is executed on a remote server.
 
@@ -137,8 +162,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self.lc_serializer.loads(response.text)["output"]
+        decoded_response = _decode_response(response)
+        return decoded_response["output"]
 
     def invoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -150,6 +175,7 @@ class RemoteRunnable(Runnable[Input, Output]):
     async def _ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
     ) -> Output:
+        """Invoke the runnable with the given input and config."""
         response = await self.async_client.post(
             "/invoke",
             json={
@@ -158,8 +184,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self.lc_serializer.loads(response.text)["output"]
+        decoded_response = _decode_response(response)
+        return decoded_response["output"]
 
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -196,8 +222,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self.lc_serializer.loads(response.text)["output"]
+        decoded_response = _decode_response(response)
+        return decoded_response["output"]
 
     def batch(
         self,
@@ -238,8 +264,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self.lc_serializer.loads(response.text)["output"]
+        decoded_response = _decode_response(response)
+        return decoded_response["output"]
 
     async def abatch(
         self,

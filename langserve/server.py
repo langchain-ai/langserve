@@ -23,12 +23,14 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
+from langserve.callbacks import EventAggregatorHandler
+
 try:
     from pydantic.v1 import BaseModel, create_model
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from langserve.serialization import WellKnownLCSerializer
+from langserve.serialization import WellKnownLCSerializer, CallbackEventSerializer
 from langserve.version import __version__
 from langserve.validation import (
     create_batch_request_model,
@@ -231,11 +233,18 @@ def add_routes(
         # config_keys as well as input_type.
         config = _unpack_config(invoke_request.config, config_keys)
         _add_tracing_info_to_metadata(config, request)
+        event_aggregator = EventAggregatorHandler()
+        config["callbacks"] = [event_aggregator]
         output = await runnable.ainvoke(
-            _unpack_input(invoke_request.input), config=config
+            _unpack_input(invoke_request.input),
+            config=config,
         )
-
-        return InvokeResponse(output=well_known_lc_serializer.dumpd(output))
+        return InvokeResponse(
+            output=well_known_lc_serializer.dumpd(output),
+            callback_events=CallbackEventSerializer().dumpd(
+                event_aggregator.callback_events
+            ),
+        )
 
     #
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
