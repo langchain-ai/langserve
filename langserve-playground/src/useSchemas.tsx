@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    CONFIG_SCHEMA?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    INPUT_SCHEMA?: any;
+  }
+}
+
 export function useSchemas() {
   const [schemas, setSchemas] = useState({
     config: null,
@@ -16,8 +25,8 @@ export function useSchemas() {
         setSchemas({ config, input });
       } else {
         setSchemas({
-          config: window.CONFIG_SCHEMA,
-          input: window.INPUT_SCHEMA,
+          config: window.CONFIG_SCHEMA ?? null,
+          input: window.INPUT_SCHEMA ?? null,
         });
       }
     }
