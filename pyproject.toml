@@ -6,6 +6,8 @@ readme = "README.md"
 authors = ["LangChain"]
 license = "LangServe"
 repository = "https://github.com/langchain-ai/langserve"
+exclude = ["langserve/playground"]
+include = ["langserve/playground/dist/**/*"]
 
 [tool.poetry.dependencies]
 python = "^3.8.1"

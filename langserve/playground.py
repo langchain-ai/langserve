@@ -16,7 +16,7 @@ async def serve_playground(
 ) -> Response:
     local_file_path = os.path.join(
         os.path.dirname(__file__),
-        "../langserve-playground/dist",
+        "./playground/dist",
         file_path or "index.html",
     )
     with open(local_file_path) as f:
