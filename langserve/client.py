@@ -12,11 +12,11 @@ from typing import (
     Sequence,
     Union,
     Tuple,
+    cast,
 )
 from urllib.parse import urljoin
 
 import httpx
-from langchain.callbacks.manager import CallbackManagerForChainRun
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
@@ -25,11 +25,12 @@ from langchain.schema.runnable.config import (
     ensure_config,
     get_async_callback_manager_for_config,
     get_callback_manager_for_config,
+    get_config_list,
 )
 from langchain.schema.runnable.utils import Input, Output
+
 from langserve.callbacks import handle_callbacks, ahandle_callbacks
 from langserve.schema import CallbackEvent
-
 from langserve.serialization import CallbackEventSerializer, WellKnownLCSerializer
 
 
@@ -159,18 +160,12 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         config = ensure_config(config)
         callback_manager = get_callback_manager_for_config(config)
-        print('Parent ID Of invoke')
-        print(callback_manager.parent_run_id)
         run_manager = callback_manager.on_chain_start(
             dumpd(self),
             input,
             run_type=kwargs.get("run_type"),
             name=config.get("run_name"),
         )
-        print('Parent ID of invoke according to run manager')
-        print(run_manager.parent_run_id)
-        print('ID of invoke according to run manager')
-        print(run_manager.run_id)
         try:
             response = self.sync_client.post(
                 "/invoke",
@@ -187,9 +182,9 @@ class RemoteRunnable(Runnable[Input, Output]):
         except BaseException as e:
             run_manager.on_chain_error(e)
             raise
-        else:
-            run_manager.on_chain_end(dumpd(output))
-            return output
+
+        run_manager.on_chain_end(dumpd(output))
+        return output
 
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -228,14 +223,17 @@ class RemoteRunnable(Runnable[Input, Output]):
             await run_manager.on_chain_end(dumpd(output))
             return output
 
-    def _batch(
+    def batch(
         self,
         inputs: List[Input],
-        config: Optional[Union[RunnableConfig, List[RunnableConfig]]] = None,
+        config: Optional[RunnableConfig] = None,
         *,
         return_exceptions: bool = False,
-        **kwargs: Optional[Any],
+        **kwargs: Any,
     ) -> List[Output]:
+        """Batch invoke the runnable."""
+        if kwargs:
+            raise NotImplementedError("kwargs not implemented yet.")
         if not inputs:
             return []
         if return_exceptions:
@@ -243,31 +241,47 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "return_exceptions is not supported for remote clients"
             )
 
-        if isinstance(config, list):
-            _config = [_without_callbacks(c) for c in config]
-        else:
-            _config = _without_callbacks(config)
+        # setup callbacks
+        configs = get_config_list(config, len(inputs))
+        callback_managers = [get_callback_manager_for_config(c) for c in configs]
+        # start the root runs, one per input
+        run_managers = [
+            cm.on_chain_start(
+                dumpd(self),
+                input,
+                name=config.get("run_name"),
+                run_type=config.get("run_type"),
+            )
+            for cm, input, config in zip(callback_managers, inputs, configs)
+        ]
 
-        response = self.sync_client.post(
-            "/batch",
-            json={
-                "inputs": self._lc_serializer.dumpd(inputs),
-                "config": _config,
-                "kwargs": kwargs,
-            },
-        )
-        output, callback_events = _decode_response(response)
-        return output
+        # Config to send to the server
+        _config = [_without_callbacks(c) for c in configs]
 
-    def batch(
-        self,
-        inputs: List[Input],
-        config: Optional[RunnableConfig] = None,
-        **kwargs: Any,
-    ) -> List[Output]:
-        if kwargs:
-            raise NotImplementedError("kwargs not implemented yet.")
-        return self._batch_with_config(self._batch, inputs, config)
+        try:
+            response = self.sync_client.post(
+                "/batch",
+                json={
+                    "inputs": self._lc_serializer.dumpd(inputs),
+                    "config": _config,
+                    "kwargs": kwargs,
+                },
+            )
+            outputs, corresponding_callback_events = _decode_response(response)
+
+            if corresponding_callback_events:
+                for callback_manager, run_manger, callback_events in zip(
+                    callback_managers, run_managers, corresponding_callback_events
+                ):
+                    handle_callbacks(
+                        callback_manager, run_manger.run_id, callback_events
+                    )
+        except BaseException as e:
+            for run_manager in run_managers:
+                run_manager.on_chain_error(e)
+            raise
+
+        return outputs
 
     async def _abatch(
         self,

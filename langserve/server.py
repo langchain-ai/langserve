@@ -254,19 +254,37 @@ def add_routes(
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
         if isinstance(batch_request.config, list):
-            config = [
+            _config = [
                 _unpack_config(config, config_keys) for config in batch_request.config
             ]
 
-            for c in config:
-                _add_tracing_info_to_metadata(c, request)
         else:
-            config = _unpack_config(batch_request.config, config_keys)
-            _add_tracing_info_to_metadata(config, request)
-        inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
-        output = await runnable.abatch(inputs, config=config)
+            _config = [_unpack_config(batch_request.config, config_keys)]
 
-        return BatchResponse(output=well_known_lc_serializer.dumpd(output))
+        if len(_config) == 1:
+            configs = _config * len(batch_request.inputs)
+        elif len(_config) != len(batch_request.inputs):
+            raise AssertionError(
+                f"Expected {len(batch_request.inputs)} configs for {len(_config)} inputs"
+            )
+
+        aggregators = [
+            EventAggregatorHandler() for _ in range(len(batch_request.inputs))
+        ]
+
+        for c, aggregator in zip(configs, aggregators):
+            _add_tracing_info_to_metadata(c, request)
+            c["callbacks"] = [aggregator]
+        inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
+        output = await runnable.abatch(inputs, config=configs)
+
+        callback_events = CallbackEventSerializer().dumpd(
+            [aggregator.callback_events for aggregator in aggregators]
+        )
+        return BatchResponse(
+            output=well_known_lc_serializer.dumpd(output),
+            callback_events=callback_events,
+        )
 
     @app.post(f"{namespace}/stream")
     async def stream(
