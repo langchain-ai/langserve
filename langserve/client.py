@@ -304,12 +304,17 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         outputs, corresponding_callback_events = _decode_response(response)
 
+        # Now handle callbacks
+
         if corresponding_callback_events:
+            raise ValueError(corresponding_callback_events)
             # TODO(EUGENE): ADD GATHER HERE
-            for run_manger, callback_events in zip(
-                run_managers, corresponding_callback_events
+            for run_manger_, callback_events in zip(
+                run_manager, corresponding_callback_events
             ):
-                await ahandle_callbacks(run_manger, run_manger.run_id, callback_events)
+                await ahandle_callbacks(
+                    run_manger_, run_manger_.run_id, callback_events
+                )
         return outputs
 
     async def abatch(

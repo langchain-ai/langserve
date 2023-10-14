@@ -263,7 +263,9 @@ def add_routes(
 
         if len(_config) == 1:
             configs = _config * len(batch_request.inputs)
-        elif len(_config) != len(batch_request.inputs):
+        elif len(_config) == len(batch_request.inputs):
+            configs = _config
+        else:
             raise AssertionError(
                 f"Expected {len(batch_request.inputs)} configs for {len(_config)} inputs"
             )
