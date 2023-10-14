@@ -1,21 +1,15 @@
 import os
-import typer
 import asyncio
-from typing import Annotated, Optional, List
+from typing import List, Optional
 from pathlib import Path
-
-from tomllib import load as load_toml
-from tomllib import loads as loads_toml
-from tomli_w import dump as dump_toml
-from urllib import request
-
-import subprocess
 
 import base64
 import asyncio
 
 from github import Github, Auth
 from langserve.packages import list_packages
+
+import subprocess
 
 g = Github(auth=Auth.Token(token=os.environ["GITHUB_PAT"]))
 
@@ -59,14 +53,19 @@ async def _download_github_path(path: Path, local_dest: Path, repo_handle: str) 
 
 
 def download(
-    path: str, package_dir: str, repo: str = "langchain-ai/langserve-hub"
+    package: str,
+    package_dir: str,
+    *,
+    repo: str = "langchain-ai/langserve-hub",
+    api_path: Optional[str] = None,
 ) -> None:
     if not repo:
         raise ValueError("Must specify repo")
-    repo_path = Path(path)
-    name = repo_path.name or repo.split("/")[-1]
-    local_dir = Path(package_dir) / name
+    repo_path = Path(package)
+    subpath = api_path or repo_path.name or repo.split("/")[-1]
+    local_dir = Path(package_dir) / subpath
     asyncio.run(_download_github_path(repo_path, local_dir, repo))
+    subprocess.run(["poetry", "add", str(local_dir)])
 
 
 def list(path: str) -> None:
