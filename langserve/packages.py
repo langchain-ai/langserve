@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import Union, Generator
 from fastapi import FastAPI, APIRouter
 from tomllib import load as load_toml
 from tomllib import loads as loads_toml
@@ -57,15 +57,21 @@ def _include_path(path: Path) -> bool:
     return True
 
 
-def add_package_routes(
-    app: Union[FastAPI, APIRouter], path: str = "../packages"
-) -> None:
+def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
     # traverse path for routes to host (any directory holding a pyproject.toml file)
     package_root = Path(path)
     for pyproject_path in package_root.glob("**/pyproject.toml"):
         if not _include_path(pyproject_path):
             continue
+        yield pyproject_path.parent
 
+
+def add_package_routes(
+    app: Union[FastAPI, APIRouter], path: str = "../packages"
+) -> None:
+    # traverse path for routes to host (any directory holding a pyproject.toml file)
+    for package_path in list_packages(path):
+        pyproject_path = package_path / "pyproject.toml"
         # load pyproject.toml
         pyproject = PyProject.load(pyproject_path)
         # get langserve export
