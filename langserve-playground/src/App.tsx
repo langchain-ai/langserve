@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Card, Button, Stack } from "@mui/material";
+import { Card, Button, Stack, createTheme, ThemeProvider } from "@mui/material";
 import defaults from "json-schema-defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -17,6 +17,10 @@ function str(o: unknown): React.ReactNode {
     ? JSON.stringify(o, null, 2)
     : (o as React.ReactNode);
 }
+
+const inputMultilineTheme = createTheme({
+  components: { MuiInput: { defaultProps: { multiline: true } } },
+});
 
 function App() {
   // store form state
@@ -62,23 +66,26 @@ function App() {
           </>
         )}
       </Card>
+
       <Card sx={{ marginTop: 2, padding: 2 }}>
         <h2>Inputs</h2>
-        <JsonForms
-          schema={schemas.input}
-          data={inputData.data}
-          renderers={materialRenderers}
-          cells={materialCells}
-          onChange={({ data, errors }) => setInputData({ data, errors })}
-        />
-        {!!inputData.errors?.length && (
-          <>
-            <h3>Validation Errors</h3>
-            {inputData.errors?.map((e, i) => (
-              <p key={i}>{e.message}</p>
-            ))}
-          </>
-        )}
+        <ThemeProvider theme={inputMultilineTheme}>
+          <JsonForms
+            schema={schemas.input}
+            data={inputData.data}
+            renderers={materialRenderers}
+            cells={materialCells}
+            onChange={({ data, errors }) => setInputData({ data, errors })}
+          />
+          {!!inputData.errors?.length && (
+            <>
+              <h3>Validation Errors</h3>
+              {inputData.errors?.map((e, i) => (
+                <p key={i}>{e.message}</p>
+              ))}
+            </>
+          )}
+        </ThemeProvider>
       </Card>
       <Stack direction="row" spacing={2} sx={{ marginTop: 2 }}>
         <Button
