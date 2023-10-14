@@ -17,6 +17,7 @@ from typing import (
 from urllib.parse import urljoin
 
 import httpx
+from langchain.callbacks.manager import CallbackManagerForChainRun
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
@@ -186,42 +187,33 @@ class RemoteRunnable(Runnable[Input, Output]):
         run_manager.on_chain_end(dumpd(output))
         return output
 
+    async def _ainvoke(
+        self,
+        input: Input,
+        run_manager: CallbackManagerForChainRun,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Any,
+    ) -> Output:
+        """Invoke the runnable with the given input and config."""
+        response = await self.async_client.post(
+            "/invoke",
+            json={
+                "input": self._lc_serializer.dumpd(input),
+                "config": _without_callbacks(config),
+                "kwargs": kwargs,
+            },
+        )
+        output, callback_events = _decode_response(response)
+        if callback_events:
+            handle_callbacks(run_manager, run_manager.run_id, callback_events)
+        return output
+
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
     ) -> Output:
-        """Invoke the runnable with the given input and config."""
         if kwargs:
             raise NotImplementedError("kwargs not implemented yet.")
-
-        config = ensure_config(config)
-        callback_manager = get_async_callback_manager_for_config(config)
-        run_manager = await callback_manager.on_chain_start(
-            dumpd(self),
-            input,
-            run_type=kwargs.get("run_type"),
-            name=config.get("run_name"),
-        )
-        try:
-            response = await self.async_client.post(
-                "/invoke",
-                json={
-                    "input": self._lc_serializer.dumpd(input),
-                    "config": _without_callbacks(config),
-                    "kwargs": kwargs,
-                },
-            )
-            output, callback_events = _decode_response(response)
-
-            if callback_events:
-                await ahandle_callbacks(
-                    callback_manager, run_manager.run_id, callback_events
-                )
-        except BaseException as e:
-            await run_manager.on_chain_error(e)
-            raise
-        else:
-            await run_manager.on_chain_end(dumpd(output))
-            return output
+        return await self._acall_with_config(self._ainvoke, input, config)
 
     def batch(
         self,
