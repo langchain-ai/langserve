@@ -82,4 +82,5 @@ def add_package_routes(
         # get attr
         chain = getattr(mod, attr)
         # add route
-        add_routes(app, chain)
+        mount_path = package_path.relative_to(Path(path))
+        add_routes(app, chain, path=str(mount_path))
