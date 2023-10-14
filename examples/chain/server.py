@@ -60,4 +60,4 @@ add_routes(app, chain, input_type=ChainInput, config_keys=["configurable"])
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8003)
+    uvicorn.run(app, host="localhost", port=8000)

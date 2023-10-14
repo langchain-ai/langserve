@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { resolveApiUrl } from "./utils/url";
 
 declare global {
   interface Window {
@@ -19,8 +20,8 @@ export function useSchemas() {
     async function save() {
       if (import.meta.env.DEV) {
         const [config, input] = await Promise.all([
-          fetch("http://localhost:8003/config_schema").then((r) => r.json()),
-          fetch("http://localhost:8003/input_schema").then((r) => r.json()),
+          fetch(resolveApiUrl("/config_schema")).then((r) => r.json()),
+          fetch(resolveApiUrl("/input_schema")).then((r) => r.json()),
         ]);
         setSchemas({ config, input });
       } else {

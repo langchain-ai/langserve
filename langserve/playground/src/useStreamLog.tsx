@@ -1,6 +1,7 @@
 import { useCallback, useReducer, useState } from "react";
 import { applyPatch, Operation } from "fast-json-patch";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { resolveApiUrl } from "./utils/url";
 
 export interface LogEntry {
   // ID of the sub-run.
@@ -51,7 +52,7 @@ export function useStreamLog() {
   const startStream = useCallback(async (input: unknown, config: unknown) => {
     const controller = new AbortController();
     setController(controller);
-    await fetchEventSource("http://localhost:8003/stream_log", {
+    await fetchEventSource(resolveApiUrl("/stream_log").toString(), {
       signal: controller.signal,
       method: "POST",
       headers: { "Content-Type": "application/json" },
