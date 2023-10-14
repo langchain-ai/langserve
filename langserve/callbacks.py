@@ -5,7 +5,8 @@ from typing import List, Dict, Any, Optional, Sequence
 from uuid import UUID
 
 from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.callbacks.manager import AsyncCallbackManager, CallbackManager
+from langchain.callbacks.manager import AsyncCallbackManager, CallbackManager, \
+    BaseRunManager
 from langchain.callbacks.manager import _ahandle_event, _handle_event
 from langchain.schema import AgentAction, AgentFinish
 from typing_extensions import TypedDict
@@ -349,7 +350,7 @@ async def ahandle_callbacks(
 
 
 def handle_callbacks(
-    callback_manager: CallbackManager,
+    callback_manager: BaseRunManager,
     parent_id: UUID,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
