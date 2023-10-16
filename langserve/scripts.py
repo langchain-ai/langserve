@@ -65,7 +65,7 @@ def download(
     subpath = api_path or repo_path.name or repo.split("/")[-1]
     local_dir = Path(package_dir) / subpath
     asyncio.run(_download_github_path(repo_path, local_dir, repo))
-    subprocess.run(["poetry", "add", str(local_dir)])
+    subprocess.run(["poetry", "add", "--editable", str(local_dir)])
 
 
 def list(path: str) -> None:
