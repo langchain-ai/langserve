@@ -4,6 +4,7 @@ from fastapi import FastAPI, APIRouter
 from tomllib import load as load_toml
 from tomllib import loads as loads_toml
 from langserve.server import add_routes
+import importlib
 
 
 # todo: make this a function instead (this is from old cli)
@@ -66,9 +67,7 @@ def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
         yield pyproject_path.parent
 
 
-def add_package_routes(
-    app: Union[FastAPI, APIRouter], path: str = "../packages"
-) -> None:
+def add_package_routes(app: Union[FastAPI, APIRouter], path: str = "packages") -> None:
     # traverse path for routes to host (any directory holding a pyproject.toml file)
     for package_path in list_packages(path):
         pyproject_path = package_path / "pyproject.toml"
@@ -78,9 +77,10 @@ def add_package_routes(
         module, attr = pyproject.get_langserve_export()
 
         # import module
-        mod = __import__(module)
+        mod = importlib.import_module(module)
         # get attr
         chain = getattr(mod, attr)
         # add route
-        mount_path = package_path.relative_to(Path(path))
-        add_routes(app, chain, path=str(mount_path))
+        mount_path_relative = package_path.relative_to(Path(path))
+        mount_path = f"/{mount_path_relative}"
+        add_routes(app, chain, path=mount_path)
