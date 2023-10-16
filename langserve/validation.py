@@ -16,7 +16,7 @@ Models are created with a namespace to avoid name collisions when hosting
 multiple runnables. When present the name collisions prevent fastapi from
 generating OpenAPI specs.
 """
-from typing import List, Optional, Sequence, Union, Any
+from typing import Any, List, Optional, Sequence, Union
 
 try:
     from pydantic.v1 import BaseModel, Field, create_model
@@ -24,8 +24,9 @@ except ImportError:
     from pydantic import BaseModel, Field, create_model
 
 from typing_extensions import Type, TypedDict
-from langserve.serialization import CallbackEventSerializer
+
 from langserve.schema import CallbackEvent
+from langserve.serialization import CallbackEventSerializer
 
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.

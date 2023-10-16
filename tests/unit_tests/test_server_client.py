@@ -169,6 +169,45 @@ def test_batch(client: RemoteRunnable) -> None:
         HumanMessage(content="hello")
     ]
 
+    # Test callbacks
+    # Using a single tracer for both inputs
+    tracer = FakeTracer()
+    assert client.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
+    assert len(tracer.runs) == 2
+    # Light test to verify that we're picking up information about the server side
+    # function being invoked via a callback.
+    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    )
+
+    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    )
+
+    # Verify that each tracer gets its own run
+    tracer1 = FakeTracer()
+    tracer2 = FakeTracer()
+    assert client.batch(
+        [1, 2], config=[{"callbacks": [tracer1]}, {"callbacks": [tracer2]}]
+    ) == [2, 3]
+    assert len(tracer1.runs) == 1
+    assert len(tracer2.runs) == 1
+    # Light test to verify that we're picking up information about the server side
+    # function being invoked via a callback.
+    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
+        == "add_one_or_passthrough"
+    )
+
+    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
+        == "add_one_or_passthrough"
+    )
+
 
 @pytest.mark.asyncio
 async def test_ainvoke(async_client: RemoteRunnable) -> None:

@@ -30,8 +30,7 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from langserve.serialization import WellKnownLCSerializer, CallbackEventSerializer
-from langserve.version import __version__
+from langserve.serialization import CallbackEventSerializer, WellKnownLCSerializer
 from langserve.validation import (
     create_batch_request_model,
     create_batch_response_model,
@@ -40,6 +39,7 @@ from langserve.validation import (
     create_stream_log_request_model,
     create_stream_request_model,
 )
+from langserve.version import __version__
 
 try:
     from fastapi import APIRouter, FastAPI
