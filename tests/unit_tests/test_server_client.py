@@ -557,6 +557,8 @@ async def test_openapi_docs_with_identical_runnables(
 
     server_runnable = RunnableLambda(func=add_one)
     server_runnable2 = RunnableLambda(func=add_one)
+    server_runnable3 = PromptTemplate.from_template("say {name}")
+    server_runnable4 = PromptTemplate.from_template("say {name} {hello}")
 
     app = FastAPI()
     add_routes(
@@ -569,6 +571,20 @@ async def test_openapi_docs_with_identical_runnables(
         app,
         server_runnable2,
         path="/b",
+        config_keys=["tags"],
+    )
+
+    add_routes(
+        app,
+        server_runnable3,
+        path="/c",
+        config_keys=["tags"],
+    )
+
+    add_routes(
+        app,
+        server_runnable4,
+        path="/d",
         config_keys=["tags"],
     )
 
