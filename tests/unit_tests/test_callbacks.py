@@ -18,7 +18,7 @@ async def test_event_aggregator() -> None:
     chain = prompt | llm
     callback = AsyncEventAggregatorCallback()
     assert chain.invoke({"question": "hello"}, {"callbacks": [callback]}) == "hello"
-    serializer = CallbackEventSerializer()
+    serializer = AsyncEventAggregatorCallback()
     assert serializer.dumpd(callback.callback_events) == []
 
 
