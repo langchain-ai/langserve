@@ -296,7 +296,7 @@ def replace_uuids_in_place(callback_events: Sequence[CallbackEvent]) -> None:
 
     # Iterate through the list of event callbacks
     for event in callback_events:
-        data: EventData = event["data"]
+        data = event["data"]
 
         # Replace UIDs in the 'run_id' field
         if "run_id" in data and data["run_id"] is not None:

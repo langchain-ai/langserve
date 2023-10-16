@@ -25,9 +25,6 @@ except ImportError:
 
 from typing_extensions import Type, TypedDict
 
-from langserve.schema import CallbackEvent
-from langserve.serialization import CallbackEventSerializer
-
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.
 Validator = Union[Type[BaseModel], type]

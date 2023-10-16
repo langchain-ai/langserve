@@ -267,7 +267,8 @@ def add_routes(
             configs = _config
         else:
             raise AssertionError(
-                f"Expected {len(batch_request.inputs)} configs for {len(_config)} inputs"
+                f"Expected {len(batch_request.inputs)} configs "
+                f"for {len(_config)} inputs."
             )
 
         aggregators = [

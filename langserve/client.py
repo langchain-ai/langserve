@@ -28,7 +28,6 @@ from langchain.schema.runnable.config import (
     ensure_config,
     get_async_callback_manager_for_config,
     get_callback_manager_for_config,
-    get_config_list,
 )
 from langchain.schema.runnable.utils import Input, Output
 
@@ -108,7 +107,7 @@ def _decode_response(response: httpx.Response) -> Tuple[Any, List[CallbackEvent]
         raise ValueError(f"Expected a dictionary, got {obj}")
 
     if "output" not in obj:
-        raise ValueError(f"Expected a dictionary with an 'output' key.")
+        raise ValueError("Key `output` not found in")
 
     serializer = WellKnownLCSerializer()
     output = serializer.loadd(obj["output"])
