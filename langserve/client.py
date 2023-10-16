@@ -174,7 +174,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         output, callback_events = _decode_response(response)
 
         if callback_events:
-            handle_callbacks(run_manager, run_manager.run_id, callback_events)
+            handle_callbacks(run_manager, callback_events)
         return output
 
     def invoke(
@@ -202,7 +202,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         output, callback_events = _decode_response(response)
         if callback_events:
-            handle_callbacks(run_manager, run_manager.run_id, callback_events)
+            handle_callbacks(run_manager, callback_events)
         return output
 
     async def ainvoke(
@@ -259,12 +259,10 @@ class RemoteRunnable(Runnable[Input, Output]):
             outputs, corresponding_callback_events = _decode_response(response)
 
             if corresponding_callback_events:
-                for callback_manager, run_manger, callback_events in zip(
-                    callback_managers, run_managers, corresponding_callback_events
+                for callback_manager, callback_events in zip(
+                    callback_managers, corresponding_callback_events
                 ):
-                    handle_callbacks(
-                        callback_manager, run_manger.run_id, callback_events
-                    )
+                    handle_callbacks(callback_manager, callback_events)
         except BaseException as e:
             for run_manager in run_managers:
                 run_manager.on_chain_error(e)
@@ -307,14 +305,14 @@ class RemoteRunnable(Runnable[Input, Output]):
         # Now handle callbacks
 
         if corresponding_callback_events:
-            raise ValueError(corresponding_callback_events)
-            # TODO(EUGENE): ADD GATHER HERE
-            for run_manger_, callback_events in zip(
+            tasks = []
+            for run_manager_, callback_events in zip(
                 run_manager, corresponding_callback_events
             ):
-                await ahandle_callbacks(
-                    run_manger_, run_manger_.run_id, callback_events
-                )
+                tasks.append(ahandle_callbacks(run_manager_, callback_events))
+
+            # Execute coroutines concurrently
+            await asyncio.gather(*tasks)
         return outputs
 
     async def abatch(

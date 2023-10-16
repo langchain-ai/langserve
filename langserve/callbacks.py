@@ -5,8 +5,11 @@ from typing import List, Dict, Any, Optional, Sequence
 from uuid import UUID
 
 from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.callbacks.manager import AsyncCallbackManager, CallbackManager, \
-    BaseRunManager
+from langchain.callbacks.manager import (
+    AsyncCallbackManager,
+    CallbackManager,
+    BaseRunManager,
+)
 from langchain.callbacks.manager import _ahandle_event, _handle_event
 from langchain.schema import AgentAction, AgentFinish
 from typing_extensions import TypedDict
@@ -317,8 +320,7 @@ def replace_uuids_in_place(callback_events: Sequence[CallbackEvent]) -> None:
 
 
 async def ahandle_callbacks(
-    callback_manager: AsyncCallbackManager,
-    parent_id: UUID,
+    callback_manager: BaseRunManager,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
     """Invoke all the callbacks."""
@@ -328,7 +330,7 @@ async def ahandle_callbacks(
     for callback_event in callback_events:
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
-            data["parent_run_id"] = parent_id
+            data["parent_run_id"] = callback_manager.run_id
         event = callback_event
         event_name_to_ignore_condition = {
             "on_llm_start": "ignore_llm",
@@ -351,7 +353,6 @@ async def ahandle_callbacks(
 
 def handle_callbacks(
     callback_manager: BaseRunManager,
-    parent_id: UUID,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
     """Invoke all the callbacks."""
@@ -360,7 +361,7 @@ def handle_callbacks(
     for callback_event in callback_events:
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
-            data["parent_run_id"] = parent_id
+            data["parent_run_id"] = callback_manager.run_id
 
         event_name_to_ignore_condition = {
             "on_llm_start": "ignore_llm",
@@ -379,26 +380,3 @@ def handle_callbacks(
             ignore_condition_name=ignore_condition,
             **callback_event["data"],
         )
-
-
-#
-#
-# def _sort_callback_events(events: List[CallbackEvent]) -> List[CallbackEvent]:
-#     """Sort callback events by parent_uid and uid."""
-#     child_to_parent = {
-#         event["data"]["run_id"]: event["data"]["parent_run_id"] for event in events
-#     }
-#
-#     parent_to_children = defaultdict(list)
-#     for child, parent in child_to_parent.items():
-#         parent_to_children[parent].append(child)
-#
-#     sorted_events = []
-#
-#     nodes_to_add = parent_to_children[None]
-#
-#     while nodes_to_add:
-#         sorted_events.extend(nodes_to_add)
-#         new_nodes_to_add = []
-#
-#     return sorted_events
