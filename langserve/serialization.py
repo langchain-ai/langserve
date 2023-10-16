@@ -1,7 +1,14 @@
-"""Serialization module for Well Known LangChain objects.
+"""Serialization for well known objects and callback events.
 
 Specialized JSON serialization for well known LangChain objects that
 can be expected to be frequently transmitted between chains.
+
+Callback events handle well known objects together with a few other
+common types like UUIDs and Exceptions that might appear in the callback.
+
+By default, exceptions are serialized as a generic exception without
+any information about the exception. This is done to prevent leaking
+sensitive information from the server to the client.
 """
 import abc
 import json

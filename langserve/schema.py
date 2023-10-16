@@ -14,5 +14,5 @@ class EventData(TypedDict, total=False):
 class CallbackEvent(TypedDict):
     """Dict representation of a callback event."""
 
-    type: str
+    name: str
     data: EventData

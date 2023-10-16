@@ -1,22 +1,24 @@
 import uuid
+import pytest
 
-from langserve.callbacks import replace_uuids_in_place
+from langserve.callbacks import replace_uuids_in_place, AsyncEventAggregatorCallback
 
-# @pytest.mark.asyncio
-# async def test_chain() -> None:
-#     """Test that we can run a chain."""
-#
-#     from langchain.llms import FakeListLLM
-#     from langchain.prompts import ChatPromptTemplate
-#
-#     prompt = ChatPromptTemplate.from_template("{question}")
-#     llm = FakeListLLM(responses=["hello", "world"])
-#
-#     chain = prompt | llm
-#     callback = EventAggregatorHandler()
-#     assert chain.invoke({"question": "hello"}, {"callbacks": [callback]}) == "hello"
-#     serializer = CallbackEventSerializer()
-#     assert serializer.dumpd(callback.callback_events) == []
+
+@pytest.mark.asyncio
+async def test_event_aggregator() -> None:
+    """Test that the event aggregator is aggregating events."""
+
+    from langchain.llms import FakeListLLM
+    from langchain.prompts import ChatPromptTemplate
+
+    prompt = ChatPromptTemplate.from_template("{question}")
+    llm = FakeListLLM(responses=["hello", "world"])
+
+    chain = prompt | llm
+    callback = AsyncEventAggregatorCallback()
+    assert chain.invoke({"question": "hello"}, {"callbacks": [callback]}) == "hello"
+    serializer = CallbackEventSerializer()
+    assert serializer.dumpd(callback.callback_events) == []
 
 
 # Unit tests using pytest

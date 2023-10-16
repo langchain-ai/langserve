@@ -23,7 +23,7 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.callbacks import EventAggregatorHandler
+from langserve.callbacks import AsyncEventAggregatorCallback
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -233,7 +233,7 @@ def add_routes(
         # config_keys as well as input_type.
         config = _unpack_config(invoke_request.config, config_keys)
         _add_tracing_info_to_metadata(config, request)
-        event_aggregator = EventAggregatorHandler()
+        event_aggregator = AsyncEventAggregatorCallback()
         config["callbacks"] = [event_aggregator]
         output = await runnable.ainvoke(
             _unpack_input(invoke_request.input),
@@ -272,7 +272,7 @@ def add_routes(
             )
 
         aggregators = [
-            EventAggregatorHandler() for _ in range(len(batch_request.inputs))
+            AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
         ]
 
         for c, aggregator in zip(configs, aggregators):

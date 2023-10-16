@@ -15,12 +15,21 @@ from langchain.schema import AgentAction, AgentFinish
 from langserve.schema import CallbackEvent
 
 
-class EventAggregatorHandler(AsyncCallbackHandler):
-    """A callback handler that aggregates all the events that have been called."""
+class AsyncEventAggregatorCallback(AsyncCallbackHandler):
+    """A callback handler that aggregates all the events that have been called.
+
+    This callback handler aggregates all the events that have been called placing
+    them in a single mutable list.
+
+    This callback handler is not threading safe, and is meant to be used in an async
+    context only.
+    """
 
     def __init__(self) -> None:
         """Get a list of all the callback events that have been called."""
         super().__init__()
+        # Callback events is a mutable state that is used only in an async context,
+        # so it should be safe to mutate without the usage of a lock.
         self.callback_events: List[CallbackEvent] = []
 
     async def on_chain_start(
@@ -321,15 +330,17 @@ async def ahandle_callbacks(
     callback_manager: BaseRunManager,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
-    """Invoke all the callbacks."""
+    """Invoke all the callback handlers with the given callback events."""
     replace_uuids_in_place(callback_events)
 
     # 1. Do I need inheritable handlers
     for callback_event in callback_events:
+        event_name = callback_event["name"]
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
             data["parent_run_id"] = callback_manager.run_id
-        event = callback_event
+
+        # TODO(Eugene): fix up
         event_name_to_ignore_condition = {
             "on_llm_start": "ignore_llm",
             "on_chat_model_start": "ignore_chat_model",
@@ -338,14 +349,14 @@ async def ahandle_callbacks(
             "on_retriever_start": "ignore_retriever",
         }
 
-        ignore_condition = event_name_to_ignore_condition.get(event["type"], None)
+        ignore_condition = event_name_to_ignore_condition.get(event_name, None)
 
         await _ahandle_event(
             # Unpacking like this may not work
             callback_manager.handlers,
-            event["type"],
+            event_name,
             ignore_condition_name=ignore_condition,
-            **event["data"],
+            **data,
         )
 
 
@@ -353,10 +364,11 @@ def handle_callbacks(
     callback_manager: BaseRunManager,
     callback_events: Sequence[CallbackEvent],
 ) -> None:
-    """Invoke all the callbacks."""
+    """Invoke all the callback handlers with the given callback events."""
     replace_uuids_in_place(callback_events)
 
     for callback_event in callback_events:
+        name = callback_event["name"]
         data = callback_event["data"]
         if data["parent_run_id"] is None:  # How do we make sure it's None!?
             data["parent_run_id"] = callback_manager.run_id
@@ -368,13 +380,11 @@ def handle_callbacks(
             "on_tool_start": "ignore_agent",
             "on_retriever_start": "ignore_retriever",
         }
-        ignore_condition = event_name_to_ignore_condition.get(
-            callback_event["type"], None
-        )
+        ignore_condition = event_name_to_ignore_condition.get(name, None)
         _handle_event(
             # Unpacking like this may not work
             callback_manager.handlers,
-            callback_event["type"],
+            name,
             ignore_condition_name=ignore_condition,
-            **callback_event["data"],
+            **data,
         )
