@@ -1,7 +1,8 @@
 import uuid
+
 import pytest
 
-from langserve.callbacks import replace_uuids_in_place, AsyncEventAggregatorCallback
+from langserve.callbacks import AsyncEventAggregatorCallback, replace_uuids_in_place
 
 
 @pytest.mark.asyncio
