@@ -66,7 +66,10 @@ def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
         config: RunnableConfig,
     ) -> Dict[str, Any]:
         """Add one to int or passthrough."""
-        return {k: config[k] for k in config if k in ("tags", "configurable")}
+        return {
+            "tags": sorted(config["tags"]),
+            "configurable": config.get("configurable"),
+        }
 
     runnable_lambda = RunnableLambda(func=return_config)
     app = FastAPI()
@@ -177,9 +180,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        "output": {
-            "tags": ["test", "another-one"],
-        }
+        "output": {"tags": ["another-one", "test"], "configurable": None}
     }
 
     # Test batch
@@ -189,11 +190,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        "output": [
-            {
-                "tags": ["test", "another-one"],
-            }
-        ]
+        "output": [{"tags": ["another-one", "test"], "configurable": None}]
     }
 
     # Test stream
@@ -204,7 +201,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     assert response.status_code == 200
     assert (
         response.text
-        == """event: data\r\ndata: {"tags": ["test", "another-one"]}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        == """event: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 
