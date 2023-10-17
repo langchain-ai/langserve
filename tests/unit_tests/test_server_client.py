@@ -14,7 +14,7 @@ from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import RunnablePassthrough, RunnableConfig
+from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
@@ -204,7 +204,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     assert response.status_code == 200
     assert (
         response.text
-        == """event: data\r\ndata: {"tags": ["test", "another-one"]}\r\n\r\nevent: end\r\n\r\n"""
+        == """event: data\r\ndata: {"tags": ["test", "another-one"]}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 

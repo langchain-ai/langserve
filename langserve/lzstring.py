@@ -9,7 +9,6 @@ Adapted from https://github.com/marcel-dancak/lz-string-python/blob/master/lzstr
 
 import math
 
-
 keyStrBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
 keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$"
 baseReverseDic = {}

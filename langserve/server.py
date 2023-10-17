@@ -25,8 +25,8 @@ from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import merge_configs
 from typing_extensions import Annotated
 
-from langserve.version import __version__
 from langserve.lzstring import LZString
+from langserve.version import __version__
 
 try:
     from pydantic.v1 import BaseModel, create_model
