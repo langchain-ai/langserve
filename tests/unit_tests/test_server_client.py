@@ -1,8 +1,9 @@
 """Test the server and client together."""
 import asyncio
+import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import pytest
@@ -12,15 +13,26 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
+from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import RunnablePassthrough
+from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
-from langserve.server import add_routes
+from langserve.lzstring import LZString
+from langserve.server import (
+    _rename_pydantic_model,
+    _replace_non_alphanumeric_with_underscores,
+    add_routes,
+)
 from tests.unit_tests.utils import FakeListLLM
+
+try:
+    from pydantic.v1 import BaseModel, Field
+except ImportError:
+    from pydantic import BaseModel, Field
 
 
 @pytest.fixture(scope="session")
@@ -49,7 +61,30 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
-        add_routes(app, runnable_lambda)
+        add_routes(app, runnable_lambda, config_keys=["tags"])
+        yield app
+    finally:
+        del app
+
+
+@pytest.fixture()
+def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
+    """A simple server that wraps a Runnable and exposes it as an API."""
+
+    async def return_config(
+        _: int,
+        config: RunnableConfig,
+    ) -> Dict[str, Any]:
+        """Add one to int or passthrough."""
+        return {
+            "tags": sorted(config["tags"]),
+            "configurable": config.get("configurable"),
+        }
+
+    runnable_lambda = RunnableLambda(func=return_config)
+    app = FastAPI()
+    try:
+        add_routes(app, runnable_lambda, config_keys=["tags", "metadata"])
         yield app
     finally:
         del app
@@ -140,6 +175,44 @@ async def test_server_async(app: FastAPI) -> None:
     # Test stream
     response = await async_client.post("/stream", json={"input": 1})
     assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+
+
+@pytest.mark.asyncio
+async def test_server_bound_async(app_for_config: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
+    config_hash = LZString.compressToEncodedURIComponent(json.dumps({"tags": ["test"]}))
+
+    # Test invoke
+    response = await async_client.post(
+        f"/h{config_hash}/invoke",
+        json={"input": 1, "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "output": {"tags": ["another-one", "test"], "configurable": None}
+    }
+
+    # Test batch
+    response = await async_client.post(
+        f"/h{config_hash}/batch",
+        json={"inputs": [1], "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "output": [{"tags": ["another-one", "test"], "configurable": None}]
+    }
+
+    # Test stream
+    response = await async_client.post(
+        f"/h{config_hash}/stream",
+        json={"input": 1, "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert (
+        response.text
+        == """event: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+    )
 
 
 def test_invoke(client: RemoteRunnable) -> None:
@@ -392,6 +465,12 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         path="/mul_2",
     )
 
+    add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
+
+    add_routes(
+        app, PromptTemplate.from_template("{question} {answer}"), path="/prompt_2"
+    )
+
     async with get_async_client(app, path="/add_one") as runnable:
         async with get_async_client(app, path="/mul_2") as runnable2:
             assert await runnable.ainvoke(1) == 2
@@ -403,6 +482,16 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
             # Invoke runnable (remote add_one), local add_one, remote mul_2
             composite_runnable_2 = runnable | add_one | runnable2
             assert await composite_runnable_2.ainvoke(3) == 10
+
+    async with get_async_client(app, path="/prompt_1") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?"}
+        ) == StringPromptValue(text="What is your name?")
+
+    async with get_async_client(app, path="/prompt_2") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?", "answer": "Bob"}
+        ) == StringPromptValue(text="What is your name? Bob")
 
 
 @pytest.mark.asyncio
@@ -640,3 +729,34 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
             )
             == "hello Mr. Kitten!"
         )
+
+
+# Test for utilities
+
+
+@pytest.mark.parametrize(
+    "s,expected",
+    [
+        ("hello", "hello"),
+        ("hello world", "hello_world"),
+        ("hello-world", "hello_world"),
+        ("hello_world", "hello_world"),
+        ("hello.world", "hello_world"),
+    ],
+)
+def test_replace_non_alphanumeric(s: str, expected: str) -> None:
+    """Test replace non alphanumeric."""
+    assert _replace_non_alphanumeric_with_underscores(s) == expected
+
+
+def test_rename_pydantic_model() -> None:
+    """Test rename pydantic model."""
+
+    class Foo(BaseModel):
+        bar: str = Field(..., description="A bar")
+        baz: str = Field(..., description="A baz")
+
+    Model = _rename_pydantic_model(Foo, "Bar")
+
+    assert isinstance(Model, type)
+    assert Model.__name__ == "Bar"
