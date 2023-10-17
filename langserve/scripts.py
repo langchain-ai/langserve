@@ -13,17 +13,20 @@ from langserve.packages import list_packages, PyProject
 import subprocess
 import shutil
 
-g = Github(auth=Auth.Token(token=os.environ["GITHUB_PAT"]))
-
 
 async def _download_github_path(path: Path, local_dest: Path, repo_handle: str) -> None:
+    token = os.environ.get("GITHUB_PAT")
+    if token:
+        g = Github(auth=Auth.Token(token=token))
+    else:
+        g = Github()
     repo = g.get_repo(repo_handle)
     # recursively download all files in path
 
     base_path = Path(path)
     local_base_path = Path(local_dest)
     try:
-        local_base_path.mkdir(exist_ok=False)
+        local_base_path.mkdir(exist_ok=False, parents=True)
     except FileExistsError:
         print(FileExistsError(f"Error: Directory {local_base_path} already exists"))
         return
@@ -92,7 +95,7 @@ def download(
     if not repo:
         raise ValueError("Must specify repo")
     repo_path = Path(package)
-    subpath = api_path or repo_path.name or repo.split("/")[-1]
+    subpath = api_path.strip("/") if api_path else repo_path.name or repo.split("/")[-1]
     local_dir = Path(package_dir) / subpath
     asyncio.run(_download_github_path(repo_path, local_dir, repo))
     subprocess.run(["poetry", "add", "--editable", str(local_dir)])
@@ -110,7 +113,7 @@ def remove(
 ) -> None:
     # check if path exists
     package_root = Path(package_dir)
-    package_path = package_root / path
+    package_path = package_root / path.strip("/")
     if not package_path.exists():
         raise ValueError(f"Error: {package_path} does not exist")
 
