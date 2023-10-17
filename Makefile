@@ -13,6 +13,9 @@ TEST_FILE ?= tests/unit_tests/
 test:
 	poetry run pytest --disable-socket --allow-unix-socket $(TEST_FILE)
 
+test_watch:
+	poetry run ptw . -- $(TEST_FILE)
+
 ######################
 # LINTING AND FORMATTING
 ######################

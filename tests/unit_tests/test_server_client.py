@@ -1,8 +1,9 @@
 """Test the server and client together."""
 import asyncio
+import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import pytest
@@ -14,7 +15,7 @@ from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import RunnablePassthrough
+from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
@@ -25,6 +26,8 @@ from langserve.server import (
     _replace_non_alphanumeric_with_underscores,
     add_routes,
 )
+from langserve.lzstring import LZString
+from langserve.server import add_routes
 from tests.unit_tests.utils import FakeListLLM
 
 try:
@@ -59,7 +62,30 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
-        add_routes(app, runnable_lambda)
+        add_routes(app, runnable_lambda, config_keys=["tags"])
+        yield app
+    finally:
+        del app
+
+
+@pytest.fixture()
+def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
+    """A simple server that wraps a Runnable and exposes it as an API."""
+
+    async def return_config(
+        _: int,
+        config: RunnableConfig,
+    ) -> Dict[str, Any]:
+        """Add one to int or passthrough."""
+        return {
+            "tags": sorted(config["tags"]),
+            "configurable": config.get("configurable"),
+        }
+
+    runnable_lambda = RunnableLambda(func=return_config)
+    app = FastAPI()
+    try:
+        add_routes(app, runnable_lambda, config_keys=["tags", "metadata"])
         yield app
     finally:
         del app
@@ -150,6 +176,44 @@ async def test_server_async(app: FastAPI) -> None:
     # Test stream
     response = await async_client.post("/stream", json={"input": 1})
     assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+
+
+@pytest.mark.asyncio
+async def test_server_bound_async(app_for_config: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
+    config_hash = LZString.compressToEncodedURIComponent(json.dumps({"tags": ["test"]}))
+
+    # Test invoke
+    response = await async_client.post(
+        f"/h{config_hash}/invoke",
+        json={"input": 1, "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "output": {"tags": ["another-one", "test"], "configurable": None}
+    }
+
+    # Test batch
+    response = await async_client.post(
+        f"/h{config_hash}/batch",
+        json={"inputs": [1], "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "output": [{"tags": ["another-one", "test"], "configurable": None}]
+    }
+
+    # Test stream
+    response = await async_client.post(
+        f"/h{config_hash}/stream",
+        json={"input": 1, "config": {"tags": ["another-one"]}},
+    )
+    assert response.status_code == 200
+    assert (
+        response.text
+        == """event: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+    )
 
 
 def test_invoke(client: RemoteRunnable) -> None:
