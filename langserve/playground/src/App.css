@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  input,
+  textarea,
+  select {
+    background: transparent;
+  }
+
   /* clash between MUI and Tailwind */
   input:focus,
   textarea:focus,
@@ -12,7 +18,7 @@
   }
 
   body {
-    @apply bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh];
+    @apply bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C];
   }
 
   #root {

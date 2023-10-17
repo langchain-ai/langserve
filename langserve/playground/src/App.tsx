@@ -131,7 +131,7 @@ function App() {
   const { startStream, stopStream, latest } = useStreamLog();
 
   return schemas.config && schemas.input ? (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 text-ls-black">
       <h1 className="text-2xl font-medium">Playground</h1>
       <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-xl bg-background">
         <h2 className="text-xl font-medium">Configure</h2>
@@ -197,7 +197,7 @@ function App() {
           }
         >
           {stopStream ? (
-            <span>Stop</span>
+            <span className="text-white">Stop</span>
           ) : (
             <img src={SendIcon} alt="Start" className="text-white" />
           )}
