@@ -76,15 +76,15 @@ def _rename_pydantic_model(model: Type[BaseModel], name: str) -> Type[BaseModel]
         name,
         __config__=model.__config__,
         **{
-            name: (
+            fieldname: (
                 field.annotation,
                 Field(
                     field.default,
-                    title=name,
+                    title=fieldname,
                     description=field.field_info.description,
                 ),
             )
-            for name, field in model.__fields__.items()
+            for fieldname, field in model.__fields__.items()
         },
     )
 
