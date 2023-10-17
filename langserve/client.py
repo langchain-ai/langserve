@@ -17,7 +17,7 @@ from urllib.parse import urljoin
 
 import httpx
 from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes, VerifyTypes
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import (
@@ -408,7 +408,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         exclude_types: Optional[Sequence[str]] = None,
         exclude_tags: Optional[Sequence[str]] = None,
         **kwargs: Optional[Any],
-    ) -> Union[AsyncIterator[RunLogPatch], AsyncIterator[RunLog]]:
+    ) -> AsyncIterator[RunLogPatch]:
         """Stream all output from a runnable, as reported to the callback system.
 
         This includes all inner runs of LLMs, Retrievers, Tools, etc.

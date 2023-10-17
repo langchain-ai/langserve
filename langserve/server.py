@@ -20,7 +20,7 @@ from typing import (
 )
 
 from fastapi import HTTPException, Request
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import merge_configs

@@ -11,7 +11,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
