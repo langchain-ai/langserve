@@ -6,6 +6,7 @@ The main entry point is the `add_routes` function which adds the routes to an ex
 FastAPI app or APIRouter.
 """
 import json
+import re
 from inspect import isclass
 from typing import (
     Any,
@@ -100,13 +101,40 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     return model
 
 
+def _rename_pydantic_model(model: Type[BaseModel], name: str) -> Type[BaseModel]:
+    """Rename the given pydantic model to the given name."""
+    return create_model(
+        name,
+        __config__=model.__config__,
+        **{
+            fieldname: (
+                field.annotation,
+                Field(
+                    field.default,
+                    title=fieldname,
+                    description=field.field_info.description,
+                ),
+            )
+            for fieldname, field in model.__fields__.items()
+        },
+    )
+
+
 # This is a global registry of models to avoid creating the same model
 # multiple times.
 # Duplicated model names break fastapi's openapi generation.
 _MODEL_REGISTRY = {}
+_SEEN_NAMES = set()
 
 
-def _resolve_model(type_: Union[Type, BaseModel], default_name: str) -> Type[BaseModel]:
+def _replace_non_alphanumeric_with_underscores(s: str) -> str:
+    """Replace non-alphanumeric characters with underscores."""
+    return re.sub(r"[^a-zA-Z0-9]", "_", s)
+
+
+def _resolve_model(
+    type_: Union[Type, BaseModel], default_name: str, namespace: str
+) -> Type[BaseModel]:
     """Resolve the input type to a BaseModel."""
     if isclass(type_) and issubclass(type_, BaseModel):
         model = type_
@@ -115,8 +143,17 @@ def _resolve_model(type_: Union[Type, BaseModel], default_name: str) -> Type[Bas
 
     hash_ = model.schema_json()
 
+    if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
+        # If the model name has been seen before, but the model itself is different
+        # generate a new name for the model.
+        model_to_use = _rename_pydantic_model(model, f"{namespace}{model.__name__}")
+        hash_ = model_to_use.schema_json()
+    else:
+        model_to_use = model
+
     if hash_ not in _MODEL_REGISTRY:
-        _MODEL_REGISTRY[hash_] = model
+        _SEEN_NAMES.add(model_to_use.__name__)
+        _MODEL_REGISTRY[hash_] = model_to_use
 
     return _MODEL_REGISTRY[hash_]
 
@@ -134,24 +171,9 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     Returns:
         A new model with name prepended with the given namespace.
     """
-
-    class Config:
-        arbitrary_types_allowed = True
-
-    model_with_unique_name = create_model(
+    model_with_unique_name = _rename_pydantic_model(
+        model,
         f"{namespace}{model.__name__}",
-        config=Config,
-        **{
-            name: (
-                field.annotation,
-                Field(
-                    field.default,
-                    title=name,
-                    description=field.field_info.description,
-                ),
-            )
-            for name, field in model.__fields__.items()
-        },
     )
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
@@ -222,17 +244,21 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    namespace = path or ""
+
+    model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
+
     input_type_ = _resolve_model(
-        runnable.input_schema if input_type == "auto" else input_type, "Input"
+        runnable.input_schema if input_type == "auto" else input_type,
+        "Input",
+        model_namespace,
     )
 
     output_type_ = _resolve_model(
-        runnable.output_schema if output_type == "auto" else output_type, "Output"
+        runnable.output_schema if output_type == "auto" else output_type,
+        "Output",
+        model_namespace,
     )
-
-    namespace = path or ""
-
-    model_namespace = path.strip("/").replace("/", "_")
 
     ConfigPayload = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
