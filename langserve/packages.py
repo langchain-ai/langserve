@@ -5,6 +5,7 @@ from tomllib import load as load_toml
 from tomllib import loads as loads_toml
 from langserve.server import add_routes
 import importlib
+import logging
 
 
 # todo: make this a function instead (this is from old cli)
@@ -78,8 +79,17 @@ def add_package_routes(app: Union[FastAPI, APIRouter], path: str = "packages") -
         # get langserve export
         module, attr = pyproject.get_langserve_export()
 
-        # import module
-        mod = importlib.import_module(module)
+        try:
+            # import module
+            mod = importlib.import_module(module)
+        except ModuleNotFoundError as e:
+            logging.warning(f"Error: {e}")
+            logging.warning(f"Try fixing with `poetry add --editable {package_path}`")
+            logging.warning(
+                "To remove packages, use `poe` instead of `poetry`: "
+                f"`poe remove {pyproject.package_name}`"
+            )
+            continue
         # get attr
         chain = getattr(mod, attr)
         # add route
