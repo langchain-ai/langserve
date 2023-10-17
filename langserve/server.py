@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import json
 from inspect import isclass
 from typing import (
     Any,
@@ -17,13 +18,15 @@ from typing import (
     Union,
 )
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
+from langchain.schema.runnable.config import merge_configs
 from typing_extensions import Annotated
 
 from langserve.version import __version__
+from langserve.lzstring import LZString
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -47,10 +50,35 @@ except ImportError:
     APIRouter = FastAPI = Any
 
 
-def _unpack_config(d: Union[BaseModel, Mapping], keys: Sequence[str]) -> Dict[str, Any]:
-    """Project the given keys from the given dict."""
-    _d = d.dict() if isinstance(d, BaseModel) else d
-    return {k: _d[k] for k in keys if k in _d}
+def _config_from_hash(config_hash: str) -> Dict[str, Any]:
+    try:
+        if not config_hash:
+            return {}
+
+        uncompressed = LZString.decompressFromEncodedURIComponent(config_hash)
+        parsed = json.loads(uncompressed)
+        if isinstance(parsed, dict):
+            return parsed
+        else:
+            raise HTTPException(400, "Invalid config hash")
+    except Exception:
+        raise HTTPException(400, "Invalid config hash")
+
+
+def _unpack_config(
+    *configs: Union[BaseModel, Mapping, str], keys: Sequence[str]
+) -> Dict[str, Any]:
+    """Merge configs, and project the given keys from the merged dict."""
+    config_dicts = []
+    for config in configs:
+        if isinstance(config, str):
+            config_dicts.append(_config_from_hash(config))
+        elif isinstance(config, BaseModel):
+            config_dicts.append(config.dict())
+        else:
+            config_dicts.append(config)
+    config = merge_configs(*config_dicts)
+    return {k: config[k] for k in keys if k in config}
 
 
 def _unpack_input(validated_model: BaseModel) -> Any:
@@ -217,18 +245,17 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    @app.post(
-        f"{namespace}/invoke",
-        response_model=InvokeResponse,
-    )
+    @app.post(namespace + "/h{config_hash}/invoke", response_model=InvokeResponse)
+    @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
     async def invoke(
         invoke_request: Annotated[InvokeRequest, InvokeRequest],
         request: Request,
+        config_hash: str = "",
     ) -> InvokeResponse:
         """Invoke the runnable with the given input and config."""
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
-        config = _unpack_config(invoke_request.config, config_keys)
+        config = _unpack_config(config_hash, invoke_request.config, keys=config_keys)
         _add_tracing_info_to_metadata(config, request)
         output = await runnable.ainvoke(
             _unpack_input(invoke_request.input), config=config
@@ -236,32 +263,36 @@ def add_routes(
 
         return InvokeResponse(output=simple_dumpd(output))
 
-    #
+    @app.post(namespace + "/h{config_hash}/batch", response_model=BatchResponse)
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
     async def batch(
         batch_request: Annotated[BatchRequest, BatchRequest],
         request: Request,
+        config_hash: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
         if isinstance(batch_request.config, list):
             config = [
-                _unpack_config(config, config_keys) for config in batch_request.config
+                _unpack_config(config, keys=config_keys)
+                for config in batch_request.config
             ]
 
             for c in config:
                 _add_tracing_info_to_metadata(c, request)
         else:
-            config = _unpack_config(batch_request.config, config_keys)
+            config = _unpack_config(config_hash, batch_request.config, keys=config_keys)
             _add_tracing_info_to_metadata(config, request)
         inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
         output = await runnable.abatch(inputs, config=config)
 
         return BatchResponse(output=simple_dumpd(output))
 
+    @app.post(namespace + "/h{config_hash}/stream")
     @app.post(f"{namespace}/stream")
     async def stream(
         stream_request: Annotated[StreamRequest, StreamRequest],
         request: Request,
+        config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
 
@@ -298,7 +329,7 @@ def add_routes(
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
         input_ = _unpack_input(stream_request.input)
-        config = _unpack_config(stream_request.config, config_keys)
+        config = _unpack_config(config_hash, stream_request.config, keys=config_keys)
         _add_tracing_info_to_metadata(config, request)
 
         async def _stream() -> AsyncIterator[dict]:
@@ -312,10 +343,12 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
+    @app.post(namespace + "/h{config_hash}/stream_log")
     @app.post(f"{namespace}/stream_log")
     async def stream_log(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
         request: Request,
+        config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
 
@@ -353,7 +386,9 @@ def add_routes(
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
         input_ = _unpack_input(stream_log_request.input)
-        config = _unpack_config(stream_log_request.config, config_keys)
+        config = _unpack_config(
+            config_hash, stream_log_request.config, keys=config_keys
+        )
         _add_tracing_info_to_metadata(config, request)
 
         async def _stream_log() -> AsyncIterator[dict]:
@@ -397,17 +432,20 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
+    @app.get(namespace + "/h{config_hash}/input_schema")
     @app.get(f"{namespace}/input_schema")
-    async def input_schema() -> Any:
+    async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         return runnable.input_schema.schema()
 
+    @app.get(namespace + "/h{config_hash}/output_schema")
     @app.get(f"{namespace}/output_schema")
-    async def output_schema() -> Any:
+    async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         return runnable.output_schema.schema()
 
+    @app.get(namespace + "/h{config_hash}/config_schema")
     @app.get(f"{namespace}/config_schema")
-    async def config_schema() -> Any:
+    async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         return runnable.config_schema(include=config_keys).schema()

@@ -155,7 +155,7 @@ def test_invoke_request_with_runnables() -> None:
             Model(
                 input={"name": "bob"},
             ).config,
-            [],
+            keys=[],
         )
         == {}
     )
@@ -177,6 +177,6 @@ def test_invoke_request_with_runnables() -> None:
         "template": "goodbye {name}",
     }
 
-    assert _unpack_config(request.config, ["configurable"]) == {
+    assert _unpack_config(request.config, keys=["configurable"]) == {
         "configurable": {"template": "goodbye {name}"},
     }
