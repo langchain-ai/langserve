@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
+from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
@@ -25,6 +26,11 @@ from langserve.server import (
     add_routes,
 )
 from tests.unit_tests.utils import FakeListLLM
+
+try:
+    from pydantic.v1 import BaseModel, Field
+except ImportError:
+    from pydantic import BaseModel, Field
 
 
 @pytest.fixture(scope="session")
@@ -396,6 +402,12 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         path="/mul_2",
     )
 
+    add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
+
+    add_routes(
+        app, PromptTemplate.from_template("{question} {answer}"), path="/prompt_2"
+    )
+
     async with get_async_client(app, path="/add_one") as runnable:
         async with get_async_client(app, path="/mul_2") as runnable2:
             assert await runnable.ainvoke(1) == 2
@@ -407,6 +419,16 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
             # Invoke runnable (remote add_one), local add_one, remote mul_2
             composite_runnable_2 = runnable | add_one | runnable2
             assert await composite_runnable_2.ainvoke(3) == 10
+
+    async with get_async_client(app, path="/prompt_1") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?"}
+        ) == StringPromptValue(text="What is your name?")
+
+    async with get_async_client(app, path="/prompt_2") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?", "answer": "Bob"}
+        ) == StringPromptValue(text="What is your name? Bob")
 
 
 @pytest.mark.asyncio
@@ -666,10 +688,6 @@ def test_replace_non_alphanumeric(s: str, expected: str) -> None:
 
 def test_rename_pydantic_model() -> None:
     """Test rename pydantic model."""
-    try:
-        from pydantic.v1 import BaseModel, Field, create_model
-    except ImportError:
-        from pydantic import BaseModel, Field, create_model
 
     class Foo(BaseModel):
         bar: str = Field(..., description="A bar")
