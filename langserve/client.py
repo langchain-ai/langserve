@@ -401,7 +401,6 @@ class RemoteRunnable(Runnable[Input, Output]):
         input: Input,
         config: Optional[RunnableConfig] = None,
         *,
-        diff: bool = False,
         include_names: Optional[Sequence[str]] = None,
         include_types: Optional[Sequence[str]] = None,
         include_tags: Optional[Sequence[str]] = None,
@@ -436,7 +435,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "input": simple_dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
-            "diff": diff,
+            "diff": True,
             "include_names": include_names,
             "include_types": include_types,
             "include_tags": include_tags,
@@ -458,18 +457,12 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = simple_loads(sse.data)
-                        if diff:
-                            chunk = RunLogPatch(*data["ops"])
-                        else:
-                            chunk = RunLog(*data["ops"], state=data["state"])
+                        chunk = RunLogPatch(*data["ops"])
 
                         yield chunk
 
-                        if diff:
-                            if final_output:
-                                final_output += chunk
-                            else:
-                                final_output = chunk
+                        if final_output:
+                            final_output += chunk
                         else:
                             final_output = chunk
                     elif sse.event == "end":
