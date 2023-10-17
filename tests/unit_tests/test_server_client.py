@@ -21,13 +21,12 @@ from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
+from langserve.lzstring import LZString
 from langserve.server import (
     _rename_pydantic_model,
     _replace_non_alphanumeric_with_underscores,
     add_routes,
 )
-from langserve.lzstring import LZString
-from langserve.server import add_routes
 from tests.unit_tests.utils import FakeListLLM
 
 try:

@@ -260,7 +260,7 @@ def add_routes(
         model_namespace,
     )
 
-    config = _add_namespace_to_model(
+    ConfigPayload = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
     InvokeRequest = create_invoke_request_model(
