@@ -41,7 +41,6 @@ export interface RunState {
 }
 
 function reducer(state: RunState | null, action: Operation[]) {
-  console.log("action", action);
   return applyPatch(state, action, true, false).newDocument;
 }
 

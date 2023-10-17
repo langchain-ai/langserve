@@ -126,16 +126,13 @@ function getStateFromUrl(path: string) {
   if (basePath.endsWith("/playground")) {
     basePath = basePath.slice(0, -"/playground".length);
   }
-  console.log(basePath);
 
   // check if we can omit the last segment
-  const lastSegment = basePath.split("/").pop();
-  if (lastSegment?.startsWith("h")) {
+  const [configHash, c, ...rest] = basePath.split("/").reverse();
+  if (c === "c") {
+    basePath = rest.reverse().join("/");
     try {
-      configFromUrl = JSON.parse(
-        decompressFromEncodedURIComponent(lastSegment.slice(1))
-      );
-      basePath = basePath.slice(0, -("/" + lastSegment).length);
+      configFromUrl = JSON.parse(decompressFromEncodedURIComponent(configHash));
     } catch (error) {
       console.error(error);
     }
@@ -165,13 +162,13 @@ function ShareDialog(props: { config: unknown }) {
   const state = getStateFromUrl(window.location.href);
 
   // get base URL
-  const targetUrl = `${state.basePath}/h${hash}`;
+  const targetUrl = `${state.basePath}/c/${hash}`;
 
-  // .../h[hash]/playground
+  // .../c/[hash]/playground
   const playgroundUrl = `${targetUrl}/playground`;
 
-  // cURL, JS: .../h[hash]/invoke
-  // Python: .../h[hash]
+  // cURL, JS: .../c/[hash]/invoke
+  // Python: .../c/[hash]
   const invokeUrl = `${targetUrl}/invoke`;
 
   return (
@@ -234,7 +231,10 @@ function App() {
   useEffect(() => {
     if (schemas.config) {
       const state = getStateFromUrl(window.location.href);
-      setConfigData({ data: state.configFromUrl ?? {}, errors: [] });
+      setConfigData({
+        data: state.configFromUrl ?? defaults(schemas.config),
+        errors: [],
+      });
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

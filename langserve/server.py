@@ -524,8 +524,9 @@ def add_routes(
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
         tags=["config"],
+        include_in_schema=False,
     )
-    @app.get(namespace + "/playground/{file_path:path}")
+    @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
         return await serve_playground(

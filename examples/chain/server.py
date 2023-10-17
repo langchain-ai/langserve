@@ -14,12 +14,15 @@ model = ChatOpenAI(temperature=0.5).configurable_alternatives(
     ConfigurableField(id="llm", name="LLM"),
     high_temp=ChatOpenAI(temperature=0.9),
     low_temp=ChatOpenAI(temperature=0.1, max_tokens=1),
+    default_key="medium_temp",
 )
 prompt = PromptTemplate.from_template(
     "tell me a joke about {topic}"
 ).configurable_fields(
     template=ConfigurableField(
-        id="prompt", name="Prompt", description="The prompt to use."
+        id="prompt",
+        name="Prompt",
+        description="The prompt to use. Must contain {topic}",
     )
 )
 chain = prompt | model | StrOutputParser()
