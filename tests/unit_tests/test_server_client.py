@@ -20,9 +20,9 @@ from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
 from langserve.server import (
-    add_routes,
-    _replace_non_alphanumeric_with_underscores,
     _rename_pydantic_model,
+    _replace_non_alphanumeric_with_underscores,
+    add_routes,
 )
 from tests.unit_tests.utils import FakeListLLM
 
