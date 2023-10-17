@@ -52,7 +52,7 @@ import { JsonFormsCore } from "@jsonforms/core";
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
 
-// const URL_LENGTH_LIMIT = 2000;
+const URL_LENGTH_LIMIT = 2000;
 
 function str(o: unknown): React.ReactNode {
   return typeof o === "object"
@@ -143,6 +143,20 @@ function getStateFromUrl(path: string) {
   return { basePath, configFromUrl };
 }
 
+function CopyButton(props: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="px-2 py-1 border-l border-divider-700"
+      onClick={() => {
+        navigator.clipboard.writeText(props.value).then(() => setCopied(true));
+      }}
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
 function ShareDialog(props: { config: unknown }) {
   const hash = useMemo(() => {
     return compressToEncodedURIComponent(JSON.stringify(props.config));
@@ -166,24 +180,38 @@ function ShareDialog(props: { config: unknown }) {
       <p>Link to the playground</p>
 
       <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
-        <div className="text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 ">
+        <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
           {playgroundUrl}
         </div>
-        <div className="px-2 border-l border-d">Copy</div>
+        <CopyButton value={playgroundUrl} />
       </div>
 
       <p>Copy the code snippet</p>
 
-      <div>
-        <div>Python</div>
-        <div className="bg-gray-950 text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 text-xs rounded-md">
-          {targetUrl}
-        </div>
+      <div className="flex flex-col gap-2">
+        {targetUrl.length < URL_LENGTH_LIMIT && (
+          <>
+            <div>Python</div>
+            <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
+              <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+                {targetUrl}
+              </div>
+              <CopyButton value={targetUrl} />
+            </div>
+          </>
+        )}
 
-        <div>cURL</div>
-        <div className="bg-gray-950 text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 text-xs rounded-md">
-          {invokeUrl}
-        </div>
+        {invokeUrl.length < URL_LENGTH_LIMIT && (
+          <>
+            <div>cURL (/invoke)</div>
+            <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
+              <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+                {invokeUrl}
+              </div>
+              <CopyButton value={invokeUrl} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -80,3 +80,11 @@
 .group-layout {
   @apply flex flex-col gap-4 bg-background p-4 border border-divider-700 rounded-lg;
 }
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
