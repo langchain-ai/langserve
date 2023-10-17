@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
+from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
@@ -21,8 +22,17 @@ from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
-from langserve.server import add_routes
+from langserve.server import (
+    _rename_pydantic_model,
+    _replace_non_alphanumeric_with_underscores,
+    add_routes,
+)
 from tests.unit_tests.utils import FakeListLLM
+
+try:
+    from pydantic.v1 import BaseModel, Field
+except ImportError:
+    from pydantic import BaseModel, Field
 
 
 @pytest.fixture(scope="session")
@@ -455,6 +465,12 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         path="/mul_2",
     )
 
+    add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
+
+    add_routes(
+        app, PromptTemplate.from_template("{question} {answer}"), path="/prompt_2"
+    )
+
     async with get_async_client(app, path="/add_one") as runnable:
         async with get_async_client(app, path="/mul_2") as runnable2:
             assert await runnable.ainvoke(1) == 2
@@ -466,6 +482,16 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
             # Invoke runnable (remote add_one), local add_one, remote mul_2
             composite_runnable_2 = runnable | add_one | runnable2
             assert await composite_runnable_2.ainvoke(3) == 10
+
+    async with get_async_client(app, path="/prompt_1") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?"}
+        ) == StringPromptValue(text="What is your name?")
+
+    async with get_async_client(app, path="/prompt_2") as runnable:
+        assert await runnable.ainvoke(
+            {"question": "What is your name?", "answer": "Bob"}
+        ) == StringPromptValue(text="What is your name? Bob")
 
 
 @pytest.mark.asyncio
@@ -620,6 +646,8 @@ async def test_openapi_docs_with_identical_runnables(
 
     server_runnable = RunnableLambda(func=add_one)
     server_runnable2 = RunnableLambda(func=add_one)
+    server_runnable3 = PromptTemplate.from_template("say {name}")
+    server_runnable4 = PromptTemplate.from_template("say {name} {hello}")
 
     app = FastAPI()
     add_routes(
@@ -632,6 +660,20 @@ async def test_openapi_docs_with_identical_runnables(
         app,
         server_runnable2,
         path="/b",
+        config_keys=["tags"],
+    )
+
+    add_routes(
+        app,
+        server_runnable3,
+        path="/c",
+        config_keys=["tags"],
+    )
+
+    add_routes(
+        app,
+        server_runnable4,
+        path="/d",
         config_keys=["tags"],
     )
 
@@ -687,3 +729,34 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
             )
             == "hello Mr. Kitten!"
         )
+
+
+# Test for utilities
+
+
+@pytest.mark.parametrize(
+    "s,expected",
+    [
+        ("hello", "hello"),
+        ("hello world", "hello_world"),
+        ("hello-world", "hello_world"),
+        ("hello_world", "hello_world"),
+        ("hello.world", "hello_world"),
+    ],
+)
+def test_replace_non_alphanumeric(s: str, expected: str) -> None:
+    """Test replace non alphanumeric."""
+    assert _replace_non_alphanumeric_with_underscores(s) == expected
+
+
+def test_rename_pydantic_model() -> None:
+    """Test rename pydantic model."""
+
+    class Foo(BaseModel):
+        bar: str = Field(..., description="A bar")
+        baz: str = Field(..., description="A baz")
+
+    Model = _rename_pydantic_model(Foo, "Bar")
+
+    assert isinstance(Model, type)
+    assert Model.__name__ == "Bar"
