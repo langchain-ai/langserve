@@ -829,7 +829,7 @@ tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipyth
 name = "fastapi"
 version = "0.103.2"
 description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "fastapi-0.103.2-py3-none-any.whl", hash = "sha256:3270de872f0fe9ec809d4bd3d4d890c6d5cc7b9611d721d6438f9dacc8c4ef2e"},
@@ -1122,7 +1122,7 @@ socks = ["socksio (==1.*)"]
 name = "httpx-sse"
 version = "0.3.1"
 description = "Consume Server-Sent Event (SSE) messages with HTTPX."
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "httpx-sse-0.3.1.tar.gz", hash = "sha256:3bb3289b2867f50cbdb2fee3eeeefecb1e86653122e164faac0023f1ffc88aea"},
@@ -3099,7 +3099,7 @@ sqlcipher = ["sqlcipher3-binary"]
 name = "sse-starlette"
 version = "1.6.5"
 description = "\"SSE plugin for Starlette\""
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "sse-starlette-1.6.5.tar.gz", hash = "sha256:819f2c421fb37067380fe3dcaba246c476b02651b7bb7601099a378ad802a0ac"},
@@ -3132,7 +3132,7 @@ tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 name = "starlette"
 version = "0.27.0"
 description = "The little ASGI library that shines."
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "starlette-0.27.0-py3-none-any.whl", hash = "sha256:918416370e846586541235ccd38a474c08b80443ed31c578a418e2209b3eef91"},
@@ -3888,4 +3888,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "75348fb1a36b0e85c14030ea99bf75ac53fe9438178ffb589c353b262c11eef8"
+content-hash = "f10ab79e90bd2d81216b437f14fee8e926aea3201d9fc8fd82ac7144edb48804"
