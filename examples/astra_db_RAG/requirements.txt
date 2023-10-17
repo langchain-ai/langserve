@@ -1,0 +1,6 @@
+cassio>=0.1.3
+langchain==0.0.316
+langserve[all]==0.0.10
+openai==0.28.1
+tiktoken==0.5.1
+uvicorn==0.23.2
