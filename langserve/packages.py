@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Union, Generator
 from fastapi import FastAPI, APIRouter
 from tomllib import load as load_toml
-from tomllib import loads as loads_toml
 from langserve.server import add_routes
 import importlib
 
@@ -18,12 +17,6 @@ class PyProject:
         with open(path, "rb") as f:
             data = load_toml(f)
         return cls(data, path)
-
-    # shouldn't need this anymore?
-    # @classmethod
-    # def loads(cls, data: str) -> "PyProject":
-    #     d = loads_toml(data)
-    #     return cls(d, None)
 
     def is_langserve(self) -> bool:
         return "langserve" in self.data["tool"]
