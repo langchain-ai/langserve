@@ -15,7 +15,9 @@ import {
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
-import SendIcon from "./assets/SendIcon.svg";
+import SendIcon from "./assets/SendIcon.svg?react";
+import ShareIcon from "./assets/ShareIcon.svg?react";
+import { compressToEncodedURIComponent } from "lz-string";
 
 import {
   BooleanCell,
@@ -46,6 +48,8 @@ import { JsonFormsCore } from "@jsonforms/core";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
+
+const URL_LENGTH_LIMIT = 2000;
 
 function str(o: unknown): React.ReactNode {
   return typeof o === "object"
@@ -132,7 +136,7 @@ function App() {
 
   return schemas.config && schemas.input ? (
     <div className="flex flex-col gap-4 text-ls-black">
-      <h1 className="text-2xl font-medium">Playground</h1>
+      <h1 className="text-2xl text-center font-medium">Playground</h1>
       <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-xl bg-background">
         <h2 className="text-xl font-medium">Configure</h2>
 
@@ -185,7 +189,29 @@ function App() {
 
       <div className="flex gap-4 justify-center">
         <button
-          className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center"
+          type="button"
+          className="w-12 h-12 border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
+          onClick={() => {
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.set(
+              "config",
+              compressToEncodedURIComponent(
+                JSON.stringify({ config: configData.data })
+              )
+            );
+
+            if (newUrl.toString().length > URL_LENGTH_LIMIT) {
+              alert("The URL is too long to share.");
+            }
+
+            window.history.pushState({}, "", newUrl.toString());
+          }}
+        >
+          <ShareIcon />
+        </button>
+        <button
+          type="button"
+          className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center border border-transparent disabled:opacity-50"
           onClick={() => {
             stopStream
               ? stopStream()
@@ -196,11 +222,7 @@ function App() {
             (!!inputData.errors?.length || !!configData.errors?.length)
           }
         >
-          {stopStream ? (
-            <span className="text-white">Stop</span>
-          ) : (
-            <img src={SendIcon} alt="Start" className="text-white" />
-          )}
+          {stopStream ? <span className="text-white">Stop</span> : <SendIcon />}
         </button>
       </div>
     </div>
