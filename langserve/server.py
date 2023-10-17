@@ -254,7 +254,11 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    @app.post(namespace + "/h{config_hash}/invoke", response_model=InvokeResponse)
+    @app.post(
+        namespace + "/h{config_hash}/invoke",
+        response_model=InvokeResponse,
+        include_in_schema=False,
+    )
     @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
     async def invoke(
         invoke_request: Annotated[InvokeRequest, InvokeRequest],
@@ -274,7 +278,11 @@ def add_routes(
 
         return InvokeResponse(output=simple_dumpd(output))
 
-    @app.post(namespace + "/h{config_hash}/batch", response_model=BatchResponse)
+    @app.post(
+        namespace + "/h{config_hash}/batch",
+        response_model=BatchResponse,
+        include_in_schema=False,
+    )
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
     async def batch(
         batch_request: Annotated[BatchRequest, BatchRequest],
@@ -302,7 +310,7 @@ def add_routes(
 
         return BatchResponse(output=simple_dumpd(output))
 
-    @app.post(namespace + "/h{config_hash}/stream")
+    @app.post(namespace + "/h{config_hash}/stream", include_in_schema=False)
     @app.post(f"{namespace}/stream")
     async def stream(
         stream_request: Annotated[StreamRequest, StreamRequest],
@@ -360,7 +368,7 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
-    @app.post(namespace + "/h{config_hash}/stream_log")
+    @app.post(namespace + "/h{config_hash}/stream_log", include_in_schema=False)
     @app.post(f"{namespace}/stream_log")
     async def stream_log(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
@@ -452,25 +460,28 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/h{config_hash}/input_schema")
+    @app.get(namespace + "/h{config_hash}/input_schema", include_in_schema=False)
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         return runnable.input_schema.schema()
 
-    @app.get(namespace + "/h{config_hash}/output_schema")
+    @app.get(namespace + "/h{config_hash}/output_schema", include_in_schema=False)
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         return runnable.output_schema.schema()
 
-    @app.get(namespace + "/h{config_hash}/config_schema")
+    @app.get(namespace + "/h{config_hash}/config_schema", include_in_schema=False)
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         return ConfigPayload.schema()
 
-    @app.get(namespace + "/h{config_hash}/playground/{file_path:path}")
+    @app.get(
+        namespace + "/h{config_hash}/playground/{file_path:path}",
+        include_in_schema=False,
+    )
     @app.get(namespace + "/playground/{file_path:path}")
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
