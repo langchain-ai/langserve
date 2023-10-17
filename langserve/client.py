@@ -142,7 +142,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             cookies=cookies,
             verify=verify,
             cert=cert,
-            **client_kwargs,
+            **_client_kwargs,
         )
         self.async_client = httpx.AsyncClient(
             base_url=url,
@@ -152,7 +152,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             cookies=cookies,
             verify=verify,
             cert=cert,
-            **client_kwargs,
+            **_client_kwargs,
         )
 
         # Register cleanup handler once RemoteRunnable is garbage collected
