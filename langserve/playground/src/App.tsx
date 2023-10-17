@@ -17,7 +17,10 @@ import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
-import { compressToEncodedURIComponent } from "lz-string";
+import {
+  compressToEncodedURIComponent,
+  decompressFromEncodedURIComponent,
+} from "lz-string";
 
 import {
   BooleanCell,
@@ -117,7 +120,23 @@ function App() {
   // store form state
   const [configData, setConfigData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
-  >({ data: {}, errors: [] });
+  >(() => {
+    try {
+      return {
+        data: JSON.parse(
+          decompressFromEncodedURIComponent(
+            new URL(window.location.href).searchParams.get("config") ?? ""
+          )
+        ),
+        errors: [],
+      };
+    } catch (error) {
+      console.error(error);
+    }
+
+    return { data: {}, errors: [] };
+  });
+
   const [inputData, setInputData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
   >({ data: {}, errors: [] });
@@ -126,7 +145,21 @@ function App() {
   // apply defaults defined in each schema
   useEffect(() => {
     if (schemas.config) {
-      setConfigData({ data: defaults(schemas.config), errors: [] });
+      const urlConfig = new URL(window.location.href).searchParams.get(
+        "config"
+      );
+
+      let configData = defaults(schemas.config);
+
+      if (urlConfig) {
+        try {
+          configData = JSON.parse(decompressFromEncodedURIComponent(urlConfig));
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      setConfigData({ data: configData, errors: [] });
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,9 +228,7 @@ function App() {
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.set(
               "config",
-              compressToEncodedURIComponent(
-                JSON.stringify({ config: configData.data })
-              )
+              compressToEncodedURIComponent(JSON.stringify(configData.data))
             );
 
             if (newUrl.toString().length > URL_LENGTH_LIMIT) {
@@ -205,6 +236,9 @@ function App() {
             }
 
             window.history.pushState({}, "", newUrl.toString());
+            navigator.clipboard.writeText(newUrl.toString()).then(() => {
+              alert("Copied to clipboard.");
+            });
           }}
         >
           <ShareIcon />
