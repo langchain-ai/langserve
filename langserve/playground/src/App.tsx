@@ -1,5 +1,5 @@
 import "./App.css";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import defaults from "json-schema-defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -52,7 +52,7 @@ import { JsonFormsCore } from "@jsonforms/core";
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
 
-const URL_LENGTH_LIMIT = 2000;
+// const URL_LENGTH_LIMIT = 2000;
 
 function str(o: unknown): React.ReactNode {
   return typeof o === "object"
@@ -116,26 +116,86 @@ function IntermediateSteps(props: { latest: RunState }) {
   );
 }
 
-function App() {
-  // store form state
-  const [configData, setConfigData] = useState<
-    Pick<JsonFormsCore, "data" | "errors">
-  >(() => {
+function getStateFromUrl(path: string) {
+  let configFromUrl = null;
+  let basePath = path;
+  if (basePath.endsWith("/")) {
+    basePath = basePath.slice(0, -1);
+  }
+
+  if (basePath.endsWith("/playground")) {
+    basePath = basePath.slice(0, -"/playground".length);
+  }
+  console.log(basePath);
+
+  // check if we can omit the last segment
+  const lastSegment = basePath.split("/").pop();
+  if (lastSegment?.startsWith("h")) {
     try {
-      return {
-        data: JSON.parse(
-          decompressFromEncodedURIComponent(
-            new URL(window.location.href).searchParams.get("config") ?? ""
-          )
-        ),
-        errors: [],
-      };
+      configFromUrl = JSON.parse(
+        decompressFromEncodedURIComponent(lastSegment.slice(1))
+      );
+      basePath = basePath.slice(0, -("/" + lastSegment).length);
     } catch (error) {
       console.error(error);
     }
+  }
+  return { basePath, configFromUrl };
+}
 
-    return { data: {}, errors: [] };
-  });
+function ShareDialog(props: { config: unknown }) {
+  const hash = useMemo(() => {
+    return compressToEncodedURIComponent(JSON.stringify(props.config));
+  }, [props.config]);
+
+  const state = getStateFromUrl(window.location.href);
+
+  // get base URL
+  const targetUrl = `${state.basePath}/h${hash}`;
+
+  // .../h[hash]/playground
+  const playgroundUrl = `${targetUrl}/playground`;
+
+  // cURL, JS: .../h[hash]/invoke
+  // Python: .../h[hash]
+  const invokeUrl = `${targetUrl}/invoke`;
+
+  return (
+    <div className="bg-background p-4 border border-divider-700 rounded-xl">
+      <h3 className="text-xl font-medium">Share</h3>
+      <p>Link to the playground</p>
+
+      <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
+        <div className="text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 ">
+          {playgroundUrl}
+        </div>
+        <div className="px-2 border-l border-d">Copy</div>
+      </div>
+
+      <p>Copy the code snippet</p>
+
+      <div>
+        <div>Python</div>
+        <div className="bg-gray-950 text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 text-xs rounded-md">
+          {targetUrl}
+        </div>
+
+        <div>cURL</div>
+        <div className="bg-gray-950 text-white font-mono overflow-hidden whitespace-nowrap px-2 py-1 text-xs rounded-md">
+          {invokeUrl}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
+  // store form state
+  const [configData, setConfigData] = useState<
+    Pick<JsonFormsCore, "data" | "errors">
+  >({ data: {}, errors: [] });
 
   const [inputData, setInputData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
@@ -145,21 +205,8 @@ function App() {
   // apply defaults defined in each schema
   useEffect(() => {
     if (schemas.config) {
-      const urlConfig = new URL(window.location.href).searchParams.get(
-        "config"
-      );
-
-      let configData = defaults(schemas.config);
-
-      if (urlConfig) {
-        try {
-          configData = JSON.parse(decompressFromEncodedURIComponent(urlConfig));
-        } catch (error) {
-          console.error(error);
-        }
-      }
-
-      setConfigData({ data: configData, errors: [] });
+      const state = getStateFromUrl(window.location.href);
+      setConfigData({ data: state.configFromUrl ?? {}, errors: [] });
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,25 +267,14 @@ function App() {
         {latest && <IntermediateSteps latest={latest} />}
       </div>
 
+      {isShareOpen && <ShareDialog config={configData.data} />}
+
       <div className="flex gap-4 justify-center">
         <button
           type="button"
           className="w-12 h-12 border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
           onClick={() => {
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set(
-              "config",
-              compressToEncodedURIComponent(JSON.stringify(configData.data))
-            );
-
-            if (newUrl.toString().length > URL_LENGTH_LIMIT) {
-              alert("The URL is too long to share.");
-            }
-
-            window.history.pushState({}, "", newUrl.toString());
-            navigator.clipboard.writeText(newUrl.toString()).then(() => {
-              alert("Copied to clipboard.");
-            });
+            setIsShareOpen((state) => !state);
           }}
         >
           <ShareIcon />
