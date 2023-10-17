@@ -8,9 +8,10 @@ from tqdm.asyncio import tqdm_asyncio
 import asyncio
 
 from github import Github, Auth
-from langserve.packages import list_packages
+from langserve.packages import list_packages, PyProject
 
 import subprocess
+import shutil
 
 g = Github(auth=Auth.Token(token=os.environ["GITHUB_PAT"]))
 
@@ -26,6 +27,20 @@ async def _download_github_path(path: Path, local_dest: Path, repo_handle: str) 
     except FileExistsError:
         print(FileExistsError(f"Error: Directory {local_base_path} already exists"))
         return
+
+    # try loading pyproject.toml
+    pyproject_path = base_path / "pyproject.toml"
+    pyproject_contents = repo.get_contents(str(pyproject_path))
+    if isinstance(pyproject_contents, List):
+        raise ValueError(
+            f"Error: {pyproject_path} is not a file, so it "
+            "is not a valid langserve package"
+        )
+    pyproject = PyProject.loads(pyproject_contents.decoded_content.decode("utf-8"))
+
+    # check if langserve package
+    if not pyproject.is_langserve():
+        raise ValueError(f"Error: {path} is not a langserve package")
 
     async def _get_filelist(subdir: Path = Path("")) -> List[str]:
         github_path = base_path / subdir
@@ -59,7 +74,7 @@ async def _download_github_path(path: Path, local_dest: Path, repo_handle: str) 
             content = repo.get_contents(str(github_path))
             if isinstance(content, List):
                 raise ValueError(f"Error: {github_path} is not a file")
-            f.write(base64.b64decode(content.content))
+            f.write(content.decoded_content)
 
     print(f"Downloading files for {path}")
     await tqdm_asyncio.gather(*[_download_file(path) for path in filelist])
@@ -69,8 +84,8 @@ async def _download_github_path(path: Path, local_dest: Path, repo_handle: str) 
 
 def download(
     package: str,
-    package_dir: str,
     *,
+    package_dir: str,
     repo: str = "langchain-ai/langserve-hub",
     api_path: Optional[str] = None,
 ) -> None:
@@ -83,6 +98,29 @@ def download(
     subprocess.run(["poetry", "add", "--editable", str(local_dir)])
 
 
-def list(path: str) -> None:
-    for package in list_packages(path):
+def list(package_dir: str) -> None:
+    for package in list_packages(package_dir):
         print(package)
+
+
+def remove(
+    path: str,
+    *,
+    package_dir: str,
+) -> None:
+    # check if path exists
+    package_root = Path(package_dir)
+    package_path = package_root / path
+    if not package_path.exists():
+        raise ValueError(f"Error: {package_path} does not exist")
+
+    # get package name
+    pyproject_path = package_path / "pyproject.toml"
+    pyproject = PyProject.load(pyproject_path)
+    package_name = pyproject.package_name
+
+    # poetry remove package
+    subprocess.run(["poetry", "remove", package_name])
+
+    # remove package directory
+    shutil.rmtree(package_path)
