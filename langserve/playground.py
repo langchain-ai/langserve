@@ -2,6 +2,7 @@ import json
 import mimetypes
 import os
 from string import Template
+from typing import List
 
 from fastapi.responses import Response
 from langchain.schema.runnable import Runnable
@@ -12,7 +13,7 @@ class PlaygroundTemplate(Template):
 
 
 async def serve_playground(
-    runnable: Runnable, config_keys: list[str], base_url: str, file_path: str
+    runnable: Runnable, config_keys: List[str], base_url: str, file_path: str
 ) -> Response:
     local_file_path = os.path.join(
         os.path.dirname(__file__),
