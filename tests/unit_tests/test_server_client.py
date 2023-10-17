@@ -175,7 +175,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test invoke
     response = await async_client.post(
-        f"/h{config_hash}/invoke",
+        f"/c/{config_hash}/invoke",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -185,7 +185,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test batch
     response = await async_client.post(
-        f"/h{config_hash}/batch",
+        f"/c/{config_hash}/batch",
         json={"inputs": [1], "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -195,7 +195,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test stream
     response = await async_client.post(
-        f"/h{config_hash}/stream",
+        f"/c/{config_hash}/stream",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200

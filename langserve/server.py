@@ -6,6 +6,7 @@ The main entry point is the `add_routes` function which adds the routes to an ex
 FastAPI app or APIRouter.
 """
 import json
+import weakref
 from inspect import isclass
 from typing import (
     Any,
@@ -176,6 +177,9 @@ def _add_tracing_info_to_metadata(config: Dict[str, Any], request: Request) -> N
     config["metadata"] = metadata
 
 
+_APP_SEEN = weakref.WeakSet()
+
+
 # PUBLIC API
 
 
@@ -223,6 +227,19 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
+        _APP_SEEN.add(app)
+        app.openapi_tags = [
+            *(getattr(app, "openapi_tags", []) or []),
+            {
+                "name": "default",
+            },
+            {
+                "name": "config",
+                "description": "Endpoints with a default configuration set by `config_hash` path parameter.",  # noqa: E501
+            },
+        ]
+
     input_type_ = _resolve_model(
         runnable.input_schema if input_type == "auto" else input_type, "Input"
     )
@@ -255,9 +272,9 @@ def add_routes(
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
     @app.post(
-        namespace + "/h{config_hash}/invoke",
+        namespace + "/c/{config_hash}/invoke",
         response_model=InvokeResponse,
-        include_in_schema=False,
+        tags=["config"],
     )
     @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
     async def invoke(
@@ -279,9 +296,9 @@ def add_routes(
         return InvokeResponse(output=simple_dumpd(output))
 
     @app.post(
-        namespace + "/h{config_hash}/batch",
+        namespace + "/c/{config_hash}/batch",
         response_model=BatchResponse,
-        include_in_schema=False,
+        tags=["config"],
     )
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
     async def batch(
@@ -310,7 +327,7 @@ def add_routes(
 
         return BatchResponse(output=simple_dumpd(output))
 
-    @app.post(namespace + "/h{config_hash}/stream", include_in_schema=False)
+    @app.post(namespace + "/c/{config_hash}/stream", tags=["config"])
     @app.post(f"{namespace}/stream")
     async def stream(
         stream_request: Annotated[StreamRequest, StreamRequest],
@@ -368,7 +385,7 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
-    @app.post(namespace + "/h{config_hash}/stream_log", include_in_schema=False)
+    @app.post(namespace + "/c/{config_hash}/stream_log", tags=["config"])
     @app.post(f"{namespace}/stream_log")
     async def stream_log(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
@@ -460,27 +477,27 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/h{config_hash}/input_schema", include_in_schema=False)
+    @app.get(namespace + "/c/{config_hash}/input_schema", tags=["config"])
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         return runnable.input_schema.schema()
 
-    @app.get(namespace + "/h{config_hash}/output_schema", include_in_schema=False)
+    @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         return runnable.output_schema.schema()
 
-    @app.get(namespace + "/h{config_hash}/config_schema", include_in_schema=False)
+    @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         return ConfigPayload.schema()
 
     @app.get(
-        namespace + "/h{config_hash}/playground/{file_path:path}",
-        include_in_schema=False,
+        namespace + "/c/{config_hash}/playground/{file_path:path}",
+        tags=["config"],
     )
     @app.get(namespace + "/playground/{file_path:path}")
     async def playground(file_path: str, config_hash: str = "") -> Any:
