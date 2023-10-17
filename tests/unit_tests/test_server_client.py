@@ -19,7 +19,11 @@ from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
 from langserve.client import RemoteRunnable
-from langserve.server import add_routes
+from langserve.server import (
+    add_routes,
+    _replace_non_alphanumeric_with_underscores,
+    _rename_pydantic_model,
+)
 from tests.unit_tests.utils import FakeListLLM
 
 
@@ -640,3 +644,38 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
             )
             == "hello Mr. Kitten!"
         )
+
+
+# Test for utilities
+
+
+@pytest.mark.parametrize(
+    "s,expected",
+    [
+        ("hello", "hello"),
+        ("hello world", "hello_world"),
+        ("hello-world", "hello_world"),
+        ("hello_world", "hello_world"),
+        ("hello.world", "hello_world"),
+    ],
+)
+def test_replace_non_alphanumeric(s: str, expected: str) -> None:
+    """Test replace non alphanumeric."""
+    assert _replace_non_alphanumeric_with_underscores(s) == expected
+
+
+def test_rename_pydantic_model() -> None:
+    """Test rename pydantic model."""
+    try:
+        from pydantic.v1 import BaseModel, Field, create_model
+    except ImportError:
+        from pydantic import BaseModel, Field, create_model
+
+    class Foo(BaseModel):
+        bar: str = Field(..., description="A bar")
+        baz: str = Field(..., description="A baz")
+
+    Model = _rename_pydantic_model(Foo, "Bar")
+
+    assert isinstance(Model, type)
+    assert Model.__name__ == "Bar"

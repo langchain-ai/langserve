@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import re
 from inspect import isclass
 from typing import (
     Any,
@@ -94,6 +95,11 @@ def _rename_pydantic_model(model: Type[BaseModel], name: str) -> Type[BaseModel]
 # Duplicated model names break fastapi's openapi generation.
 _MODEL_REGISTRY = {}
 _SEEN_NAMES = set()
+
+
+def _replace_non_alphanumeric_with_underscores(s: str) -> str:
+    """Replace non-alphanumeric characters with underscores."""
+    return re.sub(r"[^a-zA-Z0-9]", "_", s)
 
 
 def _resolve_model(
@@ -210,7 +216,7 @@ def add_routes(
 
     namespace = path or ""
 
-    model_namespace = path.strip("/").replace("/", "_")
+    model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
     input_type_ = _resolve_model(
         runnable.input_schema if input_type == "auto" else input_type,
