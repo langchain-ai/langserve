@@ -2,10 +2,15 @@ import json
 import mimetypes
 import os
 from string import Template
-from typing import List
+from typing import List, Type
 
 from fastapi.responses import Response
 from langchain.schema.runnable import Runnable
+
+try:
+    from pydantic.v1 import BaseModel
+except ImportError:
+    from pydantic import BaseModel
 
 
 class PlaygroundTemplate(Template):
@@ -13,7 +18,11 @@ class PlaygroundTemplate(Template):
 
 
 async def serve_playground(
-    runnable: Runnable, config_keys: List[str], base_url: str, file_path: str
+    runnable: Runnable,
+    input_schema: Type[BaseModel],
+    config_keys: List[str],
+    base_url: str,
+    file_path: str,
 ) -> Response:
     local_file_path = os.path.join(
         os.path.dirname(__file__),
@@ -30,7 +39,7 @@ async def serve_playground(
                 LANGSERVE_CONFIG_SCHEMA=json.dumps(
                     runnable.config_schema(include=config_keys).schema()
                 ),
-                LANGSERVE_INPUT_SCHEMA=json.dumps(runnable.input_schema.schema()),
+                LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
             )
         else:
             res = f.buffer.read()

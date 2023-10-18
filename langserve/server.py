@@ -547,6 +547,11 @@ def add_routes(
             runnable.with_config(
                 _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
             ),
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).input_schema
+            if input_type == "auto"
+            else input_type_,
             config_keys,
             f"{namespace}/playground",
             file_path,
