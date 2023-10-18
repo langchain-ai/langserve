@@ -24,7 +24,7 @@
   #root {
     max-width: 800px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 2rem 1rem;
   }
 
   :root {
@@ -61,8 +61,8 @@
 }
 
 .control {
-  @apply flex flex-col border border-divider-700 rounded-lg p-3 gap-1 relative;
-  @apply focus-within:border-ls-blue;
+  @apply flex flex-col border border-divider-700 rounded-lg p-3 gap-1 relative bg-background transition-all outline-ls-blue/20;
+  @apply focus-within:border-ls-blue focus-within:outline focus-within:outline-4 focus-within:outline-ls-blue/20;
 }
 
 .control > label {

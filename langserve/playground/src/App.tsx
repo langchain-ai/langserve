@@ -1,5 +1,7 @@
 import "./App.css";
-import React, { useEffect, useMemo, useState } from "react";
+import { Drawer } from "vaul";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -87,25 +89,25 @@ const cells = [
 function IntermediateSteps(props: { latest: RunState }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="flex flex-col border border-divider-700 rounded-xl">
+    <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
       <button
-        className="text-xs font-semibold text-left uppercase p-4"
+        className="font-medium text-left p-4"
         onClick={() => setExpanded((open) => !open)}
       >
         Intermediate steps
       </button>
       {expanded && (
-        <div className="flex flex-col gap-4 p-4 bg-divider-500/50 rounded-b-xl border-t border-divider-700">
+        <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y rounded-b-xl">
           {Object.values(props.latest.logs).map((log) => (
             <div
-              className="p-4 gap-3 flex-col min-w-0 flex border border-divider-700 rounded-xl bg-background"
+              className="gap-3 flex-col min-w-0 flex bg-background pt-3 first-of-type:pt-0"
               key={log.id}
             >
               <div className="flex items-center justify-between">
-                <strong className="font-medium">{log.name}</strong>
-                <p>{dayjs.utc(log.start_time).fromNow()}</p>
+                <strong className="text-sm font-medium">{log.name}</strong>
+                <p className="text-sm">{dayjs.utc(log.start_time).fromNow()}</p>
               </div>
-              <pre className="break-words whitespace-pre-wrap min-w-0 text-sm">
+              <pre className="break-words whitespace-pre-wrap min-w-0 text-sm bg-ls-gray-400 rounded-lg p-3">
                 {str(log.final_output) ?? "..."}
               </pre>
             </div>
@@ -142,11 +144,28 @@ function getStateFromUrl(path: string) {
 
 function CopyButton(props: { value: string }) {
   const [copied, setCopied] = useState(false);
+  const cbRef = useRef<number | null>(null);
+
+  function toggleCopied() {
+    setCopied(true);
+
+    if (cbRef.current != null) window.clearTimeout(cbRef.current);
+    cbRef.current = window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (cbRef.current != null) {
+        window.clearTimeout(cbRef.current);
+      }
+    };
+  }, []);
+
   return (
     <button
       className="px-2 py-1 border-l border-divider-700"
       onClick={() => {
-        navigator.clipboard.writeText(props.value).then(() => setCopied(true));
+        navigator.clipboard.writeText(props.value).then(toggleCopied);
       }}
     >
       {copied ? "Copied" : "Copy"}
@@ -172,25 +191,25 @@ function ShareDialog(props: { config: unknown }) {
   const invokeUrl = `${targetUrl}/invoke`;
 
   return (
-    <div className="bg-background p-4 border border-divider-700 rounded-xl">
+    <div className="bg-background p-4 border border-divider-700 rounded-2xl">
       <h3 className="text-xl font-medium">Share</h3>
       <p>Link to the playground</p>
 
-      <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
-        <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+      <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
+        <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
           {playgroundUrl}
         </div>
         <CopyButton value={playgroundUrl} />
       </div>
 
-      <p>Copy the code snippet</p>
+      <p className="text-sm">Copy the code snippet</p>
 
       <div className="flex flex-col gap-2">
         {targetUrl.length < URL_LENGTH_LIMIT && (
           <>
             <div>Python</div>
-            <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
-              <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+            <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
+              <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
                 {targetUrl}
               </div>
               <CopyButton value={targetUrl} />
@@ -201,8 +220,8 @@ function ShareDialog(props: { config: unknown }) {
         {invokeUrl.length < URL_LENGTH_LIMIT && (
           <>
             <div>cURL (/invoke)</div>
-            <div className="grid grid-cols-[1fr,auto] bg-gray-950 border-divider-700 border rounded-md text-xs items-center">
-              <div className="text-white font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+            <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
+              <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
                 {invokeUrl}
               </div>
               <CopyButton value={invokeUrl} />
@@ -244,9 +263,25 @@ function App() {
 
   return schemas.config && schemas.input ? (
     <div className="flex flex-col gap-4 text-ls-black">
-      <h1 className="text-2xl text-center font-medium">Playground</h1>
-      <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-xl bg-background">
-        <h2 className="text-xl font-medium">Configure</h2>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl text-left">
+          <strong>
+            🦜 <span className="hidden sm:inline">LangServe</span>
+          </strong>{" "}
+          Playground
+        </h1>
+        <button
+          type="button"
+          className="px-4 py-2 gap-2 border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
+          onClick={() => {
+            setIsShareOpen((state) => !state);
+          }}
+        >
+          <ShareIcon /> <span>Share</span>
+        </button>
+      </div>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Configure</h2>
 
         <JsonForms
           schema={schemas.config}
@@ -268,45 +303,43 @@ function App() {
         )}
       </div>
 
-      <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-xl bg-background">
-        <h2 className="text-xl font-medium">Inputs</h2>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xl font-semibold">Customize</h2>
 
-        <JsonForms
-          schema={schemas.input}
-          data={inputData.data}
-          renderers={renderers}
-          cells={cells}
-          onChange={({ data, errors }) => setInputData({ data, errors })}
-        />
-        {!!inputData.errors?.length && (
-          <>
-            <h3>Validation Errors</h3>
-            {inputData.errors?.map((e, i) => (
-              <p key={i}>{e.message}</p>
-            ))}
-          </>
+        <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
+          <h3 className="font-medium">Inputs</h3>
+
+          <JsonForms
+            schema={schemas.input}
+            data={inputData.data}
+            renderers={renderers}
+            cells={cells}
+            onChange={({ data, errors }) => setInputData({ data, errors })}
+          />
+          {!!inputData.errors?.length && (
+            <>
+              <h3>Validation Errors</h3>
+              {inputData.errors?.map((e, i) => (
+                <p key={i}>{e.message}</p>
+              ))}
+            </>
+          )}
+        </div>
+
+        {latest && (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xl font-semibold">Output</h2>
+            <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
+              {latest.streamed_output.map(str).join("") || "..."}
+            </div>
+            <IntermediateSteps latest={latest} />
+          </div>
         )}
-      </div>
-
-      <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-xl bg-background">
-        <h2 className="text-xl font-medium">Output</h2>
-        {latest?.streamed_output.map(str).join("") ?? "..."}
-
-        {latest && <IntermediateSteps latest={latest} />}
       </div>
 
       {isShareOpen && <ShareDialog config={configData.data} />}
 
       <div className="flex gap-4 justify-center">
-        <button
-          type="button"
-          className="w-12 h-12 border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
-          onClick={() => {
-            setIsShareOpen((state) => !state);
-          }}
-        >
-          <ShareIcon />
-        </button>
         <button
           type="button"
           className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center border border-transparent disabled:opacity-50"
@@ -322,6 +355,10 @@ function App() {
         >
           {stopStream ? <span className="text-white">Stop</span> : <SendIcon />}
         </button>
+      </div>
+
+      <div className="text-center text-sm">
+        <strong>🦜 LangServe</strong>. An Open Source project by LangChain
       </div>
     </div>
   ) : null;
