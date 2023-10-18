@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 
 export function LangServePlayground(props: {
@@ -14,6 +14,14 @@ export function LangServePlayground(props: {
   const onChangeRef = useRef(props.onChange);
   onChangeRef.current = props.onChange;
 
+  const onUpdateRef = useRef<(() => void) | null>(null);
+  onUpdateRef.current = () =>
+    ref.current?.contentWindow?.postMessage(
+      { type: "update", value: { config: props.value } },
+      "*"
+    );
+
+  useEffect(() => void onUpdateRef.current?.(), [props.value, open]);
   useLayoutEffect(() => {
     function listener(event: MessageEvent) {
       // Check the event origin to ensure it comes from the expected iframe
@@ -22,6 +30,10 @@ export function LangServePlayground(props: {
 
         if (typeof message === "object" && message != null) {
           switch (message.type) {
+            case "init": {
+              onUpdateRef.current?.();
+              break;
+            }
             case "close": {
               setOpen(false);
               break;

@@ -275,6 +275,11 @@ const result = await chain.invoke({ ... });
 function App() {
   const [isIframe] = useState(() => window.self !== window.top);
 
+  // it is possible that defaults are being applied _after_
+  // the initial update message has been sent from the parent window
+  // so we store the initial config data in a ref
+  const initConfigData = useRef<JsonFormsCore["data"]>(null);
+
   // store form state
   const [configData, setConfigData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
@@ -290,7 +295,10 @@ function App() {
     if (schemas.config) {
       const state = getStateFromUrl(window.location.href);
       setConfigData({
-        data: state.configFromUrl ?? defaults(schemas.config),
+        data:
+          state.configFromUrl ??
+          initConfigData.current ??
+          defaults(schemas.config),
         errors: [],
       });
       setInputData({ data: defaults(schemas.input), errors: [] });
@@ -299,6 +307,33 @@ function App() {
   }, [schemas.config]);
   // the runner
   const { startStream, stopStream, latest } = useStreamLog();
+
+  useEffect(() => {
+    window.parent?.postMessage({ type: "init" }, "*");
+  }, []);
+
+  useEffect(() => {
+    function listener(event: MessageEvent) {
+      if (event.source === window.parent) {
+        const message = event.data;
+        if (typeof message === "object" && message != null) {
+          switch (message.type) {
+            case "update": {
+              const value: { config: JsonFormsCore["data"] } = message.value;
+              if (Object.keys(value.config).length > 0) {
+                initConfigData.current = value.config;
+                setConfigData({ data: value.config, errors: [] });
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    window.addEventListener("message", listener);
+    return () => window.removeEventListener("message", listener);
+  }, []);
 
   return schemas.config && schemas.input ? (
     <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
