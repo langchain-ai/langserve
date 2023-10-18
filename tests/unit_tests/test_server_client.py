@@ -777,39 +777,22 @@ async def test_input_schema_typed_dict() -> None:
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
         res = await client.get("/input_schema")
-        assert (
-            res.json()
-            == {
-                "title": "Input",
-                "allOf": [{"$ref": "#/definitions/InputType"}],
-                "definitions": {
-                    "InputType": {
-                        "properties": {
-                            "bar": {
-                                "items": {"type": "integer"},
-                                "title": "Bar",
-                                "type": "array",
-                            },
-                            "foo": {"title": "Foo", "type": "string"},
+        assert res.json() == {
+            "title": "Input",
+            "allOf": [{"$ref": "#/definitions/InputType"}],
+            "definitions": {
+                "InputType": {
+                    "properties": {
+                        "bar": {
+                            "items": {"type": "integer"},
+                            "title": "Bar",
+                            "type": "array",
                         },
-                        "required": ["foo", "bar"],
-                        "title": "InputType",
-                        "type": "object",
-                    }
-                },
-            }
-            != {
-                "definitions": {
-                    "InputType": {
-                        "properties": {
-                            "bar": {
-                                "items": {"type": "integer"},
-                                "title": "Bar",
-                                "type": "array",
-                            },
-                            "foo": {"title": "Foo", "type": "string"},
-                        }
-                    }
+                        "foo": {"title": "Foo", "type": "string"},
+                    },
+                    "required": ["foo", "bar"],
+                    "title": "InputType",
+                    "type": "object",
                 }
-            }
-        )
+            },
+        }
