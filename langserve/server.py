@@ -428,12 +428,13 @@ def add_routes(
                 "event": "end",
             }
         """
+
         def _check_allowlist(
             stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
             name_allowlist: Optional[Sequence[str]],
-        ):
+        ) -> None:
             if name_allowlist is None:
-                return True
+                return
             elif bool(stream_log_request.include_types):
                 raise HTTPException(
                     403,
@@ -456,7 +457,7 @@ def add_routes(
                         403,
                         "The `include_names` is not permitted due to a run name allowlist set on this endpoint.",
                     )
-            return True
+            return
 
         _check_allowlist(stream_log_request, stream_log_name_allowlist)
         # Request is first validated using InvokeRequest which takes into account

@@ -133,7 +133,11 @@ class RemoteRunnable(Runnable[Input, Output]):
                            and async httpx clients
         """
         _client_kwargs = client_kwargs or {}
-        self.url = url
+        # need to confirm that the url ends with a trailing slash
+        # otherwise urljoin will remove the last segment, assuming
+        # it's a filepath
+
+        self.url = url if url.endswith("/") else url + "/"
         self.sync_client = httpx.Client(
             base_url=url,
             timeout=timeout,
@@ -455,6 +459,8 @@ class RemoteRunnable(Runnable[Input, Output]):
             async with aconnect_sse(
                 self.async_client, "POST", endpoint, json=data
             ) as event_source:
+                event_source.response.raise_for_status()
+
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = simple_loads(sse.data)

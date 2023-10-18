@@ -374,8 +374,6 @@ async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
     )
 
     async with get_async_client(app, path="/empty_allowlist") as runnable:
-        res = await runnable.ainvoke(1)
-        print(f"SHOULD BE 2 == {res}")
         with pytest.raises(httpx.HTTPError):
             async for chunk in runnable.astream_log(1, include_tags=["tag"]):
                 pass
