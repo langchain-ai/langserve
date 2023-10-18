@@ -466,7 +466,7 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/c/{config_hash}/input_schema", tags=["config"])
+    @app.get(namespace + "/h{config_hash}/input_schema")
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
@@ -478,7 +478,7 @@ def add_routes(
             else input_type_.schema()
         )
 
-    @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
+    @app.get(namespace + "/h{config_hash}/output_schema")
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
@@ -490,7 +490,7 @@ def add_routes(
             else output_type_.schema()
         )
 
-    @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
+    @app.get(namespace + "/h{config_hash}/config_schema")
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
