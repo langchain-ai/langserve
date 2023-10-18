@@ -349,6 +349,111 @@ async def test_astream_log(async_client: RemoteRunnable) -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
+    """Test async stream with an allowlist."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+    add_routes(
+        app,
+        RunnableLambda(add_one),
+        path="/empty_allowlist",
+        input_type=int,
+        stream_log_name_allowlist=["allowed"],
+    )
+    add_routes(
+        app,
+        RunnableLambda(add_one),
+        input_type=int,
+        path="/allowlist",
+        stream_log_name_allowlist=["allowed"],
+    )
+
+    async with get_async_client(app, path="/empty_allowlist") as runnable:
+        res = await runnable.ainvoke(1)
+        print(f"SHOULD BE 2 == {res}")
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_tags=["tag"]):
+                pass
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_types=["type"]):
+                pass
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_names=["name"]):
+                pass
+
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+    async with get_async_client(app, path="/allowlist") as runnable:
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_tags=["tag"]):
+                pass
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_types=["type"]):
+                pass
+        with pytest.raises(httpx.HTTPError):
+            async for chunk in runnable.astream_log(1, include_names=["name"]):
+                pass
+
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=["allowed"]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+
 def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
     """Test as part of sequence."""
     runnable = client | RunnableLambda(func=lambda x: x + 1)

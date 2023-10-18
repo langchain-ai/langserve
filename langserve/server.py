@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Literal,
     Mapping,
+    Optional,
     Sequence,
     Type,
     Union,
@@ -208,6 +209,7 @@ def add_routes(
     input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     config_keys: Sequence[str] = (),
+    stream_log_name_allowlist: Optional[Sequence[str]] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -233,7 +235,9 @@ def add_routes(
             Default is "auto" which will use the OutputType of the runnable.
             User is free to provide a custom type annotation.
         config_keys: list of config keys that will be accepted, by default
-                     no config keys are accepted.
+            no config keys are accepted.
+        stream_log_name_allowlist: list of run names that the client can
+            stream as intermediate steps
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -334,7 +338,7 @@ def add_routes(
         request: Request,
         config_hash: str = "",
     ) -> EventSourceResponse:
-        """Invoke the runnable stream the output.
+        """Invoke the runnable stream method.
 
         This endpoint allows to stream the output of the runnable.
 
@@ -392,7 +396,7 @@ def add_routes(
         request: Request,
         config_hash: str = "",
     ) -> EventSourceResponse:
-        """Invoke the runnable stream_log the output.
+        """Invoke the runnable stream_log method.
 
         This endpoint allows to stream the output of the runnable, including
         the output of all intermediate steps.
@@ -424,6 +428,37 @@ def add_routes(
                 "event": "end",
             }
         """
+        def _check_allowlist(
+            stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+            name_allowlist: Optional[Sequence[str]],
+        ):
+            if name_allowlist is None:
+                return True
+            elif bool(stream_log_request.include_types):
+                raise HTTPException(
+                    403,
+                    "The `include_types` parameter is not permitted due to a run name allowlist set on this endpoint.",
+                )
+            elif bool(stream_log_request.include_tags):
+                raise HTTPException(
+                    403,
+                    "The `include_tags` parameter is not permitted due to a run name allowlist set on this endpoint.",
+                )
+            elif bool(stream_log_request.include_names):
+                if bool(name_allowlist):
+                    allowed_names_string = ", ".join(name_allowlist)
+                    raise HTTPException(
+                        403,
+                        f"Some names in `include_names` are not permitted due to a run name allowlist set on this endpoint.\nAllowed names are: {allowed_names_string}",
+                    )
+                else:
+                    raise HTTPException(
+                        403,
+                        "The `include_names` is not permitted due to a run name allowlist set on this endpoint.",
+                    )
+            return True
+
+        _check_allowlist(stream_log_request, stream_log_name_allowlist)
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
