@@ -1,4 +1,4 @@
-# Contributing[
+# Contributing
 
 ## Contributor License Agreement
 
@@ -16,13 +16,13 @@ This project uses [Poetry](https://python-poetry.org/) v1.6.1+ as a dependency m
 
 Install langserve development requirements (for running langchain, running examples, linting, formatting, tests, and coverage):
 
-```bash
+```sh
 poetry install --with test,dev
 ```
 
 Then verify that tests pass:
 
-```bash
+```sh
 make test
 ```
 
@@ -36,7 +36,7 @@ Formatting for this project is done via a combination of [Black](https://black.r
 
 To run formatting for this project:
 
-```bash
+```sh
 make format
 ```
 
@@ -46,6 +46,6 @@ Linting for this project is done via a combination of [Black](https://black.read
 
 To run linting for this project:
 
-```bash
+```sh
 make lint
 ```
