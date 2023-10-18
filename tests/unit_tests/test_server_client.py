@@ -779,13 +779,13 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     )
     add_routes(app, template, path="/prompt_2", config_keys=["tags", "configurable"])
 
-    async with (AsyncClient(app=app, base_url="http://localhost:9999") as async_client):
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
         # input schema
         response = await async_client.get("/add_one/input_schema")
         assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
 
         response = await async_client.get("/add_one_custom/input_schema")
-        assert response.json() == {"title": "Input", "type": "number"}
+        assert response.json() == {"title": "add_one_customInput", "type": "number"}
 
         response = await async_client.get("/prompt_1/input_schema")
         assert response.json() == {
