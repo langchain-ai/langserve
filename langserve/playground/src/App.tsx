@@ -273,6 +273,8 @@ const result = await chain.invoke({ ... });
 }
 
 function App() {
+  const [isIframe] = useState(() => window.self !== window.top);
+
   // store form state
   const [configData, setConfigData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
@@ -305,7 +307,7 @@ function App() {
           <strong>🦜 LangServe</strong> Playground
         </h1>
         <div className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold">Configure</h2>
+          {!isIframe && <h2 className="text-xl font-semibold">Configure</h2>}
 
           <JsonForms
             schema={schemas.config}
@@ -327,39 +329,41 @@ function App() {
           )}
         </div>
 
-        <div className="flex flex-col gap-3">
-          <h2 className="text-xl font-semibold">Customize</h2>
+        {!isIframe && (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xl font-semibold">Customize</h2>
 
-          <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
-            <h3 className="font-medium">Inputs</h3>
+            <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
+              <h3 className="font-medium">Inputs</h3>
 
-            <JsonForms
-              schema={schemas.input}
-              data={inputData.data}
-              renderers={renderers}
-              cells={cells}
-              onChange={({ data, errors }) => setInputData({ data, errors })}
-            />
-            {!!inputData.errors?.length && (
-              <>
-                <h3>Validation Errors</h3>
-                {inputData.errors?.map((e, i) => (
-                  <p key={i}>{e.message}</p>
-                ))}
-              </>
+              <JsonForms
+                schema={schemas.input}
+                data={inputData.data}
+                renderers={renderers}
+                cells={cells}
+                onChange={({ data, errors }) => setInputData({ data, errors })}
+              />
+              {!!inputData.errors?.length && (
+                <>
+                  <h3>Validation Errors</h3>
+                  {inputData.errors?.map((e, i) => (
+                    <p key={i}>{e.message}</p>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {latest && (
+              <div className="flex flex-col gap-3">
+                <h2 className="text-xl font-semibold">Output</h2>
+                <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
+                  {latest.streamed_output.map(str).join("") || "..."}
+                </div>
+                <IntermediateSteps latest={latest} />
+              </div>
             )}
           </div>
-
-          {latest && (
-            <div className="flex flex-col gap-3">
-              <h2 className="text-xl font-semibold">Output</h2>
-              <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
-                {latest.streamed_output.map(str).join("") || "..."}
-              </div>
-              <IntermediateSteps latest={latest} />
-            </div>
-          )}
-        </div>
+        )}
 
         <div className="text-center text-sm">
           <strong>🦜 LangServe</strong>. An Open Source project by LangChain
@@ -369,36 +373,71 @@ function App() {
 
         <div className="gap-4 grid grid-cols-2 sticky -mx-4 px-4 py-4 bottom-0 bg-background md:static md:bg-transparent">
           <div className="md:hidden absolute inset-x-0 bottom-full h-5 bg-gradient-to-t from-black/5 to-black/0" />
-          <ShareDialog config={configData.data}>
-            <button
-              type="button"
-              className="px-4 py-3 gap-3 font-medium border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
-            >
-              <ShareIcon className="flex-shrink-0" /> <span>Share</span>
-            </button>
-          </ShareDialog>
-          <button
-            type="button"
-            className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
-            onClick={() => {
-              stopStream
-                ? stopStream()
-                : startStream(inputData.data, configData.data);
-            }}
-            disabled={
-              !stopStream &&
-              (!!inputData.errors?.length || !!configData.errors?.length)
-            }
-          >
-            {stopStream ? (
-              <span className="text-white">Stop</span>
-            ) : (
-              <>
-                <SendIcon className="flex-shrink-0" />
-                <span className="text-white">Start</span>
-              </>
-            )}
-          </button>
+
+          {isIframe ? (
+            <>
+              <button
+                type="button"
+                className="px-4 py-3 gap-3 font-medium border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
+                onClick={() =>
+                  window.parent?.postMessage({ type: "close" }, "*")
+                }
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
+                onClick={() => {
+                  const hash = compressToEncodedURIComponent(
+                    JSON.stringify(configData.data)
+                  );
+
+                  const state = getStateFromUrl(window.location.href);
+                  const targetUrl = `${state.basePath}/c/${hash}`;
+                  window.parent?.postMessage(
+                    { type: "apply", value: { targetUrl } },
+                    "*"
+                  );
+                }}
+              >
+                <span className="text-white">Apply</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <ShareDialog config={configData.data}>
+                <button
+                  type="button"
+                  className="px-4 py-3 gap-3 font-medium border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
+                >
+                  <ShareIcon className="flex-shrink-0" /> <span>Share</span>
+                </button>
+              </ShareDialog>
+              <button
+                type="button"
+                className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
+                onClick={() => {
+                  stopStream
+                    ? stopStream()
+                    : startStream(inputData.data, configData.data);
+                }}
+                disabled={
+                  !stopStream &&
+                  (!!inputData.errors?.length || !!configData.errors?.length)
+                }
+              >
+                {stopStream ? (
+                  <span className="text-white">Stop</span>
+                ) : (
+                  <>
+                    <SendIcon className="flex-shrink-0" />
+                    <span className="text-white">Start</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
