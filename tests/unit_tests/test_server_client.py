@@ -828,6 +828,15 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "type": "object",
         }
 
+        response = await async_client.get("/add_one_custom/config_schema")
+        assert response.json() == {
+            "properties": {
+                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
+            },
+            "title": "RunnableLambdaConfig",
+            "type": "object",
+        }
+
         response = await async_client.get("/prompt_2/config_schema")
         assert response.json() == {
             "definitions": {
