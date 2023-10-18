@@ -20,7 +20,7 @@ from typing import (
 )
 
 from fastapi import HTTPException, Request
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import merge_configs
@@ -441,7 +441,7 @@ def add_routes(
             async for chunk in runnable.astream_log(
                 input_,
                 config=config,
-                diff=stream_log_request.diff,
+                diff=True,
                 include_names=stream_log_request.include_names,
                 include_types=stream_log_request.include_types,
                 include_tags=stream_log_request.include_tags,
@@ -449,24 +449,13 @@ def add_routes(
                 exclude_types=stream_log_request.exclude_types,
                 exclude_tags=stream_log_request.exclude_tags,
             ):
-                if stream_log_request.diff:  # Run log patch
-                    if not isinstance(chunk, RunLogPatch):
-                        raise AssertionError(
-                            f"Expected a RunLog instance got {type(chunk)}"
-                        )
-                    data = {
-                        "ops": chunk.ops,
-                    }
-                else:
-                    # Then it's a run log
-                    if not isinstance(chunk, RunLog):
-                        raise AssertionError(
-                            f"Expected a RunLog instance got {type(chunk)}"
-                        )
-                    data = {
-                        "state": chunk.state,
-                        "ops": chunk.ops,
-                    }
+                if not isinstance(chunk, RunLogPatch):
+                    raise AssertionError(
+                        f"Expected a RunLog instance got {type(chunk)}"
+                    )
+                data = {
+                    "ops": chunk.ops,
+                }
 
                 # Temporary adapter
                 yield {
