@@ -1,0 +1,51 @@
+# Contributing[
+
+## Contributor License Agreement
+
+We are grateful to the contributors who help evolve LangServe and dedicate their time to the project. As the primary sponsor of LangServe, LangChain, Inc. aims to build products in the open that benefit thousands of developers while allowing us to build a sustainable business. For all code contributions to LangServe, we ask that contributors complete and sign a Contributor License Agreement (“CLA”). The agreement between contributors and the project is explicit, so LangServe users can be confident in the legal status of the source code and their right to use it.The CLA does not change the terms of the underlying license, LangServe License, used by our software.
+
+Before you can contribute to LangServe, a bot will comment on the PR asking you to agree to the CLA if you haven't already. Agreeing to the CLA is required before code can be merged and only needs to happen on the first contribution to the project. All subsequent contributions will fall under the same CLA.
+
+## 🗺️ Guidelines
+
+### Dependency Management: Poetry and other env/dependency managers
+
+This project uses [Poetry](https://python-poetry.org/) v1.6.1+ as a dependency manager.
+
+### Local Development Dependencies
+
+Install langserve development requirements (for running langchain, running examples, linting, formatting, tests, and coverage):
+
+```bash
+poetry install --with test,dev
+```
+
+Then verify that tests pass:
+
+```bash
+make test
+```
+
+### Formatting and Linting
+
+Run these locally before submitting a PR; the CI system will check also.
+
+#### Code Formatting
+
+Formatting for this project is done via a combination of [Black](https://black.readthedocs.io/en/stable/) and [ruff](https://docs.astral.sh/ruff/rules/).
+
+To run formatting for this project:
+
+```bash
+make format
+```
+
+#### Linting
+
+Linting for this project is done via a combination of [Black](https://black.readthedocs.io/en/stable/), [ruff](https://docs.astral.sh/ruff/rules/), and [mypy](http://mypy-lang.org/).
+
+To run linting for this project:
+
+```bash
+make lint
+```
