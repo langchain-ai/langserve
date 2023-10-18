@@ -19,6 +19,8 @@ import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
+import CodeIcon from "./assets/CodeIcon.svg?react";
+import PadlockIcon from "./assets/PadlockIcon.svg?react";
 import {
   compressToEncodedURIComponent,
   decompressFromEncodedURIComponent,
@@ -163,7 +165,7 @@ function CopyButton(props: { value: string }) {
 
   return (
     <button
-      className="px-2 py-1 border-l border-divider-700"
+      className="px-3 py-1"
       onClick={() => {
         navigator.clipboard.writeText(props.value).then(toggleCopied);
       }}
@@ -190,53 +192,78 @@ function ShareDialog(props: { config: unknown; children: ReactNode }) {
   // Python: .../c/[hash]
   const invokeUrl = `${targetUrl}/invoke`;
 
+  const pythonSnippet = `
+from langserve import RemoteRunnable
+
+chain = RemoteRunnable("${targetUrl}")
+chain.invoke({ ... })
+`;
+
+  const typescriptSnippet = `
+import { RemoteRunnable } from "langchain/runnables/remote";
+
+const chain = new RemoteRunnable({ url: \`${invokeUrl}\` });
+const result = await chain.invoke({ ... });
+`;
+
   return (
     <Drawer.Root>
       <Drawer.Trigger asChild>{props.children}</Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40" />
         <Drawer.Content className="flex justify-center items-center mt-24 fixed bottom-0 left-0 right-0 text-ls-black">
-          <div className="p-4 bg-background max-w-[calc(800px-2rem)] rounded-t-2xl">
+          <div className="p-4 bg-background max-w-[calc(800px-2rem)] rounded-t-2xl border border-divider-500 border-b-background">
             <h3 className="text-xl font-medium">Share</h3>
 
             <hr className="border-divider-500 my-4 -mx-4" />
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {playgroundUrl.length < URL_LENGTH_LIMIT && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm">Link to the playground</p>
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
-                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
+                <div className="flex flex-col gap-2 p-3 rounded-2xl dark:bg-[#2C2C2E] bg-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 flex items-center justify-center text-center text-sm bg-background rounded-xl">
+                      🦜
+                    </div>
+                    <span className="font-semibold">Playground</span>
+                  </div>
+                  <div className="grid grid-cols-[auto,1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
+                    <PadlockIcon className="mx-3" />
+                    <div className="overflow-auto whitespace-nowrap py-3 no-scrollbar text-ls-gray-100">
                       {playgroundUrl.split("://")[1]}
+                      PadlockIcon
                     </div>
                     <CopyButton value={playgroundUrl} />
                   </div>
                 </div>
               )}
 
-              {targetUrl.length < URL_LENGTH_LIMIT && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm">Python Runnable URL</p>
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
-                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
-                      {targetUrl.split("://")[1]}
-                    </div>
-                    <CopyButton value={targetUrl} />
+              <div className="flex flex-col gap-2 p-3 rounded-2xl dark:bg-[#2C2C2E] bg-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 flex items-center justify-center text-center text-sm bg-background rounded-xl">
+                    <CodeIcon />
                   </div>
+                  <span className="font-semibold">Get the code</span>
                 </div>
-              )}
 
-              {invokeUrl.length < URL_LENGTH_LIMIT && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm">JS Runnable URL /invoke</p>
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
-                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
-                      {invokeUrl.split("://")[1]}
+                {targetUrl.length < URL_LENGTH_LIMIT && (
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
+                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar text-ls-gray-100">
+                      Python SDK
                     </div>
-                    <CopyButton value={invokeUrl} />
+                    <CopyButton value={pythonSnippet.trim()} />
                   </div>
-                </div>
-              )}
+                )}
+
+                {invokeUrl.length < URL_LENGTH_LIMIT && (
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
+                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar text-ls-gray-100">
+                      TypeScript SDK
+                    </div>
+
+                    <CopyButton value={typescriptSnippet.trim()} />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </Drawer.Content>
