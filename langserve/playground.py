@@ -21,14 +21,18 @@ async def serve_playground(
         file_path or "index.html",
     )
     with open(local_file_path) as f:
-        html = f.read()
         mime_type = mimetypes.guess_type(local_file_path)[0]
-    formatted = PlaygroundTemplate(html).substitute(
-        LANGSERVE_BASE_URL=base_url[1:] if base_url.startswith("/") else base_url,
-        LANGSERVE_CONFIG_SCHEMA=json.dumps(
-            runnable.config_schema(include=config_keys).schema()
-        ),
-        LANGSERVE_INPUT_SCHEMA=json.dumps(runnable.input_schema.schema()),
-    )
+        if mime_type in ("text/html", "text/css", "application/javascript"):
+            res = PlaygroundTemplate(f.read()).substitute(
+                LANGSERVE_BASE_URL=base_url[1:]
+                if base_url.startswith("/")
+                else base_url,
+                LANGSERVE_CONFIG_SCHEMA=json.dumps(
+                    runnable.config_schema(include=config_keys).schema()
+                ),
+                LANGSERVE_INPUT_SCHEMA=json.dumps(runnable.input_schema.schema()),
+            )
+        else:
+            res = f.buffer.read()
 
-    return Response(formatted, media_type=mime_type)
+    return Response(res, media_type=mime_type)
