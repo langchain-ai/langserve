@@ -195,43 +195,47 @@ function ShareDialog(props: { config: unknown; children: ReactNode }) {
       <Drawer.Trigger asChild>{props.children}</Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40" />
-        <Drawer.Content className="bg-background flex flex-col rounded-t-[10px] mt-24 fixed bottom-0 left-0 right-0">
-          <div className="p-4">
+        <Drawer.Content className="flex justify-center items-center mt-24 fixed bottom-0 left-0 right-0 text-ls-black">
+          <div className="p-4 bg-background max-w-[calc(800px-2rem)] rounded-t-2xl">
             <h3 className="text-xl font-medium">Share</h3>
-            <p>Link to the playground</p>
 
-            <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
-              <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-                {playgroundUrl}
-              </div>
-              <CopyButton value={playgroundUrl} />
-            </div>
-
-            <p className="text-sm">Copy the code snippet</p>
+            <hr className="border-divider-500 my-4 -mx-4" />
 
             <div className="flex flex-col gap-2">
+              {playgroundUrl.length < URL_LENGTH_LIMIT && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm">Link to the playground</p>
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
+                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
+                      {playgroundUrl.split("://")[1]}
+                    </div>
+                    <CopyButton value={playgroundUrl} />
+                  </div>
+                </div>
+              )}
+
               {targetUrl.length < URL_LENGTH_LIMIT && (
-                <>
-                  <div>Python</div>
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
-                    <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-                      {targetUrl}
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm">Python Runnable URL</p>
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
+                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
+                      {targetUrl.split("://")[1]}
                     </div>
                     <CopyButton value={targetUrl} />
                   </div>
-                </>
+                </div>
               )}
 
               {invokeUrl.length < URL_LENGTH_LIMIT && (
-                <>
-                  <div>cURL (/invoke)</div>
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
-                    <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-                      {invokeUrl}
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm">JS Runnable URL /invoke</p>
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 rounded-xl text-xs items-center">
+                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar">
+                      {invokeUrl.split("://")[1]}
                     </div>
                     <CopyButton value={invokeUrl} />
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>
