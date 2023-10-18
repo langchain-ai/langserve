@@ -3,7 +3,7 @@ import asyncio
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import httpx
 import pytest
@@ -760,3 +760,56 @@ def test_rename_pydantic_model() -> None:
 
     assert isinstance(Model, type)
     assert Model.__name__ == "Bar"
+
+
+@pytest.mark.asyncio
+async def test_input_schema_typed_dict() -> None:
+    class InputType(TypedDict):
+        foo: str
+        bar: List[int]
+
+    async def passthrough_dict(d: Any) -> Any:
+        return d
+
+    runnable_lambda = RunnableLambda(func=passthrough_dict)
+    app = FastAPI()
+    add_routes(app, runnable_lambda, input_type=InputType, config_keys=["tags"])
+
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+        res = await client.get("/input_schema")
+        assert (
+            res.json()
+            == {
+                "title": "Input",
+                "allOf": [{"$ref": "#/definitions/InputType"}],
+                "definitions": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
+                        },
+                        "required": ["foo", "bar"],
+                        "title": "InputType",
+                        "type": "object",
+                    }
+                },
+            }
+            != {
+                "definitions": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
+                        }
+                    }
+                }
+            }
+        )
