@@ -466,20 +466,38 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/h{config_hash}/input_schema")
+    @app.get(namespace + "/c/{config_hash}/input_schema", tags=["config"])
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return input_type_.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).input_schema.schema()
+            if input_type == "auto"
+            else input_type_.schema()
+        )
 
-    @app.get(namespace + "/h{config_hash}/output_schema")
+    @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return output_type_.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).output_schema.schema()
+            if output_type == "auto"
+            else output_type_.schema()
+        )
 
-    @app.get(namespace + "/h{config_hash}/config_schema")
+    @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return ConfigPayload.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            )
+            .config_schema(include=config_keys)
+            .schema()
+        )
