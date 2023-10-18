@@ -211,7 +211,7 @@ const result = await chain.invoke({ ... });
       <Drawer.Trigger asChild>{props.children}</Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/40" />
-        <Drawer.Content className="flex justify-center items-center mt-24 fixed bottom-0 left-0 right-0 text-ls-black !pointer-events-none">
+        <Drawer.Content className="flex justify-center items-center mt-24 fixed bottom-0 left-0 right-0 text-ls-black !pointer-events-none after:!bg-background">
           <div className="p-4 bg-background max-w-[calc(800px-2rem)] rounded-t-2xl border border-divider-500 border-b-background pointer-events-auto">
             <h3 className="text-xl font-medium">Share</h3>
 
