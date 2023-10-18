@@ -17,16 +17,6 @@
     outline: none;
   }
 
-  body {
-    @apply bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C];
-  }
-
-  #root {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 2rem 1rem;
-  }
-
   :root {
     --popover: 0 0% 100%;
     --background: 0 0% 100%;

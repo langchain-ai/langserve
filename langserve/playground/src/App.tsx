@@ -1,7 +1,7 @@
 import "./App.css";
 import { Drawer } from "vaul";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -97,7 +97,7 @@ function IntermediateSteps(props: { latest: RunState }) {
         Intermediate steps
       </button>
       {expanded && (
-        <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y rounded-b-xl">
+        <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
           {Object.values(props.latest.logs).map((log) => (
             <div
               className="gap-3 flex-col min-w-0 flex bg-background pt-3 first-of-type:pt-0"
@@ -173,7 +173,7 @@ function CopyButton(props: { value: string }) {
   );
 }
 
-function ShareDialog(props: { config: unknown }) {
+function ShareDialog(props: { config: unknown; children: ReactNode }) {
   const hash = useMemo(() => {
     return compressToEncodedURIComponent(JSON.stringify(props.config));
   }, [props.config]);
@@ -191,51 +191,57 @@ function ShareDialog(props: { config: unknown }) {
   const invokeUrl = `${targetUrl}/invoke`;
 
   return (
-    <div className="bg-background p-4 border border-divider-700 rounded-2xl">
-      <h3 className="text-xl font-medium">Share</h3>
-      <p>Link to the playground</p>
+    <Drawer.Root>
+      <Drawer.Trigger asChild>{props.children}</Drawer.Trigger>
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 bg-black/40" />
+        <Drawer.Content className="bg-background flex flex-col rounded-t-[10px] mt-24 fixed bottom-0 left-0 right-0">
+          <div className="p-4">
+            <h3 className="text-xl font-medium">Share</h3>
+            <p>Link to the playground</p>
 
-      <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
-        <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-          {playgroundUrl}
-        </div>
-        <CopyButton value={playgroundUrl} />
-      </div>
-
-      <p className="text-sm">Copy the code snippet</p>
-
-      <div className="flex flex-col gap-2">
-        {targetUrl.length < URL_LENGTH_LIMIT && (
-          <>
-            <div>Python</div>
             <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
               <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-                {targetUrl}
+                {playgroundUrl}
               </div>
-              <CopyButton value={targetUrl} />
+              <CopyButton value={playgroundUrl} />
             </div>
-          </>
-        )}
 
-        {invokeUrl.length < URL_LENGTH_LIMIT && (
-          <>
-            <div>cURL (/invoke)</div>
-            <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
-              <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
-                {invokeUrl}
-              </div>
-              <CopyButton value={invokeUrl} />
+            <p className="text-sm">Copy the code snippet</p>
+
+            <div className="flex flex-col gap-2">
+              {targetUrl.length < URL_LENGTH_LIMIT && (
+                <>
+                  <div>Python</div>
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
+                    <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+                      {targetUrl}
+                    </div>
+                    <CopyButton value={targetUrl} />
+                  </div>
+                </>
+              )}
+
+              {invokeUrl.length < URL_LENGTH_LIMIT && (
+                <>
+                  <div>cURL (/invoke)</div>
+                  <div className="grid grid-cols-[1fr,auto] dark:bg-gray-950 bg-gray-100 border-divider-700 border rounded-md text-xs items-center">
+                    <div className=" font-mono overflow-auto whitespace-nowrap px-2 no-scrollbar">
+                      {invokeUrl}
+                    </div>
+                    <CopyButton value={invokeUrl} />
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          </div>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 }
 
 function App() {
-  const [isShareOpen, setIsShareOpen] = useState(false);
-
   // store form state
   const [configData, setConfigData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
@@ -262,103 +268,107 @@ function App() {
   const { startStream, stopStream, latest } = useStreamLog();
 
   return schemas.config && schemas.input ? (
-    <div className="flex flex-col gap-4 text-ls-black">
-      <div className="flex items-center justify-between">
+    <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
+      <div className="flex flex-col flex-grow gap-4 px-4 pt-6 max-w-[800px] w-full">
         <h1 className="text-2xl text-left">
-          <strong>
-            🦜 <span className="hidden sm:inline">LangServe</span>
-          </strong>{" "}
-          Playground
+          <strong>🦜 LangServe</strong> Playground
         </h1>
-        <button
-          type="button"
-          className="px-4 py-2 gap-2 border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
-          onClick={() => {
-            setIsShareOpen((state) => !state);
-          }}
-        >
-          <ShareIcon /> <span>Share</span>
-        </button>
-      </div>
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">Configure</h2>
-
-        <JsonForms
-          schema={schemas.config}
-          data={configData.data}
-          renderers={renderers}
-          cells={cells}
-          onChange={({ data, errors }) =>
-            data ? setConfigData({ data, errors }) : undefined
-          }
-        />
-        {!!configData.errors?.length && (
-          <>
-            <h3>Validation Errors</h3>
-
-            {configData.errors?.map((e, i) => (
-              <p key={i}>{e.message}</p>
-            ))}
-          </>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">Customize</h2>
-
-        <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
-          <h3 className="font-medium">Inputs</h3>
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">Configure</h2>
 
           <JsonForms
-            schema={schemas.input}
-            data={inputData.data}
+            schema={schemas.config}
+            data={configData.data}
             renderers={renderers}
             cells={cells}
-            onChange={({ data, errors }) => setInputData({ data, errors })}
+            onChange={({ data, errors }) =>
+              data ? setConfigData({ data, errors }) : undefined
+            }
           />
-          {!!inputData.errors?.length && (
+          {!!configData.errors?.length && (
             <>
               <h3>Validation Errors</h3>
-              {inputData.errors?.map((e, i) => (
+
+              {configData.errors?.map((e, i) => (
                 <p key={i}>{e.message}</p>
               ))}
             </>
           )}
         </div>
 
-        {latest && (
-          <div className="flex flex-col gap-3">
-            <h2 className="text-xl font-semibold">Output</h2>
-            <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
-              {latest.streamed_output.map(str).join("") || "..."}
-            </div>
-            <IntermediateSteps latest={latest} />
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">Customize</h2>
+
+          <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
+            <h3 className="font-medium">Inputs</h3>
+
+            <JsonForms
+              schema={schemas.input}
+              data={inputData.data}
+              renderers={renderers}
+              cells={cells}
+              onChange={({ data, errors }) => setInputData({ data, errors })}
+            />
+            {!!inputData.errors?.length && (
+              <>
+                <h3>Validation Errors</h3>
+                {inputData.errors?.map((e, i) => (
+                  <p key={i}>{e.message}</p>
+                ))}
+              </>
+            )}
           </div>
-        )}
-      </div>
 
-      {isShareOpen && <ShareDialog config={configData.data} />}
+          {latest && (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-xl font-semibold">Output</h2>
+              <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
+                {latest.streamed_output.map(str).join("") || "..."}
+              </div>
+              <IntermediateSteps latest={latest} />
+            </div>
+          )}
+        </div>
 
-      <div className="flex gap-4 justify-center">
-        <button
-          type="button"
-          className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center border border-transparent disabled:opacity-50"
-          onClick={() => {
-            stopStream
-              ? stopStream()
-              : startStream(inputData.data, configData.data);
-          }}
-          disabled={
-            !stopStream &&
-            (!!inputData.errors?.length || !!configData.errors?.length)
-          }
-        >
-          {stopStream ? <span className="text-white">Stop</span> : <SendIcon />}
-        </button>
-      </div>
+        <div className="text-center text-sm">
+          <strong>🦜 LangServe</strong>. An Open Source project by LangChain
+        </div>
 
-      <div className="text-center text-sm">
-        <strong>🦜 LangServe</strong>. An Open Source project by LangChain
+        <div className="flex-grow md:hidden" />
+
+        <div className="gap-4 grid grid-cols-2 sticky -mx-4 px-4 py-4 bottom-0 bg-background md:static md:bg-transparent">
+          <div className="md:hidden absolute inset-x-0 bottom-full h-5 bg-gradient-to-t from-black/5 to-black/0" />
+          <ShareDialog config={configData.data}>
+            <button
+              type="button"
+              className="px-4 py-3 gap-3 font-medium border border-divider-700 rounded-full flex items-center justify-center hover:bg-divider-500/50 active:bg-divider-500 transition-colors"
+            >
+              <ShareIcon className="flex-shrink-0" /> <span>Share</span>
+            </button>
+          </ShareDialog>
+          <button
+            type="button"
+            className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
+            onClick={() => {
+              stopStream
+                ? stopStream()
+                : startStream(inputData.data, configData.data);
+            }}
+            disabled={
+              !stopStream &&
+              (!!inputData.errors?.length || !!configData.errors?.length)
+            }
+          >
+            {stopStream ? (
+              <span className="text-white">Stop</span>
+            ) : (
+              <>
+                <SendIcon className="flex-shrink-0" />
+                <span className="text-white">Start</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   ) : null;
