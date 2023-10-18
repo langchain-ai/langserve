@@ -396,7 +396,10 @@ function App() {
                   const state = getStateFromUrl(window.location.href);
                   const targetUrl = `${state.basePath}/c/${hash}`;
                   window.parent?.postMessage(
-                    { type: "apply", value: { targetUrl } },
+                    {
+                      type: "apply",
+                      value: { targetUrl, config: configData.data },
+                    },
                     "*"
                   );
                 }}
