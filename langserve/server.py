@@ -470,13 +470,13 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return runnable.input_schema.schema()
+        return input_type_.schema()
 
     @app.get(namespace + "/h{config_hash}/output_schema")
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return runnable.output_schema.schema()
+        return output_type_.schema()
 
     @app.get(namespace + "/h{config_hash}/config_schema")
     @app.get(f"{namespace}/config_schema")
