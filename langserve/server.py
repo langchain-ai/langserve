@@ -507,19 +507,29 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return runnable.input_schema.schema()
+        return runnable.with_config(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).input_schema.schema()
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return runnable.output_schema.schema()
+        return runnable.with_config(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).output_schema.schema()
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return ConfigPayload.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            )
+            .config_schema(include=config_keys)
+            .schema()
+        )
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
