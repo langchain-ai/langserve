@@ -301,7 +301,7 @@ function App() {
           defaults(schemas.config),
         errors: [],
       });
-      setInputData({ data: defaults(schemas.input), errors: [] });
+      setInputData({ data: {}, errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas.config]);
