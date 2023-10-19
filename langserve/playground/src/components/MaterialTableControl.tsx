@@ -32,6 +32,8 @@ import {
 import startCase from "lodash/startCase";
 import range from "lodash/range";
 import React, { Fragment, useMemo } from "react";
+import TrashIcon from "../assets/TrashIcon.svg?react";
+
 import {
   FormHelperText,
   Grid,
@@ -57,7 +59,6 @@ import {
   encode,
   ArrayTranslations,
 } from "@jsonforms/core";
-import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowDownward from "@mui/icons-material/ArrowDownward";
 import ArrowUpward from "@mui/icons-material/ArrowUpward";
 
@@ -151,7 +152,7 @@ interface TableHeaderCellProps {
 const TableHeaderCell = React.memo(function TableHeaderCell({
   title,
 }: TableHeaderCellProps) {
-  return <TableCell>{title}</TableCell>;
+  return <TableCell sx={{ color: "var(--ls-black)" }}>{title}</TableCell>;
 });
 
 interface NonEmptyCellProps extends OwnPropsOfNonEmptyCell {
@@ -344,7 +345,7 @@ const NonEmptyRowComponent = ({
                 onClick={() => openDeleteDialog(childPath, rowIndex)}
                 size="large"
               >
-                <DeleteIcon style={{ color: "white" }} />
+                <TrashIcon className="text-ls-black" />
               </IconButton>
             </Grid>
           </Grid>

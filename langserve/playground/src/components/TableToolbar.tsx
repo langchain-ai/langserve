@@ -30,7 +30,7 @@ import {
   ArrayTranslations,
 } from "@jsonforms/core";
 import { IconButton, TableRow, Tooltip, Grid, Typography } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import PlusIcon from "../assets/PlusIcon.svg?react";
 import ValidationIcon from "./ValidationIcon";
 import NoBorderTableCell from "./NoBorderTableCell";
 
@@ -87,9 +87,9 @@ const TableToolbar = React.memo(function TableToolbar({
               aria-label={translations.addAriaLabel}
               onClick={addItem(path, createDefaultValue(schema))}
               size="large"
-              sx={{ p: "0", color: "var(--ls-black)" }}
+              sx={{ p: 1 }}
             >
-              <AddIcon sx={{ color: "var(--ls-black) !important" }} />
+              <PlusIcon className="text-ls-black" />
             </IconButton>
           </Tooltip>
         </NoBorderTableCell>
