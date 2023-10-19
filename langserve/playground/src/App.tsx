@@ -60,7 +60,7 @@ import CustomArrayControlRenderer, {
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
 import { cn } from "./utils/cn";
-import { getStateFromUrl, ShareDialog } from "./components/getStateFromUrl";
+import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
