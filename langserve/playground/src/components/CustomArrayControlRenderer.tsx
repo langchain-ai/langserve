@@ -28,6 +28,7 @@ import {
   ArrayLayoutProps,
   RankedTester,
   isObjectArrayControl,
+  isObjectArrayWithNesting,
   isPrimitiveArrayControl,
   or,
   rankWith,
@@ -80,7 +81,7 @@ export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
 
 export const materialArrayControlTester: RankedTester = rankWith(
   999,
-  or(isObjectArrayControl, isPrimitiveArrayControl)
+  or(isObjectArrayControl, isPrimitiveArrayControl, isObjectArrayWithNesting)
 );
 
 export default withJsonFormsArrayLayoutProps(MaterialArrayControlRenderer);
