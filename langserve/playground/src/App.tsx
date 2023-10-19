@@ -83,12 +83,9 @@ const renderers = [
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
 ];
 
-export const nestedArrayControlTester: RankedTester = rankWith(
-  1,
-  (_, jsonSchema) => {
-    return jsonSchema.type === "array";
-  }
-);
+const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
+  return jsonSchema.type === "array";
+});
 
 const cells = [
   { tester: booleanCellTester, cell: BooleanCell },
