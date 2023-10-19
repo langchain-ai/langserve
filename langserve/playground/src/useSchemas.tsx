@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { resolveApiUrl } from "./utils/url";
 import { simplifySchema } from "./utils/simplifySchema";
+import { JsonFormsCore } from "@jsonforms/core";
+import { compressToEncodedURIComponent } from "lz-string";
 
 declare global {
   interface Window {
@@ -11,7 +13,9 @@ declare global {
   }
 }
 
-export function useSchemas() {
+export function useSchemas(
+  configData: Pick<JsonFormsCore, "data" | "errors"> & { defaults: boolean }
+) {
   const [schemas, setSchemas] = useState({
     config: null,
     input: null,
@@ -43,6 +47,21 @@ export function useSchemas() {
 
     save();
   }, []);
+
+  useEffect(() => {
+    if (!configData.defaults) {
+      fetch(
+        resolveApiUrl(
+          `c/${compressToEncodedURIComponent(
+            JSON.stringify(configData.data)
+          )}/input_schema`
+        )
+      )
+        .then((r) => r.json())
+        .then(simplifySchema)
+        .then((input) => setSchemas((current) => ({ ...current, input })));
+    }
+  }, [configData]);
 
   return schemas;
 }

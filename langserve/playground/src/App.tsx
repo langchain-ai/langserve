@@ -320,14 +320,14 @@ function App() {
 
   // store form state
   const [configData, setConfigData] = useState<
-    Pick<JsonFormsCore, "data" | "errors">
-  >({ data: {}, errors: [] });
+    Pick<JsonFormsCore, "data" | "errors"> & { defaults: boolean }
+  >({ data: {}, errors: [], defaults: true });
 
   const [inputData, setInputData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
   >({ data: {}, errors: [] });
   // fetch input and config schemas from the server
-  const schemas = useSchemas();
+  const schemas = useSchemas(configData);
   // apply defaults defined in each schema
   useEffect(() => {
     if (schemas.config) {
@@ -338,6 +338,7 @@ function App() {
           initConfigData.current ??
           defaults(schemas.config),
         errors: [],
+        defaults: true,
       });
       setInputData({ data: {}, errors: [] });
     }
@@ -360,7 +361,11 @@ function App() {
               const value: { config: JsonFormsCore["data"] } = message.value;
               if (Object.keys(value.config).length > 0) {
                 initConfigData.current = value.config;
-                setConfigData({ data: value.config, errors: [] });
+                setConfigData({
+                  data: value.config,
+                  errors: [],
+                  defaults: false,
+                });
                 break;
               }
             }
@@ -388,7 +393,9 @@ function App() {
             renderers={renderers}
             cells={cells}
             onChange={({ data, errors }) =>
-              data ? setConfigData({ data, errors }) : undefined
+              data
+                ? setConfigData({ data, errors, defaults: false })
+                : undefined
             }
           />
           {!!configData.errors?.length && (
