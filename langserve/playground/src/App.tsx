@@ -354,13 +354,14 @@ function App() {
             }
           />
           {!!configData.errors?.length && (
-            <>
-              <h3>Validation Errors</h3>
-
-              {configData.errors?.map((e, i) => (
-                <p key={i}>{e.message}</p>
-              ))}
-            </>
+            <div className="bg-red-100 text-red-700 rounded-xl p-3">
+              <strong className="font-bold">Validation Errors</strong>
+              <ul className="list-disc pl-5">
+                {configData.errors?.map((e, i) => (
+                  <li key={i}>{e.message}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 
@@ -379,12 +380,14 @@ function App() {
                 onChange={({ data, errors }) => setInputData({ data, errors })}
               />
               {!!inputData.errors?.length && (
-                <>
-                  <h3>Validation Errors</h3>
-                  {inputData.errors?.map((e, i) => (
-                    <p key={i}>{e.message}</p>
-                  ))}
-                </>
+                <div className="bg-red-100 text-red-700 rounded-xl p-3">
+                  <strong className="font-bold">Validation Errors</strong>
+                  <ul className="list-disc pl-5">
+                    {inputData.errors?.map((e, i) => (
+                      <li key={i}>{e.message}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
 
