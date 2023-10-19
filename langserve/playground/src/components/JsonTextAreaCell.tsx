@@ -36,6 +36,8 @@ import {
   type VanillaRendererProps,
 } from "@jsonforms/vanilla-renderers";
 import merge from "lodash/merge";
+import { AutosizeTextarea } from "./AutosizeTextarea";
+import { cn } from "../utils/cn";
 
 function tryJsonParse(str: string) {
   try {
@@ -58,16 +60,12 @@ export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
     props;
   const appliedUiSchemaOptions = merge({}, config, uischema.options);
   return (
-    <textarea
+    <AutosizeTextarea
       value={typeof data === "object" ? tryJsonStringify(data) : data ?? ""}
-      onChange={(ev) =>
-        handleChange(
-          path,
-          ev.target.value === "" ? undefined : tryJsonParse(ev.target.value)
-        )
+      onChange={(value) =>
+        handleChange(path, value === "" ? undefined : tryJsonParse(value))
       }
-      className={className + "  border border-divider-700 rounded-lg py-1 px-2"}
-      style={{ width: "100%", fontSize: "18px" }}
+      className={cn("w-full text-lg", className)}
       id={id}
       disabled={!enabled}
       autoFocus={appliedUiSchemaOptions.focus}

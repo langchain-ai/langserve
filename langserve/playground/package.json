@@ -20,6 +20,7 @@
     "@mui/icons-material": "^5.14.11",
     "@mui/material": "^5.14.11",
     "@mui/x-date-pickers": "^6.16.0",
+    "clsx": "^2.0.0",
     "dayjs": "^1.11.10",
     "fast-json-patch": "^3.1.1",
     "json-schema-defaults": "^0.4.0",
@@ -27,6 +28,7 @@
     "lz-string": "^1.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "tailwind-merge": "^1.14.0",
     "vaul": "^0.7.3"
   },
   "devDependencies": {
