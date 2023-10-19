@@ -78,3 +78,7 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+.vertical-layout {
+  @apply flex flex-col gap-4;
+}
