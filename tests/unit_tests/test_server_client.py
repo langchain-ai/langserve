@@ -3,7 +3,7 @@ import asyncio
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, TypedDict, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import pytest
@@ -19,6 +19,7 @@ from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
+from typing_extensions import TypedDict
 
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
