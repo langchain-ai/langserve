@@ -17,6 +17,8 @@ import {
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
+import CopyIcon from "./assets/CopyIcon.svg?react";
+import CheckCircleIcon from "./assets/CheckCircleIcon.svg?react";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
 import CodeIcon from "./assets/CodeIcon.svg?react";
@@ -170,7 +172,7 @@ function CopyButton(props: { value: string }) {
         navigator.clipboard.writeText(props.value).then(toggleCopied);
       }}
     >
-      {copied ? "Copied" : "Copy"}
+      {copied ? <CheckCircleIcon /> : <CopyIcon />}
     </button>
   );
 }
