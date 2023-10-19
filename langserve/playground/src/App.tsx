@@ -169,7 +169,7 @@ function App() {
 
   const [inputData, setInputData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
-  >({ data: {}, errors: [] });
+  >({ data: null, errors: [] });
   // fetch input and config schemas from the server
   const schemas = useSchemas();
   // apply defaults defined in each schema
@@ -183,7 +183,7 @@ function App() {
           defaults(schemas.config),
         errors: [],
       });
-      setInputData({ data: {}, errors: [] });
+      setInputData({ data: null, errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas.config]);
@@ -235,7 +235,7 @@ function App() {
               data ? setConfigData({ data, errors }) : undefined
             }
           />
-          {!!configData.errors?.length && (
+          {!!configData.errors?.length && configData.data && (
             <div className="bg-background rounded-xl">
               <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
                 <strong className="font-bold">Validation Errors</strong>
@@ -263,7 +263,7 @@ function App() {
                 cells={cells}
                 onChange={({ data, errors }) => setInputData({ data, errors })}
               />
-              {!!inputData.errors?.length && (
+              {!!inputData.errors?.length && inputData.data && (
                 <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
                   <strong className="font-bold">Validation Errors</strong>
                   <ul className="list-disc pl-5">
