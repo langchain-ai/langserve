@@ -3,6 +3,7 @@ import { resolveApiUrl } from "./utils/url";
 import { simplifySchema } from "./utils/simplifySchema";
 import { JsonFormsCore } from "@jsonforms/core";
 import { compressToEncodedURIComponent } from "lz-string";
+import { useDebounce } from "use-debounce";
 
 declare global {
   interface Window {
@@ -48,20 +49,23 @@ export function useSchemas(
     save();
   }, []);
 
+  const [debouncedConfigData] = useDebounce(configData, 500);
+
   useEffect(() => {
-    if (!configData.defaults) {
+    if (!debouncedConfigData.defaults) {
       fetch(
         resolveApiUrl(
           `c/${compressToEncodedURIComponent(
-            JSON.stringify(configData.data)
+            JSON.stringify(debouncedConfigData.data)
           )}/input_schema`
         )
       )
         .then((r) => r.json())
         .then(simplifySchema)
-        .then((input) => setSchemas((current) => ({ ...current, input })));
+        .then((input) => setSchemas((current) => ({ ...current, input })))
+        .catch(() => {}); // ignore errors, eg. due to incomplete config
     }
-  }, [configData]);
+  }, [debouncedConfigData]);
 
   return schemas;
 }
