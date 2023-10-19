@@ -17,7 +17,7 @@ from urllib.parse import urljoin
 
 import httpx
 from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes, VerifyTypes
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import (
@@ -401,7 +401,6 @@ class RemoteRunnable(Runnable[Input, Output]):
         input: Input,
         config: Optional[RunnableConfig] = None,
         *,
-        diff: bool = False,
         include_names: Optional[Sequence[str]] = None,
         include_types: Optional[Sequence[str]] = None,
         include_tags: Optional[Sequence[str]] = None,
@@ -409,7 +408,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         exclude_types: Optional[Sequence[str]] = None,
         exclude_tags: Optional[Sequence[str]] = None,
         **kwargs: Optional[Any],
-    ) -> Union[AsyncIterator[RunLogPatch], AsyncIterator[RunLog]]:
+    ) -> AsyncIterator[RunLogPatch]:
         """Stream all output from a runnable, as reported to the callback system.
 
         This includes all inner runs of LLMs, Retrievers, Tools, etc.
@@ -436,7 +435,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "input": simple_dumpd(input),
             "config": _without_callbacks(config),
             "kwargs": kwargs,
-            "diff": diff,
+            "diff": True,
             "include_names": include_names,
             "include_types": include_types,
             "include_tags": include_tags,
@@ -458,18 +457,12 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = simple_loads(sse.data)
-                        if diff:
-                            chunk = RunLogPatch(*data["ops"])
-                        else:
-                            chunk = RunLog(*data["ops"], state=data["state"])
+                        chunk = RunLogPatch(*data["ops"])
 
                         yield chunk
 
-                        if diff:
-                            if final_output:
-                                final_output += chunk
-                            else:
-                                final_output = chunk
+                        if final_output:
+                            final_output += chunk
                         else:
                             final_output = chunk
                     elif sse.event == "end":
