@@ -154,8 +154,10 @@ const TableHeaderCell = React.memo(function TableHeaderCell({
   return (
     <TableCell
       sx={{
-        color: "hsl(var(--ls-black))",
+        color: "hsl(var(--ls-gray-100))",
         borderBottomColor: "hsl(var(--divider-700))",
+        px: 0,
+        py: 1,
       }}
     >
       {title}
@@ -352,6 +354,7 @@ const NonEmptyRowComponent = ({
                 aria-label={translations.removeAriaLabel}
                 onClick={() => openDeleteDialog(childPath, rowIndex)}
                 size="large"
+                sx={{ p: 1 }}
               >
                 <TrashIcon className="text-ls-black" />
               </IconButton>
