@@ -36,7 +36,7 @@ import {
   IntegerCell,
   NumberCell,
   SliderCell,
-  TextAreaCell,
+  // TextAreaCell,
   TimeCell,
   booleanCellTester,
   dateCellTester,
@@ -54,6 +54,8 @@ import {
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
 import { JsonFormsCore } from "@jsonforms/core";
+import CustomArrayControlRenderer, { materialArrayControlTester } from "./components/CustomArrayControlRenderer";
+import CustomTextAreaCell from "./components/CustomTextAreaCell";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -75,6 +77,9 @@ const renderers = [
   { tester: materialAllOfControlTester, renderer: MaterialAllOfRenderer },
   { tester: materialAnyOfControlTester, renderer: MaterialAnyOfRenderer },
   { tester: materialOneOfControlTester, renderer: MaterialOneOfRenderer },
+
+  // custom renderers
+  { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer }
 ];
 
 const cells = [
@@ -85,8 +90,8 @@ const cells = [
   { tester: integerCellTester, cell: IntegerCell },
   { tester: numberCellTester, cell: NumberCell },
   { tester: sliderCellTester, cell: SliderCell },
-  { tester: textAreaCellTester, cell: TextAreaCell },
-  { tester: textCellTester, cell: TextAreaCell },
+  { tester: textAreaCellTester, cell: CustomTextAreaCell },
+  { tester: textCellTester, cell: CustomTextAreaCell },
   { tester: timeCellTester, cell: TimeCell },
 ];
 

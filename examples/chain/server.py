@@ -1,12 +1,16 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a chain composed of a prompt and an LLM."""
+from typing import Any, Dict, List, Optional
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
+
+# from typing_extensions import TypedDict
+from langchain.pydantic_v1 import BaseModel
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import ConfigurableField
-from typing_extensions import TypedDict
+from langchain.schema.runnable import ConfigurableField, RunnablePassthrough
 
 from langserve import add_routes
 
@@ -17,7 +21,7 @@ model = ChatOpenAI(temperature=0.5).configurable_alternatives(
     default_key="medium_temp",
 )
 prompt = PromptTemplate.from_template(
-    "tell me a joke about {topic}"
+    "tell me a joke about {topic}.\nChat history: {chat_history}"
 ).configurable_fields(
     template=ConfigurableField(
         id="prompt",
@@ -25,7 +29,12 @@ prompt = PromptTemplate.from_template(
         description="The prompt to use. Must contain {topic}",
     )
 )
-chain = prompt | model | StrOutputParser()
+chain = (
+    RunnablePassthrough.assign(chat_history=(lambda x: "\n".join(x)))
+    | prompt
+    | model
+    | StrOutputParser()
+)
 
 app = FastAPI(
     title="LangChain Server",
@@ -47,11 +56,13 @@ app.add_middleware(
 # The input type is automatically inferred from the runnable
 # interface; however, if you want to override it, you can do so
 # by passing in the input_type argument to add_routes.
-class ChainInput(TypedDict):
+class ChainInput(BaseModel):
     """The input to the chain."""
 
     topic: str
     """The topic of the joke."""
+    chat_history: List[str]
+    tester: Optional[Dict[str, Any]] = None
 
 
 add_routes(app, chain, input_type=ChainInput, config_keys=["configurable"])

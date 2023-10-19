@@ -23,12 +23,14 @@
     "dayjs": "^1.11.10",
     "fast-json-patch": "^3.1.1",
     "json-schema-defaults": "^0.4.0",
+    "lodash": "^4.17.21",
     "lz-string": "^1.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vaul": "^0.7.3"
   },
   "devDependencies": {
+    "@types/lodash": "^4.14.200",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@typescript-eslint/eslint-plugin": "^6.0.0",

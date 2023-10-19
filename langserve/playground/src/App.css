@@ -55,8 +55,12 @@
   @apply focus-within:border-ls-blue focus-within:outline focus-within:outline-4 focus-within:outline-ls-blue/20;
 }
 
-.control > label {
+.control > label, .control h6 {
   @apply text-xs uppercase font-semibold text-ls-gray-100;
+}
+
+.control div .MuiGrid-item {
+  @apply pt-0;
 }
 
 .control > select {
