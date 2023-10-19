@@ -21,6 +21,7 @@ import CheckCircleIcon from "./assets/CheckCircleIcon.svg?react";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
 import CodeIcon from "./assets/CodeIcon.svg?react";
+import ChevronRight from "./assets/ChevronRight.svg?react";
 import PadlockIcon from "./assets/PadlockIcon.svg?react";
 import {
   compressToEncodedURIComponent,
@@ -66,6 +67,7 @@ import CustomArrayControlRenderer, {
 } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
+import { cn } from "./utils/cn";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -131,10 +133,11 @@ function IntermediateSteps(props: { latest: RunState }) {
   return (
     <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
       <button
-        className="font-medium text-left p-4"
+        className="font-medium text-left p-4 flex items-center justify-between"
         onClick={() => setExpanded((open) => !open)}
       >
-        Intermediate steps
+        <span>Intermediate steps</span>
+        <ChevronRight className={cn("transition-all", expanded && "rotate-90")} />
       </button>
       {expanded && (
         <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
