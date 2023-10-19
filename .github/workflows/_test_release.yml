@@ -12,9 +12,7 @@ env:
   POETRY_VERSION: "1.5.1"
 
 jobs:
-  if_release:
-    # Disallow publishing from branches that aren't `main`.
-    if: github.ref == 'refs/heads/main'
+  pypi_test_release:
     runs-on: ubuntu-latest
     permissions:
       # This permission is used for trusted publishing:
