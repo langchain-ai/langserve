@@ -19,6 +19,7 @@ import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
 import ChevronRight from "./assets/ChevronRight.svg?react";
 import { compressToEncodedURIComponent } from "lz-string";
+import { AIMessageChunk } from "langchain/schema";
 
 import {
   BooleanCell,
@@ -115,6 +116,37 @@ const renderers = [
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
   return jsonSchema.type === "array";
 });
+
+type BaseMessageFields = ConstructorParameters<typeof AIMessageChunk>[0];
+
+function isAiMessageChunkFields(value: unknown): value is BaseMessageFields {
+  if (typeof value !== "object" || value == null) return false;
+  return "content" in value && typeof value["content"] === "string";
+}
+
+function isAiMessageChunkFieldsList(
+  value: unknown[]
+): value is BaseMessageFields[] {
+  return value.length > 0 && value.every((x) => isAiMessageChunkFields(x));
+}
+
+function StreamOutput(props: { streamed: unknown[] }) {
+  // check if we're streaming AIMessageChunk
+  if (isAiMessageChunkFieldsList(props.streamed)) {
+    const concat = props.streamed.reduce<AIMessageChunk | null>(
+      (memo, field) => {
+        const chunk = new AIMessageChunk(field);
+        if (memo == null) return chunk;
+        return memo.concat(chunk);
+      },
+      null
+    );
+
+    return concat?.content || "...";
+  }
+
+  return props.streamed.map(str).join("") || "...";
+}
 
 const cells = [
   { tester: booleanCellTester, cell: BooleanCell },
@@ -298,7 +330,7 @@ function App() {
               <div className="flex flex-col gap-3">
                 <h2 className="text-xl font-semibold">Output</h2>
                 <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
-                  {latest.streamed_output.map(str).join("") || "..."}
+                  <StreamOutput streamed={latest.streamed_output} />
                 </div>
                 <IntermediateSteps latest={latest} />
               </div>
