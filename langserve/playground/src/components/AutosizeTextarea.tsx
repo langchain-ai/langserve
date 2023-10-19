@@ -44,7 +44,7 @@ export function AutosizeTextarea(props: {
         aria-hidden
         className={cn(COMMON_CLS, "pointer-events-none select-none")}
       >
-        {props.value}
+        {props.value}{" "}
       </div>
     </div>
   );
