@@ -29,6 +29,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^1.14.0",
+    "use-debounce": "^9.0.4",
     "vaul": "^0.7.3"
   },
   "devDependencies": {
