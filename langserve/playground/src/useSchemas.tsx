@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { resolveApiUrl } from "./utils/url";
+import { simplifySchema } from "./utils/simplifySchema";
 
 declare global {
   interface Window {
@@ -35,5 +36,8 @@ export function useSchemas() {
     save();
   }, []);
 
-  return schemas;
+  return {
+    config: schemas.config ? simplifySchema(schemas.config) : null,
+    input: schemas.input ? simplifySchema(schemas.input) : null,
+  };
 }
