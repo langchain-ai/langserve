@@ -1,4 +1,4 @@
-# LangServe 🦜️🔗 
+# LangServe 🦜️🔗
 
 ## Overview
 
@@ -15,6 +15,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - API docs page with JSONSchema and Swagger (insert example link)
 - Efficient `/invoke`, `/batch` and `/stream` endpoints with support for many concurrent requests on a single server
 - `/stream_log` endpoint for streaming all (or some) intermediate steps from your chain/agent
+- Playground page at `/playground` with streaming output and intermediate steps
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
@@ -24,7 +25,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Client callbacks are not yet supported for events that originate on the server
 - Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
 
-## LangChain CLI  🛠️
+## LangChain CLI 🛠️
 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
@@ -40,7 +41,6 @@ And follow the instructions...
 ## Examples
 
 For more examples, see the [examples](./examples) directory.
-
 
 ### Server
 
@@ -116,18 +116,18 @@ joke_chain.invoke({"topic": "parrots"})
 await joke_chain.ainvoke({"topic": "parrots"})
 
 prompt = [
-    SystemMessage(content='Act like either a cat or a parrot.'), 
+    SystemMessage(content='Act like either a cat or a parrot.'),
     HumanMessage(content='Hello!')
 ]
 
 # Supports astream
 async for msg in anthropic.astream(prompt):
     print(msg, end="", flush=True)
-    
+
 prompt = ChatPromptTemplate.from_messages(
     [("system", "Tell me a long story about {topic}")]
 )
-    
+
 # Can define custom chains
 chain = prompt | RunnableMap({
     "openai": openai,
@@ -142,9 +142,11 @@ In TypeScript (requires LangChain.js version 0.0.166 or later):
 ```typescript
 import { RemoteRunnable } from "langchain/runnables/remote";
 
-const chain = new RemoteRunnable({ url: `http://localhost:8000/chain/invoke/` });
+const chain = new RemoteRunnable({
+  url: `http://localhost:8000/chain/invoke/`,
+});
 const result = await chain.invoke({
-  "topic": "cats", 
+  topic: "cats",
 });
 ```
 
@@ -171,8 +173,7 @@ curl --location --request POST 'http://localhost:8000/chain/invoke/' \
     }'
 ```
 
-
-## Endpoints 
+## Endpoints
 
 The following code:
 
@@ -195,6 +196,10 @@ adds of these endpoints to the server:
 - `GET /my_runnable/output_schema` - json schema for output of the runnable
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
 
+## Playground
+
+You can find a playground page for your runnable at `/my_runnable/playground`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
+
 ## Installation
 
 For both client and server:
@@ -212,10 +217,9 @@ However, some of the input schemas for legacy chains may be incomplete/incorrect
 This can be fixed by updating the `input_schema` property of those chains in LangChain.
 If you encounter any errors, please open an issue on THIS repo, and we will work to address it.
 
-
 ## Handling Authentication
 
-If you need to add authentication to your server, 
+If you need to add authentication to your server,
 please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
 and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
 
