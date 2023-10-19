@@ -65,7 +65,6 @@ import ArrowUpward from "@mui/icons-material/ArrowUpward";
 import { WithDeleteDialogSupport } from "./DeleteDialog";
 import NoBorderTableCell from "./NoBorderTableCell";
 import TableToolbar from "./TableToolbar";
-import { ErrorObject } from "ajv";
 import merge from "lodash/merge";
 
 // we want a cell that doesn't automatically span
@@ -182,14 +181,14 @@ const ctxToNonEmptyCellProps = (
         path,
         ownProps.schema,
         (p) => p === path
-      )(ctx.core.errors).map((error: ErrorObject) => error.message)
+      )(ctx.core?.errors ?? []).map((error) => error.message) as string[]
     )
   );
   return {
     rowPath: ownProps.rowPath,
     propName: ownProps.propName,
     schema: ownProps.schema,
-    rootSchema: ctx.core.schema,
+    rootSchema: ctx.core?.schema ?? {},
     errors,
     path,
     enabled: ownProps.enabled,
@@ -232,10 +231,10 @@ const NonEmptyCellComponent = React.memo(function NonEmptyCellComponent({
         <DispatchCell
           schema={Resolve.schema(
             schema,
-            `#/properties/${encode(propName)}`,
+            `#/properties/${encode(propName!)}`,
             rootSchema
           )}
-          uischema={controlWithoutLabel(`#/properties/${encode(propName)}`)}
+          uischema={controlWithoutLabel(`#/properties/${encode(propName!)}`)}
           path={path}
           enabled={enabled}
           renderers={renderers}
@@ -304,7 +303,7 @@ const NonEmptyRowComponent = ({
   );
   return (
     <TableRow key={childPath} hover>
-      {generateCells(NonEmptyCell, schema, childPath, enabled, cells)}
+      {generateCells(NonEmptyCell as any, schema, childPath, enabled, cells)}
       {enabled ? (
         <NoBorderTableCell
           style={showSortButtons ? styles.fixedCell : styles.fixedCellSmall}
@@ -405,8 +404,8 @@ const TableRows = ({
             rowIndex={index}
             schema={schema}
             openDeleteDialog={openDeleteDialog}
-            moveUpCreator={moveUp}
-            moveDownCreator={moveDown}
+            moveUpCreator={moveUp ?? (() => () => {})}
+            moveDownCreator={moveDown ?? (() => () => {})}
             enableUp={index !== 0}
             enableDown={index !== data - 1}
             showSortButtons={
@@ -447,7 +446,7 @@ export class MaterialTableControl extends React.Component<
     const controlElement = uischema as ControlElement;
     const isObjectSchema = schema.type === "object";
     const headerCells: any = isObjectSchema
-      ? generateCells(TableHeaderCell, schema, path, enabled, cells)
+      ? generateCells(TableHeaderCell as any, schema, path, enabled, cells)
       : undefined;
 
     return (
@@ -475,9 +474,9 @@ export class MaterialTableControl extends React.Component<
           </TableHead>
           <TableBody>
             <TableRows
-              openDeleteDialog={openDeleteDialog}
-              translations={translations}
               {...this.props}
+              openDeleteDialog={this.props.openDeleteDialog ?? openDeleteDialog}
+              translations={this.props.translations ?? translations}
             />
           </TableBody>
         </Table>
