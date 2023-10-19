@@ -356,7 +356,7 @@ function App() {
             }
           />
           {!!configData.errors?.length && (
-            <div className="bg-red-100 text-red-700 rounded-xl p-3">
+            <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
               <strong className="font-bold">Validation Errors</strong>
               <ul className="list-disc pl-5">
                 {configData.errors?.map((e, i) => (
@@ -382,7 +382,7 @@ function App() {
                 onChange={({ data, errors }) => setInputData({ data, errors })}
               />
               {!!inputData.errors?.length && (
-                <div className="bg-red-100 text-red-700 rounded-xl p-3">
+                <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
                   <strong className="font-bold">Validation Errors</strong>
                   <ul className="list-disc pl-5">
                     {inputData.errors?.map((e, i) => (

@@ -63,7 +63,8 @@
   @apply -ml-1;
 }
 
-.control .input-description {
+.control > .input-description,
+.control > .validation {
   @apply absolute right-3 top-3 text-xs;
 }
 
