@@ -763,21 +763,14 @@ async def test_runnable_assign(event_loop: AbstractEventLoop) -> None:
 
 
 @pytest.mark.asyncio
-async def test_typed_runnable_assign(event_loop: AbstractEventLoop) -> None:
+async def test_runnable_assign_nopath(event_loop: AbstractEventLoop) -> None:
     """Test serving multiple runnables."""
 
     app = FastAPI()
-    prompt = PromptTemplate.from_template("{a} {b}")
-
-    class RunnableInput(BaseModel):
-        b: str
-
-    chain: Runnable[RunnableInput, Any] = (
-        RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a")) | prompt
-    )
+    chain = RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a"))
     # should only need "b" as input now
-    add_routes(app, chain, path="/assigned")
+    add_routes(app, chain)
 
-    async with get_async_client(app, path="/assigned") as runnable:
+    async with get_async_client(app, path="/") as runnable:
         assert await runnable.ainvoke({"b": "b"}) == {"a": "a", "b": "b"}
         assert runnable.invoke({"b": "b"}) == {"a": "a", "b": "b"}
