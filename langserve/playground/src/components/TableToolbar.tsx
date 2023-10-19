@@ -29,7 +29,7 @@ import {
   JsonSchema,
   ArrayTranslations,
 } from "@jsonforms/core";
-import { IconButton, TableRow, Tooltip, Grid, Typography } from "@mui/material";
+import { IconButton, TableRow, Tooltip } from "@mui/material";
 import PlusIcon from "../assets/PlusIcon.svg?react";
 import ValidationIcon from "./ValidationIcon";
 import NoBorderTableCell from "./NoBorderTableCell";
