@@ -66,7 +66,7 @@ export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
           ev.target.value === "" ? undefined : tryJsonParse(ev.target.value)
         )
       }
-      className={className}
+      className={className + "  border border-divider-700 rounded-lg py-1 px-2"}
       style={{ width: "100%", fontSize: "18px" }}
       id={id}
       disabled={!enabled}

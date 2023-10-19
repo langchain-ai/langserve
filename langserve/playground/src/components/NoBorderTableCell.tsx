@@ -27,8 +27,8 @@ import { TableCell } from "@mui/material";
 
 const StyledTableCell = styled(TableCell)({
   borderBottom: "none",
-  color: "white",
   fill: "white",
+  color: "inherit",
   padding: 0,
 });
 
