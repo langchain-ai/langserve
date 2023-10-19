@@ -16,7 +16,7 @@ from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
-from langchain.schema.runnable.base import RunnableLambda
+from langchain.schema.runnable.base import RunnableLambda, Runnable
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 
@@ -753,11 +753,31 @@ async def test_runnable_assign(event_loop: AbstractEventLoop) -> None:
     """Test serving multiple runnables."""
 
     app = FastAPI()
-    prompt = PromptTemplate.from_template("{a} {b}")
-    chain = RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a")) | prompt
+    chain = RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a"))
     # should only need "b" as input now
     add_routes(app, chain, path="/assigned")
 
     async with get_async_client(app, path="/assigned") as runnable:
-        assert await runnable.ainvoke({"b": "b"}) == "a b"
-        assert runnable.invoke({"b": "b"}) == "a b"
+        assert await runnable.ainvoke({"b": "b"}) == {"a": "a", "b": "b"}
+        assert runnable.invoke({"b": "b"}) == {"a": "a", "b": "b"}
+
+
+@pytest.mark.asyncio
+async def test_typed_runnable_assign(event_loop: AbstractEventLoop) -> None:
+    """Test serving multiple runnables."""
+
+    app = FastAPI()
+    prompt = PromptTemplate.from_template("{a} {b}")
+
+    class RunnableInput(BaseModel):
+        b: str
+
+    chain: Runnable[RunnableInput, Any] = (
+        RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a")) | prompt
+    )
+    # should only need "b" as input now
+    add_routes(app, chain, path="/assigned")
+
+    async with get_async_client(app, path="/assigned") as runnable:
+        assert await runnable.ainvoke({"b": "b"}) == {"a": "a", "b": "b"}
+        assert runnable.invoke({"b": "b"}) == {"a": "a", "b": "b"}
