@@ -137,7 +137,9 @@ function IntermediateSteps(props: { latest: RunState }) {
         onClick={() => setExpanded((open) => !open)}
       >
         <span>Intermediate steps</span>
-        <ChevronRight className={cn("transition-all", expanded && "rotate-90")} />
+        <ChevronRight
+          className={cn("transition-all", expanded && "rotate-90")}
+        />
       </button>
       {expanded && (
         <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
@@ -395,13 +397,15 @@ function App() {
             }
           />
           {!!configData.errors?.length && (
-            <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
-              <strong className="font-bold">Validation Errors</strong>
-              <ul className="list-disc pl-5">
-                {configData.errors?.map((e, i) => (
-                  <li key={i}>{e.message}</li>
-                ))}
-              </ul>
+            <div className="bg-background">
+              <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
+                <strong className="font-bold">Validation Errors</strong>
+                <ul className="list-disc pl-5">
+                  {configData.errors?.map((e, i) => (
+                    <li key={i}>{e.message}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </div>
