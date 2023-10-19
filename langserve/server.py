@@ -7,6 +7,7 @@ FastAPI app or APIRouter.
 """
 import json
 import re
+import weakref
 from inspect import isclass
 from typing import (
     Any,
@@ -34,6 +35,7 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
+from langserve.playground import serve_playground
 from langserve.serialization import simple_dumpd, simple_dumps
 from langserve.validation import (
     create_batch_request_model,
@@ -197,6 +199,9 @@ def _add_tracing_info_to_metadata(config: Dict[str, Any], request: Request) -> N
     config["metadata"] = metadata
 
 
+_APP_SEEN = weakref.WeakSet()
+
+
 # PUBLIC API
 
 
@@ -244,6 +249,19 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
+        _APP_SEEN.add(app)
+        app.openapi_tags = [
+            *(getattr(app, "openapi_tags", []) or []),
+            {
+                "name": "default",
+            },
+            {
+                "name": "config",
+                "description": "Endpoints with a default configuration set by `config_hash` path parameter.",  # noqa: E501
+            },
+        ]
+
     namespace = path or ""
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
@@ -279,7 +297,11 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    @app.post(namespace + "/h{config_hash}/invoke", response_model=InvokeResponse)
+    @app.post(
+        namespace + "/c/{config_hash}/invoke",
+        response_model=InvokeResponse,
+        tags=["config"],
+    )
     @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
     async def invoke(
         invoke_request: Annotated[InvokeRequest, InvokeRequest],
@@ -299,7 +321,11 @@ def add_routes(
 
         return InvokeResponse(output=simple_dumpd(output))
 
-    @app.post(namespace + "/h{config_hash}/batch", response_model=BatchResponse)
+    @app.post(
+        namespace + "/c/{config_hash}/batch",
+        response_model=BatchResponse,
+        tags=["config"],
+    )
     @app.post(f"{namespace}/batch", response_model=BatchResponse)
     async def batch(
         batch_request: Annotated[BatchRequest, BatchRequest],
@@ -327,7 +353,7 @@ def add_routes(
 
         return BatchResponse(output=simple_dumpd(output))
 
-    @app.post(namespace + "/h{config_hash}/stream")
+    @app.post(namespace + "/c/{config_hash}/stream", tags=["config"])
     @app.post(f"{namespace}/stream")
     async def stream(
         stream_request: Annotated[StreamRequest, StreamRequest],
@@ -385,7 +411,7 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
-    @app.post(namespace + "/h{config_hash}/stream_log")
+    @app.post(namespace + "/c/{config_hash}/stream_log", tags=["config"])
     @app.post(f"{namespace}/stream_log")
     async def stream_log(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
@@ -466,20 +492,56 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/h{config_hash}/input_schema")
+    @app.get(namespace + "/c/{config_hash}/input_schema", tags=["config"])
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return runnable.input_schema.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).input_schema.schema()
+            if input_type == "auto"
+            else input_type_.schema()
+        )
 
-    @app.get(namespace + "/h{config_hash}/output_schema")
+    @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return runnable.output_schema.schema()
+        return runnable.with_config(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).output_schema.schema()
 
-    @app.get(namespace + "/h{config_hash}/config_schema")
+    @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return ConfigPayload.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            )
+            .config_schema(include=config_keys)
+            .schema()
+        )
+
+    @app.get(
+        namespace + "/c/{config_hash}/playground/{file_path:path}",
+        tags=["config"],
+        include_in_schema=False,
+    )
+    @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
+    async def playground(file_path: str, config_hash: str = "") -> Any:
+        """Return the playground of the runnable."""
+        return await serve_playground(
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ),
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).input_schema
+            if input_type == "auto"
+            else input_type_,
+            config_keys,
+            f"{namespace}/playground",
+            file_path,
+        )
