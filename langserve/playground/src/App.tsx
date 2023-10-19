@@ -9,7 +9,6 @@ import {
   MaterialAllOfRenderer,
   materialAnyOfControlTester,
   MaterialAnyOfRenderer,
-  materialObjectControlTester,
   MaterialObjectRenderer,
   materialOneOfControlTester,
   MaterialOneOfRenderer,
@@ -48,15 +47,25 @@ import {
   textCellTester,
   timeCellTester,
   vanillaRenderers,
+  InputControl,
 } from "@jsonforms/vanilla-renderers";
 
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
-import { JsonFormsCore, RankedTester, rankWith } from "@jsonforms/core";
+import {
+  JsonFormsCore,
+  RankedTester,
+  rankWith,
+  and,
+  uiTypeIs,
+  schemaMatches,
+  schemaTypeIs,
+} from "@jsonforms/core";
 import CustomArrayControlRenderer, {
   materialArrayControlTester,
 } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
+import JsonTextAreaCell from "./components/JsonTextAreaCell";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -69,18 +78,37 @@ function str(o: unknown): React.ReactNode {
     : (o as React.ReactNode);
 }
 
+export const isObjectWithPropertiesControl = rankWith(
+  2,
+  and(
+    uiTypeIs("Control"),
+    schemaTypeIs("object"),
+    schemaMatches((schema) =>
+      Object.prototype.hasOwnProperty.call(schema, "properties")
+    )
+  )
+);
+
+export const isObject = rankWith(
+  1,
+  and(uiTypeIs("Control"), schemaTypeIs("object"))
+);
+
+export const isElse = rankWith(1, and(uiTypeIs("Control")));
+
 const renderers = [
   ...vanillaRenderers,
 
   // use material renderers to handle objects and json schema references
   // they should yield the rendering to simpler cells
-  { tester: materialObjectControlTester, renderer: MaterialObjectRenderer },
+  { tester: isObjectWithPropertiesControl, renderer: MaterialObjectRenderer },
   { tester: materialAllOfControlTester, renderer: MaterialAllOfRenderer },
   { tester: materialAnyOfControlTester, renderer: MaterialAnyOfRenderer },
   { tester: materialOneOfControlTester, renderer: MaterialOneOfRenderer },
 
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
+  { tester: isObject, renderer: InputControl },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
@@ -99,6 +127,7 @@ const cells = [
   { tester: textCellTester, cell: CustomTextAreaCell },
   { tester: timeCellTester, cell: TimeCell },
   { tester: nestedArrayControlTester, cell: CustomArrayControlRenderer },
+  { tester: isElse, cell: JsonTextAreaCell },
 ];
 
 function IntermediateSteps(props: { latest: RunState }) {
