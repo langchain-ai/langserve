@@ -64,7 +64,7 @@ export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
   const deleteClose = useCallback(() => setOpen(false), [setOpen]);
 
   return (
-    <div className="control mt-4 mb-4">
+    <div className="control">
       <Hidden xsUp={!visible}>
         <MaterialTableControl {...props} openDeleteDialog={openDeleteDialog} />
         <DeleteDialog

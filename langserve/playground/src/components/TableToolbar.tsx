@@ -65,26 +65,16 @@ const TableToolbar = React.memo(function TableToolbar({
   return (
     <TableRow>
       <NoBorderTableCell colSpan={numColumns}>
-        <Grid
-          container
-          justifyContent={"flex-start"}
-          alignItems={"center"}
-          spacing={2}
-        >
-          <Grid item>
-            <Typography variant={"h6"}>{label}</Typography>
-          </Grid>
-          <Grid item>
-            {errors.length !== 0 && (
-              <Grid item>
-                <ValidationIcon
-                  id="tooltip-validation"
-                  errorMessages={errors}
-                />
-              </Grid>
-            )}
-          </Grid>
-        </Grid>
+        <div className="flex items-center gap-2">
+          {label && (
+            <span className="text-xs uppercase font-semibold text-ls-gray-100">
+              {label}
+            </span>
+          )}
+          {errors.length !== 0 && (
+            <ValidationIcon id="tooltip-validation" errorMessages={errors} />
+          )}
+        </div>
       </NoBorderTableCell>
       {enabled ? (
         <NoBorderTableCell align="right" style={fixedCellSmall}>
@@ -97,9 +87,9 @@ const TableToolbar = React.memo(function TableToolbar({
               aria-label={translations.addAriaLabel}
               onClick={addItem(path, createDefaultValue(schema))}
               size="large"
-              style={{ color: "white" }}
+              sx={{ p: "0", color: "var(--ls-black)" }}
             >
-              <AddIcon />
+              <AddIcon sx={{ color: "var(--ls-black) !important" }} />
             </IconButton>
           </Tooltip>
         </NoBorderTableCell>

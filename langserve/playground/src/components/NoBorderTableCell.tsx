@@ -29,6 +29,7 @@ const StyledTableCell = styled(TableCell)({
   borderBottom: "none",
   color: "white",
   fill: "white",
+  padding: 0,
 });
 
 const NoBorderTableCell = ({ children, ...otherProps }: any) => (

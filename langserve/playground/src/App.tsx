@@ -78,7 +78,7 @@ function str(o: unknown): React.ReactNode {
     : (o as React.ReactNode);
 }
 
-export const isObjectWithPropertiesControl = rankWith(
+const isObjectWithPropertiesControl = rankWith(
   2,
   and(
     uiTypeIs("Control"),
@@ -89,12 +89,8 @@ export const isObjectWithPropertiesControl = rankWith(
   )
 );
 
-export const isObject = rankWith(
-  1,
-  and(uiTypeIs("Control"), schemaTypeIs("object"))
-);
-
-export const isElse = rankWith(1, and(uiTypeIs("Control")));
+const isObject = rankWith(1, and(uiTypeIs("Control"), schemaTypeIs("object")));
+const isElse = rankWith(1, and(uiTypeIs("Control")));
 
 const renderers = [
   ...vanillaRenderers,
