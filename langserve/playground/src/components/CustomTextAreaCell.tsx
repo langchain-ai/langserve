@@ -36,19 +36,18 @@ import {
   type VanillaRendererProps,
 } from "@jsonforms/vanilla-renderers";
 import merge from "lodash/merge";
+import { cn } from "../utils/cn";
+import { AutosizeTextarea } from "./AutosizeTextarea";
 
 export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
   const { data, className, id, enabled, config, uischema, path, handleChange } =
     props;
   const appliedUiSchemaOptions = merge({}, config, uischema.options);
   return (
-    <textarea
+    <AutosizeTextarea
       value={data || ""}
-      onChange={(ev) =>
-        handleChange(path, ev.target.value === "" ? undefined : ev.target.value)
-      }
-      className={className}
-      style={{ width: "100%", fontSize: "18px" }}
+      onChange={(value) => handleChange(path, value === "" ? undefined : value)}
+      className={cn("w-full text-lg", className)}
       id={id}
       disabled={!enabled}
       autoFocus={appliedUiSchemaOptions.focus}

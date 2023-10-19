@@ -32,7 +32,7 @@ import {
 import startCase from "lodash/startCase";
 import range from "lodash/range";
 import React, { Fragment, useMemo } from "react";
-import TrashIcon from "../assets/TrashIcon.svg?react";
+import TrashIcon from "../../assets/TrashIcon.svg?react";
 
 import {
   FormHelperText,
@@ -151,7 +151,18 @@ interface TableHeaderCellProps {
 const TableHeaderCell = React.memo(function TableHeaderCell({
   title,
 }: TableHeaderCellProps) {
-  return <TableCell sx={{ color: "var(--ls-black)" }}>{title}</TableCell>;
+  return (
+    <TableCell
+      sx={{
+        color: "hsl(var(--ls-gray-100))",
+        borderBottomColor: "hsl(var(--divider-700))",
+        px: 0,
+        py: 1,
+      }}
+    >
+      {title}
+    </TableCell>
+  );
 });
 
 interface NonEmptyCellProps extends OwnPropsOfNonEmptyCell {
@@ -226,7 +237,7 @@ const NonEmptyCellComponent = React.memo(function NonEmptyCellComponent({
   isValid,
 }: NonEmptyCellComponentProps) {
   return (
-    <NoBorderTableCell>
+    <NoBorderTableCell sx={{ color: "hsl(var(--ls-black))" }}>
       {schema.properties ? (
         <DispatchCell
           schema={Resolve.schema(
@@ -343,6 +354,7 @@ const NonEmptyRowComponent = ({
                 aria-label={translations.removeAriaLabel}
                 onClick={() => openDeleteDialog(childPath, rowIndex)}
                 size="large"
+                sx={{ p: 1 }}
               >
                 <TrashIcon className="text-ls-black" />
               </IconButton>
@@ -452,7 +464,7 @@ export class MaterialTableControl extends React.Component<
     return (
       <Hidden xsUp={!visible}>
         <Table>
-          <TableHead>
+          <TableHead sx={{ borderBottomColor: "hsl(var(--divider-700))" }}>
             <TableToolbar
               errors={errors}
               label={label}
@@ -468,7 +480,11 @@ export class MaterialTableControl extends React.Component<
             {isObjectSchema && (
               <TableRow>
                 {headerCells}
-                {enabled ? <TableCell /> : null}
+                {enabled ? (
+                  <TableCell
+                    sx={{ borderBottomColor: "hsl(var(--divider-700))" }}
+                  />
+                ) : null}
               </TableRow>
             )}
           </TableHead>

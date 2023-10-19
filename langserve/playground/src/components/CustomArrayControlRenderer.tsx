@@ -34,9 +34,9 @@ import {
   rankWith,
 } from "@jsonforms/core";
 import { withJsonFormsArrayLayoutProps } from "@jsonforms/react";
-import { MaterialTableControl } from "./MaterialTableControl";
+import { MaterialTableControl } from "./CustomArrayControlRenderer/MaterialTableControl";
 import { Hidden } from "@mui/material";
-import { DeleteDialog } from "./DeleteDialog";
+import { DeleteDialog } from "./CustomArrayControlRenderer/DeleteDialog";
 
 export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
   const [open, setOpen] = useState(false);

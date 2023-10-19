@@ -30,7 +30,7 @@ import {
   ArrayTranslations,
 } from "@jsonforms/core";
 import { IconButton, TableRow, Tooltip } from "@mui/material";
-import PlusIcon from "../assets/PlusIcon.svg?react";
+import PlusIcon from "../../assets/PlusIcon.svg?react";
 import ValidationIcon from "./ValidationIcon";
 import NoBorderTableCell from "./NoBorderTableCell";
 
@@ -64,7 +64,7 @@ const TableToolbar = React.memo(function TableToolbar({
 }: MaterialTableToolbarProps) {
   return (
     <TableRow>
-      <NoBorderTableCell colSpan={numColumns}>
+      <NoBorderTableCell colSpan={numColumns} sx={{ verticalAlign: "top" }}>
         <div className="flex items-center gap-2">
           {label && (
             <span className="text-xs uppercase font-semibold text-ls-gray-100">

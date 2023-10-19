@@ -1,7 +1,6 @@
 import "./App.css";
-import { Drawer } from "vaul";
 
-import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -16,16 +15,10 @@ import {
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
-import CopyIcon from "./assets/CopyIcon.svg?react";
-import CheckCircleIcon from "./assets/CheckCircleIcon.svg?react";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
-import CodeIcon from "./assets/CodeIcon.svg?react";
-import PadlockIcon from "./assets/PadlockIcon.svg?react";
-import {
-  compressToEncodedURIComponent,
-  decompressFromEncodedURIComponent,
-} from "lz-string";
+import ChevronRight from "./assets/ChevronRight.svg?react";
+import { compressToEncodedURIComponent } from "lz-string";
 
 import {
   BooleanCell,
@@ -66,11 +59,11 @@ import CustomArrayControlRenderer, {
 } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
+import { cn } from "./utils/cn";
+import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
-
-const URL_LENGTH_LIMIT = 2000;
 
 function str(o: unknown): React.ReactNode {
   return typeof o === "object"
@@ -131,10 +124,13 @@ function IntermediateSteps(props: { latest: RunState }) {
   return (
     <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
       <button
-        className="font-medium text-left p-4"
+        className="font-medium text-left p-4 flex items-center justify-between"
         onClick={() => setExpanded((open) => !open)}
       >
-        Intermediate steps
+        <span>Intermediate steps</span>
+        <ChevronRight
+          className={cn("transition-all", expanded && "rotate-90")}
+        />
       </button>
       {expanded && (
         <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
@@ -158,158 +154,6 @@ function IntermediateSteps(props: { latest: RunState }) {
   );
 }
 
-function getStateFromUrl(path: string) {
-  let configFromUrl = null;
-  let basePath = path;
-  if (basePath.endsWith("/")) {
-    basePath = basePath.slice(0, -1);
-  }
-
-  if (basePath.endsWith("/playground")) {
-    basePath = basePath.slice(0, -"/playground".length);
-  }
-
-  // check if we can omit the last segment
-  const [configHash, c, ...rest] = basePath.split("/").reverse();
-  if (c === "c") {
-    basePath = rest.reverse().join("/");
-    try {
-      configFromUrl = JSON.parse(decompressFromEncodedURIComponent(configHash));
-    } catch (error) {
-      console.error(error);
-    }
-  }
-  return { basePath, configFromUrl };
-}
-
-function CopyButton(props: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  const cbRef = useRef<number | null>(null);
-
-  function toggleCopied() {
-    setCopied(true);
-
-    if (cbRef.current != null) window.clearTimeout(cbRef.current);
-    cbRef.current = window.setTimeout(() => setCopied(false), 1500);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (cbRef.current != null) {
-        window.clearTimeout(cbRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <button
-      className="px-3 py-1"
-      onClick={() => {
-        navigator.clipboard.writeText(props.value).then(toggleCopied);
-      }}
-    >
-      {copied ? <CheckCircleIcon /> : <CopyIcon />}
-    </button>
-  );
-}
-
-function ShareDialog(props: { config: unknown; children: ReactNode }) {
-  const hash = useMemo(() => {
-    return compressToEncodedURIComponent(JSON.stringify(props.config));
-  }, [props.config]);
-
-  const state = getStateFromUrl(window.location.href);
-
-  // get base URL
-  const targetUrl = `${state.basePath}/c/${hash}`;
-
-  // .../c/[hash]/playground
-  const playgroundUrl = `${targetUrl}/playground`;
-
-  // cURL, JS: .../c/[hash]/invoke
-  // Python: .../c/[hash]
-  const invokeUrl = `${targetUrl}/invoke`;
-
-  const pythonSnippet = `
-from langserve import RemoteRunnable
-
-chain = RemoteRunnable("${targetUrl}")
-chain.invoke({ ... })
-`;
-
-  const typescriptSnippet = `
-import { RemoteRunnable } from "langchain/runnables/remote";
-
-const chain = new RemoteRunnable({ url: \`${invokeUrl}\` });
-const result = await chain.invoke({ ... });
-`;
-
-  return (
-    <Drawer.Root>
-      <Drawer.Trigger asChild>{props.children}</Drawer.Trigger>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/40" />
-        <Drawer.Content className="flex justify-center items-center mt-24 fixed bottom-0 left-0 right-0 text-ls-black !pointer-events-none after:!bg-background">
-          <div className="p-4 bg-background max-w-[calc(800px-2rem)] rounded-t-2xl border border-divider-500 border-b-background pointer-events-auto">
-            <h3 className="text-xl font-medium">Share</h3>
-
-            <hr className="border-divider-500 my-4 -mx-4" />
-
-            <div className="flex flex-col gap-3">
-              {playgroundUrl.length < URL_LENGTH_LIMIT && (
-                <div className="flex flex-col gap-2 p-3 rounded-2xl dark:bg-[#2C2C2E] bg-gray-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 flex items-center justify-center text-center text-sm bg-background rounded-xl">
-                      🦜
-                    </div>
-                    <span className="font-semibold">Playground</span>
-                  </div>
-                  <div className="grid grid-cols-[auto,1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
-                    <PadlockIcon className="mx-3" />
-                    <div className="overflow-auto whitespace-nowrap py-3 no-scrollbar text-ls-gray-100">
-                      {playgroundUrl.split("://")[1]}
-                      PadlockIcon
-                    </div>
-                    <CopyButton value={playgroundUrl} />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2 p-3 rounded-2xl dark:bg-[#2C2C2E] bg-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 flex items-center justify-center text-center text-sm bg-background rounded-xl">
-                    <CodeIcon />
-                  </div>
-                  <span className="font-semibold">Get the code</span>
-                </div>
-
-                {targetUrl.length < URL_LENGTH_LIMIT && (
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
-                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar text-ls-gray-100">
-                      Python SDK
-                    </div>
-                    <CopyButton value={pythonSnippet.trim()} />
-                  </div>
-                )}
-
-                {invokeUrl.length < URL_LENGTH_LIMIT && (
-                  <div className="grid grid-cols-[1fr,auto] dark:bg-[#111111] bg-white rounded-xl text-sm items-center">
-                    <div className="overflow-auto whitespace-nowrap px-3 py-3 no-scrollbar text-ls-gray-100">
-                      TypeScript SDK
-                    </div>
-
-                    <CopyButton value={typescriptSnippet.trim()} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
-  );
-}
-
 function App() {
   const [isIframe] = useState(() => window.self !== window.top);
 
@@ -325,7 +169,7 @@ function App() {
 
   const [inputData, setInputData] = useState<
     Pick<JsonFormsCore, "data" | "errors">
-  >({ data: {}, errors: [] });
+  >({ data: null, errors: [] });
   // fetch input and config schemas from the server
   const schemas = useSchemas(configData);
   // apply defaults defined in each schema
@@ -340,7 +184,7 @@ function App() {
         errors: [],
         defaults: true,
       });
-      setInputData({ data: {}, errors: [] });
+      setInputData({ data: null, errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas.config]);
@@ -398,14 +242,16 @@ function App() {
                 : undefined
             }
           />
-          {!!configData.errors?.length && (
-            <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
-              <strong className="font-bold">Validation Errors</strong>
-              <ul className="list-disc pl-5">
-                {configData.errors?.map((e, i) => (
-                  <li key={i}>{e.message}</li>
-                ))}
-              </ul>
+          {!!configData.errors?.length && configData.data && (
+            <div className="bg-background rounded-xl">
+              <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
+                <strong className="font-bold">Validation Errors</strong>
+                <ul className="list-disc pl-5">
+                  {configData.errors?.map((e, i) => (
+                    <li key={i}>{e.message}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </div>
@@ -424,7 +270,7 @@ function App() {
                 cells={cells}
                 onChange={({ data, errors }) => setInputData({ data, errors })}
               />
-              {!!inputData.errors?.length && (
+              {!!inputData.errors?.length && inputData.data && (
                 <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
                   <strong className="font-bold">Validation Errors</strong>
                   <ul className="list-disc pl-5">
