@@ -16,6 +16,9 @@ from langserve.validation import (
     create_invoke_request_model,
 )
 
+VALID = True
+INVALID = False
+
 
 @pytest.mark.parametrize(
     "test_case",
@@ -23,38 +26,38 @@ from langserve.validation import (
         {
             "input": {"a": "qqq"},
             "kwargs": {},
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "input": {"a": 2},
             "kwargs": "hello",
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "input": {"a": 2},
             "config": "hello",
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "input": {"b": "hello"},
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "input": {"a": 2, "b": "hello"},
             "config": "hello",
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "input": {"a": 2, "b": "hello"},
-            "valid": True,
+            "valid": VALID,
         },
         {
             "input": {"a": 2, "b": "hello"},
-            "valid": True,
+            "valid": VALID,
         },
         {
             "input": {"a": 2},
-            "valid": True,
+            "valid": VALID,
         },
     ],
 )
@@ -99,26 +102,26 @@ def test_create_invoke_and_batch_models(test_case: dict) -> None:
         {
             "type": int,
             "input": 1,
-            "valid": True,
+            "valid": VALID,
         },
         {
             "type": float,
             "input": "name",
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "type": float,
             "input": [3.2],
-            "valid": False,
+            "valid": INVALID,
         },
         {
             "type": float,
             "input": 1.1,
-            "valid": True,
+            "valid": VALID,
         },
         {
             "type": Optional[float],
-            "valid": True,
+            "valid": VALID,
             "input": None,
         },
     ],
