@@ -22,12 +22,11 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import { styled } from '@mui/material/styles';
-import { TableCell } from '@mui/material';
-import React from 'react';
+import { styled } from "@mui/material/styles";
+import { TableCell } from "@mui/material";
 
 const StyledTableCell = styled(TableCell)({
-  borderBottom: 'none',
+  borderBottom: "none",
   color: "white",
   fill: "white",
 });

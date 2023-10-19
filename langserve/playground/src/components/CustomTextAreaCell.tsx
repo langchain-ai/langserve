@@ -24,16 +24,18 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React from 'react';
 import {
   CellProps,
   isMultiLineControl,
   RankedTester,
   rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsCellProps } from '@jsonforms/react';
-import { withVanillaCellProps, type VanillaRendererProps } from '@jsonforms/vanilla-renderers';
-import merge from 'lodash/merge';
+} from "@jsonforms/core";
+import { withJsonFormsCellProps } from "@jsonforms/react";
+import {
+  withVanillaCellProps,
+  type VanillaRendererProps,
+} from "@jsonforms/vanilla-renderers";
+import merge from "lodash/merge";
 
 export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
   const { data, className, id, enabled, config, uischema, path, handleChange } =
@@ -41,12 +43,12 @@ export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
   const appliedUiSchemaOptions = merge({}, config, uischema.options);
   return (
     <textarea
-      value={data || ''}
+      value={data || ""}
       onChange={(ev) =>
-        handleChange(path, ev.target.value === '' ? undefined : ev.target.value)
+        handleChange(path, ev.target.value === "" ? undefined : ev.target.value)
       }
-      className={className + " control"}
-      style={{width: "100%", fontSize: "18px"}}
+      className={className}
+      style={{ width: "100%", fontSize: "18px" }}
       id={id}
       disabled={!enabled}
       autoFocus={appliedUiSchemaOptions.focus}
@@ -59,6 +61,8 @@ export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
  * Tester for a multi-line string control.
  * @type {RankedTester}
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const textAreaCellTester: RankedTester = rankWith(2, isMultiLineControl);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export default withJsonFormsCellProps(withVanillaCellProps(TextAreaCell));

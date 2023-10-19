@@ -22,17 +22,17 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React from 'react';
+import React from "react";
 import {
   ControlElement,
   createDefaultValue,
   JsonSchema,
   ArrayTranslations,
-} from '@jsonforms/core';
-import { IconButton, TableRow, Tooltip, Grid, Typography } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import ValidationIcon from './ValidationIcon';
-import NoBorderTableCell from './NoBorderTableCell';
+} from "@jsonforms/core";
+import { IconButton, TableRow, Tooltip, Grid, Typography } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import ValidationIcon from "./ValidationIcon";
+import NoBorderTableCell from "./NoBorderTableCell";
 
 export interface MaterialTableToolbarProps {
   numColumns: number;
@@ -67,18 +67,18 @@ const TableToolbar = React.memo(function TableToolbar({
       <NoBorderTableCell colSpan={numColumns}>
         <Grid
           container
-          justifyContent={'flex-start'}
-          alignItems={'center'}
+          justifyContent={"flex-start"}
+          alignItems={"center"}
           spacing={2}
         >
           <Grid item>
-            <Typography variant={'h6'}>{label}</Typography>
+            <Typography variant={"h6"}>{label}</Typography>
           </Grid>
           <Grid item>
             {errors.length !== 0 && (
               <Grid item>
                 <ValidationIcon
-                  id='tooltip-validation'
+                  id="tooltip-validation"
                   errorMessages={errors}
                 />
               </Grid>
@@ -87,17 +87,17 @@ const TableToolbar = React.memo(function TableToolbar({
         </Grid>
       </NoBorderTableCell>
       {enabled ? (
-        <NoBorderTableCell align='right' style={fixedCellSmall}>
+        <NoBorderTableCell align="right" style={fixedCellSmall}>
           <Tooltip
-            id='tooltip-add'
+            id="tooltip-add"
             title={translations.addTooltip}
-            placement='bottom'
+            placement="bottom"
           >
             <IconButton
               aria-label={translations.addAriaLabel}
               onClick={addItem(path, createDefaultValue(schema))}
-              size='large'
-              style={{ color: 'white' }}
+              size="large"
+              style={{ color: "white" }}
             >
               <AddIcon />
             </IconButton>

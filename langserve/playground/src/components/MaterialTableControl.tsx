@@ -22,16 +22,16 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import isEmpty from 'lodash/isEmpty';
-import union from 'lodash/union';
+import isEmpty from "lodash/isEmpty";
+import union from "lodash/union";
 import {
   DispatchCell,
   JsonFormsStateContext,
   useJsonForms,
-} from '@jsonforms/react';
-import startCase from 'lodash/startCase';
-import range from 'lodash/range';
-import React, { Fragment, useMemo } from 'react';
+} from "@jsonforms/react";
+import startCase from "lodash/startCase";
+import range from "lodash/range";
+import React, { Fragment, useMemo } from "react";
 import {
   FormHelperText,
   Grid,
@@ -43,7 +43,7 @@ import {
   TableHead,
   TableRow,
   Typography,
-} from '@mui/material';
+} from "@mui/material";
 import {
   ArrayLayoutProps,
   ControlElement,
@@ -56,32 +56,32 @@ import {
   JsonFormsCellRendererRegistryEntry,
   encode,
   ArrayTranslations,
-} from '@jsonforms/core';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowDownward from '@mui/icons-material/ArrowDownward';
-import ArrowUpward from '@mui/icons-material/ArrowUpward';
+} from "@jsonforms/core";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ArrowDownward from "@mui/icons-material/ArrowDownward";
+import ArrowUpward from "@mui/icons-material/ArrowUpward";
 
-import { WithDeleteDialogSupport } from './DeleteDialog';
-import NoBorderTableCell from './NoBorderTableCell';
-import TableToolbar from './TableToolbar';
-import { ErrorObject } from 'ajv';
-import merge from 'lodash/merge';
+import { WithDeleteDialogSupport } from "./DeleteDialog";
+import NoBorderTableCell from "./NoBorderTableCell";
+import TableToolbar from "./TableToolbar";
+import { ErrorObject } from "ajv";
+import merge from "lodash/merge";
 
 // we want a cell that doesn't automatically span
 const styles = {
   fixedCell: {
-    width: '150px',
-    height: '50px',
+    width: "150px",
+    height: "50px",
     paddingLeft: 0,
     paddingRight: 0,
-    textAlign: 'center',
+    textAlign: "center",
   },
   fixedCellSmall: {
-    width: '50px',
-    height: '50px',
+    width: "50px",
+    height: "50px",
     paddingLeft: 0,
     paddingRight: 0,
-    textAlign: 'center',
+    textAlign: "center",
   },
 };
 
@@ -92,7 +92,7 @@ const generateCells = (
   enabled: boolean,
   cells?: JsonFormsCellRendererRegistryEntry[]
 ) => {
-  if (schema.type === 'object') {
+  if (schema.type === "object") {
     return getValidColumnProps(schema).map((prop) => {
       const cellPath = Paths.compose(rowPath, prop);
       const props = {
@@ -120,15 +120,15 @@ const generateCells = (
 
 const getValidColumnProps = (scopedSchema: JsonSchema) => {
   if (
-    scopedSchema.type === 'object' &&
-    typeof scopedSchema.properties === 'object'
+    scopedSchema.type === "object" &&
+    typeof scopedSchema.properties === "object"
   ) {
     return Object.keys(scopedSchema.properties).filter(
-      (prop) => scopedSchema.properties[prop].type !== 'array'
+      (prop) => scopedSchema.properties?.[prop].type !== "array"
     );
   }
   // primitives
-  return [''];
+  return [""];
 };
 
 export interface EmptyTableProps {
@@ -139,7 +139,7 @@ export interface EmptyTableProps {
 const EmptyTable = ({ numColumns, translations }: EmptyTableProps) => (
   <TableRow>
     <NoBorderTableCell colSpan={numColumns}>
-      <Typography align='center'>{translations.noDataMessage}</Typography>
+      <Typography align="center">{translations.noDataMessage}</Typography>
     </NoBorderTableCell>
   </TableRow>
 );
@@ -174,7 +174,7 @@ const ctxToNonEmptyCellProps = (
 ): NonEmptyCellProps => {
   const path =
     ownProps.rowPath +
-    (ownProps.schema.type === 'object' ? '.' + ownProps.propName : '');
+    (ownProps.schema.type === "object" ? "." + ownProps.propName : "");
   const errors = formatErrorMessage(
     union(
       errorsAt(
@@ -198,7 +198,7 @@ const ctxToNonEmptyCellProps = (
 };
 
 const controlWithoutLabel = (scope: string): ControlElement => ({
-  type: 'Control',
+  type: "Control",
   scope: scope,
   label: false,
 });
@@ -243,7 +243,7 @@ const NonEmptyCellComponent = React.memo(function NonEmptyCellComponent({
       ) : (
         <DispatchCell
           schema={schema}
-          uischema={controlWithoutLabel('#')}
+          uischema={controlWithoutLabel("#")}
           path={path}
           enabled={enabled}
           renderers={renderers}
@@ -310,9 +310,9 @@ const NonEmptyRowComponent = ({
         >
           <Grid
             container
-            direction='row'
-            justifyContent='flex-end'
-            alignItems='center'
+            direction="row"
+            justifyContent="flex-end"
+            alignItems="center"
           >
             {showSortButtons ? (
               <Fragment>
@@ -321,7 +321,7 @@ const NonEmptyRowComponent = ({
                     aria-label={translations.upAriaLabel}
                     onClick={moveUp}
                     disabled={!enableUp}
-                    size='large'
+                    size="large"
                   >
                     <ArrowUpward />
                   </IconButton>
@@ -331,7 +331,7 @@ const NonEmptyRowComponent = ({
                     aria-label={translations.downAriaLabel}
                     onClick={moveDown}
                     disabled={!enableDown}
-                    size='large'
+                    size="large"
                   >
                     <ArrowDownward />
                   </IconButton>
@@ -342,9 +342,9 @@ const NonEmptyRowComponent = ({
               <IconButton
                 aria-label={translations.removeAriaLabel}
                 onClick={() => openDeleteDialog(childPath, rowIndex)}
-                size='large'
+                size="large"
               >
-                <DeleteIcon style={{ color: 'white' }} />
+                <DeleteIcon style={{ color: "white" }} />
               </IconButton>
             </Grid>
           </Grid>
@@ -444,7 +444,7 @@ export class MaterialTableControl extends React.Component<
     } = this.props;
 
     const controlElement = uischema as ControlElement;
-    const isObjectSchema = schema.type === 'object';
+    const isObjectSchema = schema.type === "object";
     const headerCells: any = isObjectSchema
       ? generateCells(TableHeaderCell, schema, path, enabled, cells)
       : undefined;

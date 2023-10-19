@@ -53,7 +53,9 @@ import {
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
 import { JsonFormsCore, RankedTester, rankWith } from "@jsonforms/core";
-import CustomArrayControlRenderer, { materialArrayControlTester } from "./components/CustomArrayControlRenderer";
+import CustomArrayControlRenderer, {
+  materialArrayControlTester,
+} from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 
 dayjs.extend(relativeDate);
@@ -78,7 +80,7 @@ const renderers = [
   { tester: materialOneOfControlTester, renderer: MaterialOneOfRenderer },
 
   // custom renderers
-  { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer }
+  { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
 ];
 
 export const nestedArrayControlTester: RankedTester = rankWith(

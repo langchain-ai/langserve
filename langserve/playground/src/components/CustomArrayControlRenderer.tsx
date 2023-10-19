@@ -23,7 +23,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from "react";
 import {
   ArrayLayoutProps,
   RankedTester,
@@ -32,16 +32,16 @@ import {
   isPrimitiveArrayControl,
   or,
   rankWith,
-} from '@jsonforms/core';
-import { withJsonFormsArrayLayoutProps } from '@jsonforms/react';
-import { MaterialTableControl } from './MaterialTableControl';
-import { Hidden } from '@mui/material';
-import { DeleteDialog } from './DeleteDialog';
+} from "@jsonforms/core";
+import { withJsonFormsArrayLayoutProps } from "@jsonforms/react";
+import { MaterialTableControl } from "./MaterialTableControl";
+import { Hidden } from "@mui/material";
+import { DeleteDialog } from "./DeleteDialog";
 
 export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
   const [open, setOpen] = useState(false);
-  const [path, setPath] = useState(undefined);
-  const [rowData, setRowData] = useState(undefined);
+  const [path, setPath] = useState<string | undefined>(undefined);
+  const [rowData, setRowData] = useState<number | undefined>(undefined);
   const { removeItems, visible } = props;
 
   const openDeleteDialog = useCallback(
@@ -52,12 +52,15 @@ export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
     },
     [setOpen, setPath, setRowData]
   );
+
   const deleteCancel = useCallback(() => setOpen(false), [setOpen]);
   const deleteConfirm = useCallback(() => {
-    const p = path.substring(0, path.lastIndexOf('.'));
-    removeItems(p, [rowData])();
+    const p = path?.substring(0, path.lastIndexOf("."));
+    if (p != null && rowData != null) removeItems?.(p, [rowData])();
     setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setOpen, path, rowData]);
+
   const deleteClose = useCallback(() => setOpen(false), [setOpen]);
 
   return (
@@ -69,19 +72,21 @@ export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
           onCancel={deleteCancel}
           onConfirm={deleteConfirm}
           onClose={deleteClose}
-          acceptText={props.translations.deleteDialogAccept}
-          declineText={props.translations.deleteDialogDecline}
-          title={props.translations.deleteDialogTitle}
-          message={props.translations.deleteDialogMessage}
+          acceptText={props.translations.deleteDialogAccept!}
+          declineText={props.translations.deleteDialogDecline!}
+          title={props.translations.deleteDialogTitle!}
+          message={props.translations.deleteDialogMessage!}
         />
       </Hidden>
     </div>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const materialArrayControlTester: RankedTester = rankWith(
   999,
   or(isObjectArrayControl, isPrimitiveArrayControl, isObjectArrayWithNesting)
 );
 
+// eslint-disable-next-line react-refresh/only-export-components
 export default withJsonFormsArrayLayoutProps(MaterialArrayControlRenderer);

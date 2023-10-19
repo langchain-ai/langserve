@@ -22,10 +22,10 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-import React from 'react';
+import React from "react";
 
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import { Badge, Tooltip, styled } from '@mui/material';
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { Badge, Tooltip, styled } from "@mui/material";
 
 const StyledBadge = styled(Badge)(({ theme }: any) => ({
   color: theme.palette.error.main,
@@ -39,8 +39,8 @@ export interface ValidationProps {
 const ValidationIcon: React.FC<ValidationProps> = ({ errorMessages, id }) => {
   return (
     <Tooltip id={id} title={errorMessages}>
-      <StyledBadge badgeContent={errorMessages.split('\n').length}>
-        <ErrorOutlineIcon color='inherit' />
+      <StyledBadge badgeContent={errorMessages.split("\n").length}>
+        <ErrorOutlineIcon color="inherit" />
       </StyledBadge>
     </Tooltip>
   );
