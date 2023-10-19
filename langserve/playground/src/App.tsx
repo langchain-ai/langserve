@@ -2,7 +2,7 @@ import "./App.css";
 
 import React, { useEffect, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
-import { JsonForms } from "@jsonforms/react";
+import { JsonForms, withJsonFormsArrayLayoutProps } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
   MaterialAllOfRenderer,
@@ -53,6 +53,7 @@ import {
   uiTypeIs,
   schemaMatches,
   schemaTypeIs,
+  RendererProps,
 } from "@jsonforms/core";
 import CustomArrayControlRenderer, {
   materialArrayControlTester,
@@ -98,6 +99,27 @@ const renderers = [
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
   { tester: isObject, renderer: InputControl },
+
+  {
+    tester: rankWith(
+      9999,
+      and(
+        schemaMatches((schema) => {
+          const matches =
+            schema.type === "array" &&
+            typeof schema.items === "object" &&
+            "type" in schema.items &&
+            schema.items.type === "object" &&
+            schema.items.title === "BaseMessage";
+          console.log(schema, matches);
+          return matches;
+        })
+      )
+    ),
+    renderer: withJsonFormsArrayLayoutProps((props: RendererProps) => {
+      return <div>Hello world</div>;
+    }),
+  },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
