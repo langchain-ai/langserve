@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a chain composed of a prompt and an LLM."""
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +62,8 @@ class ChainInput(BaseModel):
     topic: str
     """The topic of the joke."""
     chat_history: List[str]
+    chat_history_tuples: List[Tuple[str, str]]
+    chat_history_object_list: List[Dict[str, str]]
     tester: Optional[Dict[str, Any]] = None
 
 

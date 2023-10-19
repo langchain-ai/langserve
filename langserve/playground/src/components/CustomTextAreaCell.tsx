@@ -39,7 +39,6 @@ export const TextAreaCell = (props: CellProps & VanillaRendererProps) => {
   const { data, className, id, enabled, config, uischema, path, handleChange } =
     props;
   const appliedUiSchemaOptions = merge({}, config, uischema.options);
-  console.log(config, uischema);
   return (
     <textarea
       value={data || ''}

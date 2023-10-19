@@ -36,7 +36,6 @@ import {
   IntegerCell,
   NumberCell,
   SliderCell,
-  // TextAreaCell,
   TimeCell,
   booleanCellTester,
   dateCellTester,
@@ -53,7 +52,7 @@ import {
 
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
-import { JsonFormsCore } from "@jsonforms/core";
+import { JsonFormsCore, RankedTester, rankWith } from "@jsonforms/core";
 import CustomArrayControlRenderer, { materialArrayControlTester } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 
@@ -82,6 +81,13 @@ const renderers = [
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer }
 ];
 
+export const nestedArrayControlTester: RankedTester = rankWith(
+  1,
+  (_, jsonSchema) => {
+    return jsonSchema.type === "array";
+  }
+);
+
 const cells = [
   { tester: booleanCellTester, cell: BooleanCell },
   { tester: dateCellTester, cell: DateCell },
@@ -93,6 +99,7 @@ const cells = [
   { tester: textAreaCellTester, cell: CustomTextAreaCell },
   { tester: textCellTester, cell: CustomTextAreaCell },
   { tester: timeCellTester, cell: TimeCell },
+  { tester: nestedArrayControlTester, cell: CustomArrayControlRenderer },
 ];
 
 function IntermediateSteps(props: { latest: RunState }) {
