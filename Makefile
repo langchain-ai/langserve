@@ -3,6 +3,12 @@
 # Default target executed when no arguments are given to make.
 all: help
 
+build-playground:
+	cd ./langserve/playground && yarn build
+
+build: build-playground
+	poetry build
+
 ######################
 # TESTING AND COVERAGE
 ######################

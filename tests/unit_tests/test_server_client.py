@@ -19,6 +19,7 @@ from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
+from typing_extensions import TypedDict
 
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
@@ -185,7 +186,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test invoke
     response = await async_client.post(
-        f"/h{config_hash}/invoke",
+        f"/c/{config_hash}/invoke",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -195,7 +196,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test batch
     response = await async_client.post(
-        f"/h{config_hash}/batch",
+        f"/c/{config_hash}/batch",
         json={"inputs": [1], "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -205,7 +206,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test stream
     response = await async_client.post(
-        f"/h{config_hash}/stream",
+        f"/c/{config_hash}/stream",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -746,3 +747,39 @@ def test_rename_pydantic_model() -> None:
 
     assert isinstance(Model, type)
     assert Model.__name__ == "Bar"
+
+
+@pytest.mark.asyncio
+async def test_input_schema_typed_dict() -> None:
+    class InputType(TypedDict):
+        foo: str
+        bar: List[int]
+
+    async def passthrough_dict(d: Any) -> Any:
+        return d
+
+    runnable_lambda = RunnableLambda(func=passthrough_dict)
+    app = FastAPI()
+    add_routes(app, runnable_lambda, input_type=InputType, config_keys=["tags"])
+
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+        res = await client.get("/input_schema")
+        assert res.json() == {
+            "title": "Input",
+            "allOf": [{"$ref": "#/definitions/InputType"}],
+            "definitions": {
+                "InputType": {
+                    "properties": {
+                        "bar": {
+                            "items": {"type": "integer"},
+                            "title": "Bar",
+                            "type": "array",
+                        },
+                        "foo": {"title": "Foo", "type": "string"},
+                    },
+                    "required": ["foo", "bar"],
+                    "title": "InputType",
+                    "type": "object",
+                }
+            },
+        }

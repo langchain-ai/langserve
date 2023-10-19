@@ -1,0 +1,30 @@
+{
+  "name": "langserve-playground",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "author": "LangChain",
+  "scripts": {
+    "build": "tsup src/index.tsx",
+    "dev": "tsup src/index.tsx --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "langserve",
+    "playground"
+  ],
+  "devDependencies": {
+    "@types/react": "^18.2.29",
+    "prettier": "^3.0.3",
+    "tsup": "^7.2.0",
+    "typescript": "^5.2.2"
+  },
+  "peerDependencies": {
+    "react": "^16.8 || ^17.0 || ^18.0",
+    "react-dom": "^16.8 || ^17.0 || ^18.0"
+  }
+}
