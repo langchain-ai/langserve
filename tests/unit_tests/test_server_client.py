@@ -746,3 +746,18 @@ def test_rename_pydantic_model() -> None:
 
     assert isinstance(Model, type)
     assert Model.__name__ == "Bar"
+
+
+@pytest.mark.asyncio
+async def test_runnable_assign(event_loop: AbstractEventLoop) -> None:
+    """Test serving multiple runnables."""
+
+    app = FastAPI()
+    prompt = PromptTemplate.from_template("{a} {b}")
+    chain = RunnablePassthrough().assign(a=RunnableLambda(lambda _: "a")) | prompt
+    # should only need "b" as input now
+    add_routes(app, chain, path="/assigned")
+
+    async with get_async_client(app, path="/assigned") as runnable:
+        assert await runnable.ainvoke({"b": "b"}) == "a b"
+        assert runnable.invoke({"b": "b"}) == "a b"
