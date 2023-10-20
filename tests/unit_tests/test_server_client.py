@@ -941,7 +941,7 @@ class ErroringRunnable(Runnable):
 
     def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
         """Invoke the runnable."""
-        raise ValueError(f"Server side error")
+        raise ValueError("Server side error")
 
     def stream(
         self,
