@@ -804,7 +804,10 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
 
         # output schema
         response = await async_client.get("/add_one/output_schema")
-        assert response.json() == {"title": "RunnableLambdaOutput", "type": "integer"}
+        assert response.json() == {
+            "title": "add_oneRunnableLambdaOutput",
+            "type": "integer",
+        }
 
         response = await async_client.get("/add_one_custom/output_schema")
         assert response.json() == {
