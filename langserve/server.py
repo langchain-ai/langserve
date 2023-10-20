@@ -508,9 +508,13 @@ def add_routes(
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return runnable.with_config(
-            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-        ).output_schema.schema()
+        return (
+            runnable.with_config(
+                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+            ).output_schema.schema()
+            if output_type_ == "auto"
+            else output_type_.schema()
+        )
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")

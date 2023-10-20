@@ -3,7 +3,7 @@ import asyncio
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import httpx
 import pytest
@@ -21,6 +21,7 @@ from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
+from langserve import server
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.server import (
@@ -747,6 +748,132 @@ def test_rename_pydantic_model() -> None:
 
     assert isinstance(Model, type)
     assert Model.__name__ == "Bar"
+
+
+@pytest.mark.asyncio
+async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
+    """Test schemas returned for different configurations."""
+    # TODO(Fix me): need to fix handling of global state -- we get problems
+    # gives inconsistent results when running multiple tests / results
+    # depending on ordering
+    server._SEEN_NAMES = set()
+    server._MODEL_REGISTRY = {}
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    async def add_two(y: int) -> int:
+        """Add one to simulate a valid function"""
+        return y + 2
+
+    app = FastAPI()
+
+    add_routes(app, RunnableLambda(add_one), path="/add_one")
+    # Custom input type
+    add_routes(
+        app,
+        RunnableLambda(add_two),
+        path="/add_two_custom",
+        input_type=float,
+        output_type=Sequence[float],
+        config_keys=["tags", "configurable"],
+    )
+    add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
+
+    template = PromptTemplate.from_template("say {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    add_routes(app, template, path="/prompt_2", config_keys=["tags", "configurable"])
+
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+        # input schema
+        response = await async_client.get("/add_one/input_schema")
+        assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
+
+        response = await async_client.get("/add_two_custom/input_schema")
+        assert response.json() == {"title": "Input", "type": "number"}
+
+        response = await async_client.get("/prompt_1/input_schema")
+        assert response.json() == {
+            "properties": {"question": {"title": "Question", "type": "string"}},
+            "title": "PromptInput",
+            "type": "object",
+        }
+
+        response = await async_client.get("/prompt_2/input_schema")
+        assert response.json() == {
+            "properties": {"name": {"title": "Name", "type": "string"}},
+            "title": "PromptInput",
+            "type": "object",
+        }
+
+        # output schema
+        response = await async_client.get("/add_one/output_schema")
+        assert response.json() == {
+            "title": "RunnableLambdaOutput",
+            "type": "integer",
+        }
+
+        response = await async_client.get("/add_two_custom/output_schema")
+        assert response.json() == {
+            "items": {"type": "number"},
+            "title": "Output",
+            "type": "array",
+        }
+
+        # Just verify that the schema is not empty (it's pretty long)
+        # and the actual value should be tested in LangChain
+        response = await async_client.get("/prompt_1/output_schema")
+        assert response.json() != {}  # Long string
+
+        response = await async_client.get("/prompt_2/output_schema")
+        assert response.json() != {}  # Long string
+
+        ## Config schema
+        response = await async_client.get("/add_one/config_schema")
+        assert response.json() == {
+            "properties": {},
+            "title": "RunnableLambdaConfig",
+            "type": "object",
+        }
+
+        response = await async_client.get("/add_two_custom/config_schema")
+        assert response.json() == {
+            "properties": {
+                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
+            },
+            "title": "RunnableLambdaConfig",
+            "type": "object",
+        }
+
+        response = await async_client.get("/prompt_2/config_schema")
+        assert response.json() == {
+            "definitions": {
+                "Configurable": {
+                    "properties": {
+                        "template": {
+                            "default": "say {name}",
+                            "description": "The template to use for the prompt",
+                            "title": "Template",
+                            "type": "string",
+                        }
+                    },
+                    "title": "Configurable",
+                    "type": "object",
+                }
+            },
+            "properties": {
+                "configurable": {"$ref": "#/definitions/Configurable"},
+                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
+            },
+            "title": "RunnableConfigurableFieldsConfig",
+            "type": "object",
+        }
 
 
 @pytest.mark.asyncio
