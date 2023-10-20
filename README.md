@@ -95,6 +95,14 @@ If you've deployed the server above, you can view the generated OpenAPI docs usi
 curl localhost:8000/docs
 ```
 
+make sure to **add** the `/docs` suffix. 
+
+Below will return a 404 until you define a `@app.get("/")`
+
+```sh
+localhost:8000
+```
+
 ### Client
 
 Python SDK
