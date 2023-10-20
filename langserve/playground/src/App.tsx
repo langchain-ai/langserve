@@ -62,8 +62,12 @@ import { cn } from "./utils/cn";
 import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
 import {
   chatMessagesTester,
-  ChatMessageControlRenderer,
-} from "./components/ChatMessageRenderer";
+  ChatMessagesControlRenderer,
+} from "./components/ChatMessagesControlRenderer";
+import {
+  ChatMessageTuplesControlRenderer,
+  chatMessagesTupleTester,
+} from "./components/ChatMessageTuplesControlRenderer";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -101,7 +105,11 @@ const renderers = [
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
   { tester: isObject, renderer: InputControl },
-  { tester: chatMessagesTester, renderer: ChatMessageControlRenderer },
+  { tester: chatMessagesTester, renderer: ChatMessagesControlRenderer },
+  {
+    tester: chatMessagesTupleTester,
+    renderer: ChatMessageTuplesControlRenderer,
+  },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
