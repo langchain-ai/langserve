@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import weakref
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from typing import (
     Any,
     AsyncIterator,
@@ -30,11 +33,19 @@ from langchain.schema.runnable.utils import Input, Output
 
 from langserve.serialization import simple_dumpd, simple_loads
 
+logger = logging.getLogger(__name__)
+
 
 def _without_callbacks(config: Optional[RunnableConfig]) -> RunnableConfig:
     """Evict callbacks from the config since those are definitely not supported."""
     _config = config or {}
     return {k: v for k, v in _config.items() if k != "callbacks"}
+
+
+@lru_cache(maxsize=1_000)  # Will accommodate up to 100 different error messages
+def _log_error_message_once(error_message: str) -> None:
+    """Log an error message once."""
+    logger.error(error_message)
 
 
 def _raise_for_status(response: httpx.Response) -> None:
@@ -92,6 +103,26 @@ def _close_clients(sync_client: httpx.Client, async_client: httpx.AsyncClient) -
             future.result()
     else:
         asyncio.run(async_client.aclose())
+
+
+def _raise_exception_from_data(data: str, request: httpx.Request) -> None:
+    """Raise an httpx exception from the given error event data."""
+    try:
+        decoded_data = json.loads(data)
+    except json.JSONDecodeError:
+        raise httpx.HTTPStatusError(
+            message="invalid json in error event sent from server",
+            request=request,
+            response=httpx.Response(status_code=500, text=data),
+        )
+    raise httpx.HTTPStatusError(
+        message=decoded_data["message"],
+        request=request,
+        response=httpx.Response(
+            status_code=decoded_data["status_code"],
+            text=decoded_data["message"],
+        ),
+    )
 
 
 class RemoteRunnable(Runnable[Input, Output]):
@@ -334,10 +365,19 @@ class RemoteRunnable(Runnable[Input, Output]):
                             final_output += chunk
                         else:
                             final_output = chunk
+                    elif sse.event == "error":
+                        # This can only be a server side error
+                        _raise_exception_from_data(
+                            sse.data, httpx.Request(method="POST", url=endpoint)
+                        )
                     elif sse.event == "end":
                         break
                     else:
-                        raise NotImplementedError(f"Unknown event {sse.event}")
+                        logger.error(
+                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Try upgrading the remote client to the latest version."
+                            f"Ignoring events of type `{sse.event}`."
+                        )
         except BaseException as e:
             run_manager.on_chain_error(e)
             raise
@@ -385,11 +425,20 @@ class RemoteRunnable(Runnable[Input, Output]):
                             final_output += chunk
                         else:
                             final_output = chunk
+
+                    elif sse.event == "error":
+                        # This can only be a server side error
+                        _raise_exception_from_data(
+                            sse.data, httpx.Request(method="POST", url=endpoint)
+                        )
                     elif sse.event == "end":
                         break
-
                     else:
-                        raise NotImplementedError(f"Unknown event {sse.event}")
+                        logger.error(
+                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Try upgrading the remote client to the latest version."
+                            f"Ignoring events of type `{sse.event}`."
+                        )
         except BaseException as e:
             await run_manager.on_chain_error(e)
             raise
@@ -460,15 +509,23 @@ class RemoteRunnable(Runnable[Input, Output]):
                         chunk = RunLogPatch(*data["ops"])
 
                         yield chunk
-
                         if final_output:
                             final_output += chunk
                         else:
                             final_output = chunk
+                    elif sse.event == "error":
+                        # This can only be a server side error
+                        _raise_exception_from_data(
+                            sse.data, httpx.Request(method="POST", url=endpoint)
+                        )
                     elif sse.event == "end":
                         break
                     else:
-                        raise NotImplementedError(f"Unknown event {sse.event}")
+                        _log_error_message_once(
+                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Try upgrading the remote client to the latest version."
+                            f"Ignoring events of type `{sse.event}`."
+                        )
         except BaseException as e:
             await run_manager.on_chain_error(e)
             raise
