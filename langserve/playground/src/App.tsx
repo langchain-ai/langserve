@@ -2,7 +2,7 @@ import "./App.css";
 
 import React, { useEffect, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
-import { JsonForms, withJsonFormsArrayLayoutProps } from "@jsonforms/react";
+import { JsonForms } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
   MaterialAllOfRenderer,
@@ -42,7 +42,6 @@ import {
   vanillaRenderers,
   InputControl,
 } from "@jsonforms/vanilla-renderers";
-
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
 import {
@@ -53,7 +52,6 @@ import {
   uiTypeIs,
   schemaMatches,
   schemaTypeIs,
-  RendererProps,
 } from "@jsonforms/core";
 import CustomArrayControlRenderer, {
   materialArrayControlTester,
@@ -62,6 +60,10 @@ import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
 import { cn } from "./utils/cn";
 import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
+import {
+  chatMessagesTester,
+  ChatMessageControlRenderer,
+} from "./components/ChatMessageRenderer";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -99,27 +101,7 @@ const renderers = [
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
   { tester: isObject, renderer: InputControl },
-
-  {
-    tester: rankWith(
-      9999,
-      and(
-        schemaMatches((schema) => {
-          const matches =
-            schema.type === "array" &&
-            typeof schema.items === "object" &&
-            "type" in schema.items &&
-            schema.items.type === "object" &&
-            schema.items.title === "BaseMessage";
-          console.log(schema, matches);
-          return matches;
-        })
-      )
-    ),
-    renderer: withJsonFormsArrayLayoutProps((props: RendererProps) => {
-      return <div>Hello world</div>;
-    }),
-  },
+  { tester: chatMessagesTester, renderer: ChatMessageControlRenderer },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
@@ -205,7 +187,7 @@ function App() {
           defaults(schemas.config),
         errors: [],
       });
-      setInputData({ data: null, errors: [] });
+      setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas.config]);

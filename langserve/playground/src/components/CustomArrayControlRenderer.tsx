@@ -84,7 +84,7 @@ export const MaterialArrayControlRenderer = (props: ArrayLayoutProps) => {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const materialArrayControlTester: RankedTester = rankWith(
-  999,
+  11,
   or(isObjectArrayControl, isPrimitiveArrayControl, isObjectArrayWithNesting)
 );
 
