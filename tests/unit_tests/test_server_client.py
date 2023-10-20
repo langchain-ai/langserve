@@ -21,6 +21,7 @@ from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
+from langserve import server
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.server import (
@@ -752,10 +753,19 @@ def test_rename_pydantic_model() -> None:
 @pytest.mark.asyncio
 async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
     """Test schemas returned for different configurations."""
+    # TODO(Fix me): need to fix handling of global state -- we get problems
+    # gives inconsistent results when running multiple tests / results
+    # depending on ordering
+    server._SEEN_NAMES = set()
+    server._MODEL_REGISTRY = {}
 
     async def add_one(x: int) -> int:
         """Add one to simulate a valid function"""
         return x + 1
+
+    async def add_two(y: int) -> int:
+        """Add one to simulate a valid function"""
+        return y + 2
 
     app = FastAPI()
 
@@ -763,8 +773,8 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     # Custom input type
     add_routes(
         app,
-        RunnableLambda(add_one),
-        path="/add_one_custom",
+        RunnableLambda(add_two),
+        path="/add_two_custom",
         input_type=float,
         output_type=Sequence[float],
         config_keys=["tags", "configurable"],
@@ -785,8 +795,8 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_one/input_schema")
         assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
 
-        response = await async_client.get("/add_one_custom/input_schema")
-        assert response.json() == {"title": "add_one_customInput", "type": "number"}
+        response = await async_client.get("/add_two_custom/input_schema")
+        assert response.json() == {"title": "Input", "type": "number"}
 
         response = await async_client.get("/prompt_1/input_schema")
         assert response.json() == {
@@ -805,11 +815,11 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         # output schema
         response = await async_client.get("/add_one/output_schema")
         assert response.json() == {
-            "title": "add_oneRunnableLambdaOutput",
+            "title": "RunnableLambdaOutput",
             "type": "integer",
         }
 
-        response = await async_client.get("/add_one_custom/output_schema")
+        response = await async_client.get("/add_two_custom/output_schema")
         assert response.json() == {
             "items": {"type": "number"},
             "title": "Output",
@@ -832,7 +842,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "type": "object",
         }
 
-        response = await async_client.get("/add_one_custom/config_schema")
+        response = await async_client.get("/add_two_custom/config_schema")
         assert response.json() == {
             "properties": {
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
