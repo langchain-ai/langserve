@@ -382,6 +382,16 @@ def add_routes(
                 }
             }
 
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
         * end - for signaling the end of the stream.
 
             This helps the client to know when to stop listening for events and
@@ -419,7 +429,6 @@ def add_routes(
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
-                yield {"event": "end"}
                 raise
 
         return EventSourceResponse(_stream())
@@ -453,6 +462,16 @@ def add_routes(
                 ...
                 }
             }
+
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
 
         * end - for signaling the end of the stream.
 
@@ -513,7 +532,6 @@ def add_routes(
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
-                yield {"event": "end"}
                 raise
 
         return EventSourceResponse(_stream_log())
