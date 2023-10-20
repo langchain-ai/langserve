@@ -382,6 +382,16 @@ def add_routes(
                 }
             }
 
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
         * end - for signaling the end of the stream.
 
             This helps the client to know when to stop listening for events and
@@ -402,12 +412,24 @@ def add_routes(
 
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
-            async for chunk in runnable.astream(
-                input_,
-                config=config,
-            ):
-                yield {"data": simple_dumps(chunk), "event": "data"}
-            yield {"event": "end"}
+            try:
+                async for chunk in runnable.astream(
+                    input_,
+                    config=config,
+                ):
+                    yield {"data": simple_dumps(chunk), "event": "data"}
+                yield {"event": "end"}
+            except BaseException:
+                yield {
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    # We'll add client side errors for validation as well.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
+                }
+                raise
 
         return EventSourceResponse(_stream())
 
@@ -441,6 +463,16 @@ def add_routes(
                 }
             }
 
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
         * end - for signaling the end of the stream.
 
             This helps the client to know when to stop listening for events and
@@ -464,31 +496,43 @@ def add_routes(
 
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
-            async for chunk in runnable.astream_log(
-                input_,
-                config=config,
-                diff=True,
-                include_names=stream_log_request.include_names,
-                include_types=stream_log_request.include_types,
-                include_tags=stream_log_request.include_tags,
-                exclude_names=stream_log_request.exclude_names,
-                exclude_types=stream_log_request.exclude_types,
-                exclude_tags=stream_log_request.exclude_tags,
-            ):
-                if not isinstance(chunk, RunLogPatch):
-                    raise AssertionError(
-                        f"Expected a RunLog instance got {type(chunk)}"
-                    )
-                data = {
-                    "ops": chunk.ops,
-                }
+            try:
+                async for chunk in runnable.astream_log(
+                    input_,
+                    config=config,
+                    diff=True,
+                    include_names=stream_log_request.include_names,
+                    include_types=stream_log_request.include_types,
+                    include_tags=stream_log_request.include_tags,
+                    exclude_names=stream_log_request.exclude_names,
+                    exclude_types=stream_log_request.exclude_types,
+                    exclude_tags=stream_log_request.exclude_tags,
+                ):
+                    if not isinstance(chunk, RunLogPatch):
+                        raise AssertionError(
+                            f"Expected a RunLog instance got {type(chunk)}"
+                        )
+                    data = {
+                        "ops": chunk.ops,
+                    }
 
-                # Temporary adapter
+                    # Temporary adapter
+                    yield {
+                        "data": simple_dumps(data),
+                        "event": "data",
+                    }
+                yield {"event": "end"}
+            except BaseException:
                 yield {
-                    "data": simple_dumps(data),
-                    "event": "data",
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    # We'll add client side errors for validation as well.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
                 }
-            yield {"event": "end"}
+                raise
 
         return EventSourceResponse(_stream_log())
 

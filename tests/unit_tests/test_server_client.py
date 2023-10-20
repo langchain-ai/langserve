@@ -2,8 +2,8 @@
 import asyncio
 import json
 from asyncio import AbstractEventLoop
-from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Sequence, Union
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 
 import httpx
 import pytest
@@ -15,9 +15,9 @@ from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
+from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
-from langchain.schema.runnable.utils import ConfigurableField
+from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
@@ -104,19 +104,43 @@ def client(app: FastAPI) -> RemoteRunnable:
 
 @asynccontextmanager
 async def get_async_client(
-    server: FastAPI, path: Optional[str] = None
+    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
 ) -> RemoteRunnable:
     """Get an async client."""
     url = "http://localhost:9999"
     if path:
         url += path
     remote_runnable_client = RemoteRunnable(url=url)
-    async_client = AsyncClient(app=server, base_url=url)
+
+    transport = httpx.ASGITransport(
+        app=server,
+        raise_app_exceptions=raise_app_exceptions,
+    )
+    async_client = AsyncClient(app=server, base_url=url, transport=transport)
     remote_runnable_client.async_client = async_client
     try:
         yield remote_runnable_client
     finally:
         await async_client.aclose()
+
+
+@contextmanager
+def get_sync_client(
+    server: FastAPI, *, path: Optional[str] = None, raise_server_exceptions: bool = True
+) -> RemoteRunnable:
+    """Get an async client."""
+    url = "http://localhost:9999"
+    if path:
+        url += path
+    remote_runnable_client = RemoteRunnable(url=url)
+    sync_client = TestClient(
+        app=server, base_url=url, raise_server_exceptions=raise_server_exceptions
+    )
+    remote_runnable_client.sync_client = sync_client
+    try:
+        yield remote_runnable_client
+    finally:
+        sync_client.close()
 
 
 @pytest_asyncio.fixture()
@@ -910,3 +934,97 @@ async def test_input_schema_typed_dict() -> None:
                 }
             },
         }
+
+
+class ErroringRunnable(Runnable):
+    """A custom runnable for testing errors are raised server side."""
+
+    def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
+        """Invoke the runnable."""
+        raise ValueError("Server side error")
+
+    def stream(
+        self,
+        input: Input,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Optional[Any],
+    ) -> Iterator[Output]:
+        yield 1
+        yield 2
+        raise ValueError("An exception occurred")
+
+    async def astream(
+        self,
+        input: Iterator[Input],
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Optional[Any],
+    ) -> Iterator[Output]:
+        yield 1
+        yield 2
+        raise ValueError("An exception occurred")
+
+
+@pytest.mark.asyncio
+async def test_server_side_error() -> None:
+    """Test server side error handling."""
+
+    app = FastAPI()
+    add_routes(app, ErroringRunnable())
+
+    # Invoke request
+    async with get_async_client(app, raise_app_exceptions=False) as runnable:
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert await runnable.ainvoke(1)
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert await runnable.abatch([1, 2])
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        # Test astream
+        chunks = []
+        try:
+            async for chunk in runnable.astream({"a": 1}):
+                chunks.append(chunk)
+        except httpx.HTTPStatusError as e:
+            assert chunks == [1, 2]
+            assert e.response.status_code == 500
+            assert e.response.text == "Internal Server Error"
+
+        # # Failing right now, can uncomment or add callbacks
+        # # Test astream_log
+        # chunks = []
+        # try:
+        #     async for chunk in runnable.astream_log({"a": 1}):
+        #         chunks.append(chunk)
+        # except httpx.HTTPStatusError as e:
+        #     assert chunks == []
+        #     assert e.response.status_code == 500
+        #     assert e.response.text == "Internal Server Error"
+
+
+def test_server_side_error_sync() -> None:
+    """Test server side error handling."""
+
+    app = FastAPI()
+    add_routes(app, ErroringRunnable())
+
+    # Invoke request
+    with get_sync_client(app, raise_server_exceptions=False) as runnable:
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert runnable.invoke(1)
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert runnable.batch([1, 2])
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        # Test astream
+        chunks = []
+        try:
+            for chunk in runnable.stream({"a": 1}):
+                chunks.append(chunk)
+        except httpx.HTTPStatusError as e:
+            assert chunks == [1, 2]
+            assert e.response.status_code == 500
+            assert e.response.text == "Internal Server Error"
