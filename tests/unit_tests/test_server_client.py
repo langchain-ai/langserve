@@ -2,8 +2,8 @@
 import asyncio
 import json
 from asyncio import AbstractEventLoop
-from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Union
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 
 import httpx
 import pytest
@@ -15,12 +15,13 @@ from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
+from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
-from langchain.schema.runnable.utils import ConfigurableField
+from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
+from langserve import server
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.server import (
@@ -103,19 +104,43 @@ def client(app: FastAPI) -> RemoteRunnable:
 
 @asynccontextmanager
 async def get_async_client(
-    server: FastAPI, path: Optional[str] = None
+    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
 ) -> RemoteRunnable:
     """Get an async client."""
     url = "http://localhost:9999"
     if path:
         url += path
     remote_runnable_client = RemoteRunnable(url=url)
-    async_client = AsyncClient(app=server, base_url=url)
+
+    transport = httpx.ASGITransport(
+        app=server,
+        raise_app_exceptions=raise_app_exceptions,
+    )
+    async_client = AsyncClient(app=server, base_url=url, transport=transport)
     remote_runnable_client.async_client = async_client
     try:
         yield remote_runnable_client
     finally:
         await async_client.aclose()
+
+
+@contextmanager
+def get_sync_client(
+    server: FastAPI, *, path: Optional[str] = None, raise_server_exceptions: bool = True
+) -> RemoteRunnable:
+    """Get an async client."""
+    url = "http://localhost:9999"
+    if path:
+        url += path
+    remote_runnable_client = RemoteRunnable(url=url)
+    sync_client = TestClient(
+        app=server, base_url=url, raise_server_exceptions=raise_server_exceptions
+    )
+    remote_runnable_client.sync_client = sync_client
+    try:
+        yield remote_runnable_client
+    finally:
+        sync_client.close()
 
 
 @pytest_asyncio.fixture()
@@ -750,6 +775,132 @@ def test_rename_pydantic_model() -> None:
 
 
 @pytest.mark.asyncio
+async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
+    """Test schemas returned for different configurations."""
+    # TODO(Fix me): need to fix handling of global state -- we get problems
+    # gives inconsistent results when running multiple tests / results
+    # depending on ordering
+    server._SEEN_NAMES = set()
+    server._MODEL_REGISTRY = {}
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    async def add_two(y: int) -> int:
+        """Add one to simulate a valid function"""
+        return y + 2
+
+    app = FastAPI()
+
+    add_routes(app, RunnableLambda(add_one), path="/add_one")
+    # Custom input type
+    add_routes(
+        app,
+        RunnableLambda(add_two),
+        path="/add_two_custom",
+        input_type=float,
+        output_type=Sequence[float],
+        config_keys=["tags", "configurable"],
+    )
+    add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
+
+    template = PromptTemplate.from_template("say {name}").configurable_fields(
+        template=ConfigurableField(
+            id="template",
+            name="Template",
+            description="The template to use for the prompt",
+        )
+    )
+    add_routes(app, template, path="/prompt_2", config_keys=["tags", "configurable"])
+
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+        # input schema
+        response = await async_client.get("/add_one/input_schema")
+        assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
+
+        response = await async_client.get("/add_two_custom/input_schema")
+        assert response.json() == {"title": "Input", "type": "number"}
+
+        response = await async_client.get("/prompt_1/input_schema")
+        assert response.json() == {
+            "properties": {"question": {"title": "Question", "type": "string"}},
+            "title": "PromptInput",
+            "type": "object",
+        }
+
+        response = await async_client.get("/prompt_2/input_schema")
+        assert response.json() == {
+            "properties": {"name": {"title": "Name", "type": "string"}},
+            "title": "PromptInput",
+            "type": "object",
+        }
+
+        # output schema
+        response = await async_client.get("/add_one/output_schema")
+        assert response.json() == {
+            "title": "RunnableLambdaOutput",
+            "type": "integer",
+        }
+
+        response = await async_client.get("/add_two_custom/output_schema")
+        assert response.json() == {
+            "items": {"type": "number"},
+            "title": "Output",
+            "type": "array",
+        }
+
+        # Just verify that the schema is not empty (it's pretty long)
+        # and the actual value should be tested in LangChain
+        response = await async_client.get("/prompt_1/output_schema")
+        assert response.json() != {}  # Long string
+
+        response = await async_client.get("/prompt_2/output_schema")
+        assert response.json() != {}  # Long string
+
+        ## Config schema
+        response = await async_client.get("/add_one/config_schema")
+        assert response.json() == {
+            "properties": {},
+            "title": "RunnableLambdaConfig",
+            "type": "object",
+        }
+
+        response = await async_client.get("/add_two_custom/config_schema")
+        assert response.json() == {
+            "properties": {
+                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
+            },
+            "title": "RunnableLambdaConfig",
+            "type": "object",
+        }
+
+        response = await async_client.get("/prompt_2/config_schema")
+        assert response.json() == {
+            "definitions": {
+                "Configurable": {
+                    "properties": {
+                        "template": {
+                            "default": "say {name}",
+                            "description": "The template to use for the prompt",
+                            "title": "Template",
+                            "type": "string",
+                        }
+                    },
+                    "title": "Configurable",
+                    "type": "object",
+                }
+            },
+            "properties": {
+                "configurable": {"$ref": "#/definitions/Configurable"},
+                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
+            },
+            "title": "RunnableConfigurableFieldsConfig",
+            "type": "object",
+        }
+
+
+@pytest.mark.asyncio
 async def test_input_schema_typed_dict() -> None:
     class InputType(TypedDict):
         foo: str
@@ -783,3 +934,97 @@ async def test_input_schema_typed_dict() -> None:
                 }
             },
         }
+
+
+class ErroringRunnable(Runnable):
+    """A custom runnable for testing errors are raised server side."""
+
+    def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
+        """Invoke the runnable."""
+        raise ValueError("Server side error")
+
+    def stream(
+        self,
+        input: Input,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Optional[Any],
+    ) -> Iterator[Output]:
+        yield 1
+        yield 2
+        raise ValueError("An exception occurred")
+
+    async def astream(
+        self,
+        input: Iterator[Input],
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Optional[Any],
+    ) -> Iterator[Output]:
+        yield 1
+        yield 2
+        raise ValueError("An exception occurred")
+
+
+@pytest.mark.asyncio
+async def test_server_side_error() -> None:
+    """Test server side error handling."""
+
+    app = FastAPI()
+    add_routes(app, ErroringRunnable())
+
+    # Invoke request
+    async with get_async_client(app, raise_app_exceptions=False) as runnable:
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert await runnable.ainvoke(1)
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert await runnable.abatch([1, 2])
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        # Test astream
+        chunks = []
+        try:
+            async for chunk in runnable.astream({"a": 1}):
+                chunks.append(chunk)
+        except httpx.HTTPStatusError as e:
+            assert chunks == [1, 2]
+            assert e.response.status_code == 500
+            assert e.response.text == "Internal Server Error"
+
+        # # Failing right now, can uncomment or add callbacks
+        # # Test astream_log
+        # chunks = []
+        # try:
+        #     async for chunk in runnable.astream_log({"a": 1}):
+        #         chunks.append(chunk)
+        # except httpx.HTTPStatusError as e:
+        #     assert chunks == []
+        #     assert e.response.status_code == 500
+        #     assert e.response.text == "Internal Server Error"
+
+
+def test_server_side_error_sync() -> None:
+    """Test server side error handling."""
+
+    app = FastAPI()
+    add_routes(app, ErroringRunnable())
+
+    # Invoke request
+    with get_sync_client(app, raise_server_exceptions=False) as runnable:
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert runnable.invoke(1)
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        with pytest.raises(httpx.HTTPStatusError) as cm:
+            assert runnable.batch([1, 2])
+        assert isinstance(cm.value, httpx.HTTPStatusError)
+
+        # Test astream
+        chunks = []
+        try:
+            for chunk in runnable.stream({"a": 1}):
+                chunks.append(chunk)
+        except httpx.HTTPStatusError as e:
+            assert chunks == [1, 2]
+            assert e.response.status_code == 500
+            assert e.response.text == "Internal Server Error"

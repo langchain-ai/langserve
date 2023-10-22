@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { resolveApiUrl } from "./utils/url";
 import { simplifySchema } from "./utils/simplifySchema";
+import { JsonFormsCore } from "@jsonforms/core";
+import { compressToEncodedURIComponent } from "lz-string";
+import { useDebounce } from "use-debounce";
 
 declare global {
   interface Window {
@@ -11,7 +14,9 @@ declare global {
   }
 }
 
-export function useSchemas() {
+export function useSchemas(
+  configData: Pick<JsonFormsCore, "data" | "errors"> & { defaults: boolean }
+) {
   const [schemas, setSchemas] = useState({
     config: null,
     input: null,
@@ -43,6 +48,24 @@ export function useSchemas() {
 
     save();
   }, []);
+
+  const [debouncedConfigData] = useDebounce(configData, 500);
+
+  useEffect(() => {
+    if (!debouncedConfigData.defaults) {
+      fetch(
+        resolveApiUrl(
+          `c/${compressToEncodedURIComponent(
+            JSON.stringify(debouncedConfigData.data)
+          )}/input_schema`
+        )
+      )
+        .then((r) => r.json())
+        .then(simplifySchema)
+        .then((input) => setSchemas((current) => ({ ...current, input })))
+        .catch(() => {}); // ignore errors, eg. due to incomplete config
+    }
+  }, [debouncedConfigData]);
 
   return schemas;
 }
