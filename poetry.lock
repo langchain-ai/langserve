@@ -4053,4 +4053,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "ff85895a3654a3f6d899853ef8d583d52de1882b1476d6cdf3b9927cf7a2c185"
+content-hash = "407f2b7e5c5aa84187ebaa524f2ca1c141eeddff7adccf1e875c069a226bc990"

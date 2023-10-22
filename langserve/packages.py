@@ -1,49 +1,30 @@
 from pathlib import Path
-from typing import Union, Generator
+from typing import Union, Generator, TypedDict
 from fastapi import FastAPI, APIRouter
-from tomllib import load as load_toml
-from tomllib import loads as loads_toml
 from langserve.server import add_routes
 import importlib
 import logging
 
+from pathlib import Path
+from tomli import load
 
-# todo: make this a function instead (this is from old cli)
-class PyProject:
-    def __init__(self, data: dict):
-        self.data = data
 
-    @classmethod
-    def load(cls, path: Path) -> "PyProject":
-        with open(path, "rb") as f:
-            data = load_toml(f)
-        return cls(data)
+class LangServeExport(TypedDict):
+    module: str
+    attr: str
+    package_name: str
 
-    @classmethod
-    def loads(cls, data: str) -> "PyProject":
-        d = loads_toml(data)
-        return cls(d)
 
-    @property
-    def package_name(self) -> str:
-        return self.data["tool"]["poetry"]["name"]
-
-    def is_langserve(self) -> bool:
-        return "langserve" in self.data["tool"]
-
-    def get_langserve_export(self) -> tuple[str, str]:
-        module = self.data["tool"].get("langserve", {}).get("export_module")
-        if module is None:
-            print(self.data)
-            raise ValueError(
-                "No module name was exported at `tool.langserve.export_module`"
-            )
-        attr = self.data["tool"].get("langserve", {}).get("export_attr")
-        if attr is None:
-            raise ValueError(
-                "No attr name was exported at `tool.langserve.export_attr`"
-            )
-        return module, attr
+def get_langserve_export(filepath: Path) -> LangServeExport:
+    with open(filepath, "rb") as f:
+        data = load(f)
+    try:
+        module = data["tool"]["langserve"]["export_module"]
+        attr = data["tool"]["langserve"]["export_attr"]
+        package_name = data["tool"]["poetry"]["name"]
+    except KeyError as e:
+        raise KeyError("Invalid LangServe PyProject.toml") from e
+    return LangServeExport(module=module, attr=attr, package_name=package_name)
 
 
 exclude_paths = set(["__pycache__", ".venv", ".git", ".github"])
@@ -70,29 +51,36 @@ def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
         yield pyproject_path.parent
 
 
+def add_package_route(
+    app: Union[FastAPI, APIRouter], package_path: Path, mount_path: str
+) -> None:
+    pyproject_path = package_path / "pyproject.toml"
+
+    # get langserve export
+    package = get_langserve_export(pyproject_path)
+    try:
+        # import module
+        mod = importlib.import_module(package["module"])
+    except KeyError as e:
+        logging.warning(f"Error: {e}")
+        logging.warning(f"Try editing {pyproject_path}")
+        return
+    except ModuleNotFoundError as e:
+        logging.warning(f"Error: {e}")
+        logging.warning(f"Try fixing with `poetry add --editable {package_path}`")
+        logging.warning(
+            "To remove packages, use `poe` instead of `poetry`: "
+            f"`poe remove {package["package_name"]}`"
+        )
+        return
+    # get attr
+    chain = getattr(mod, package.attr)
+    add_routes(app, chain, path=mount_path)
+
+
 def add_package_routes(app: Union[FastAPI, APIRouter], path: str = "packages") -> None:
     # traverse path for routes to host (any directory holding a pyproject.toml file)
     for package_path in list_packages(path):
-        pyproject_path = package_path / "pyproject.toml"
-        # load pyproject.toml
-        pyproject = PyProject.load(pyproject_path)
-        # get langserve export
-        module, attr = pyproject.get_langserve_export()
-
-        try:
-            # import module
-            mod = importlib.import_module(module)
-        except ModuleNotFoundError as e:
-            logging.warning(f"Error: {e}")
-            logging.warning(f"Try fixing with `poetry add --editable {package_path}`")
-            logging.warning(
-                "To remove packages, use `poe` instead of `poetry`: "
-                f"`poe remove {pyproject.package_name}`"
-            )
-            continue
-        # get attr
-        chain = getattr(mod, attr)
-        # add route
         mount_path_relative = package_path.relative_to(Path(path))
         mount_path = f"/{mount_path_relative}"
-        add_routes(app, chain, path=mount_path)
+        add_package_route(app, package_path, mount_path)
