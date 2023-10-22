@@ -11,7 +11,7 @@ import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -19,6 +19,7 @@ from langchain.schema.runnable import RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField
 from pytest_mock import MockerFixture
+from typing_extensions import TypedDict
 
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
@@ -185,7 +186,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test invoke
     response = await async_client.post(
-        f"/h{config_hash}/invoke",
+        f"/c/{config_hash}/invoke",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -195,7 +196,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test batch
     response = await async_client.post(
-        f"/h{config_hash}/batch",
+        f"/c/{config_hash}/batch",
         json={"inputs": [1], "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -205,7 +206,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
 
     # Test stream
     response = await async_client.post(
-        f"/h{config_hash}/stream",
+        f"/c/{config_hash}/stream",
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
@@ -278,46 +279,32 @@ async def test_astream(async_client: RemoteRunnable) -> None:
 
 
 @pytest.mark.asyncio
-async def test_astream_log_no_diff(async_client: RemoteRunnable) -> None:
+async def test_astream_log_diff_no_effect(async_client: RemoteRunnable) -> None:
     """Test async stream."""
     run_logs = []
 
     async for chunk in async_client.astream_log(1, diff=False):
         run_logs.append(chunk)
 
-    assert len(run_logs) == 3
-
     op = run_logs[0].ops[0]
     uuid = op["value"]["id"]
 
-    for run_log in run_logs:
-        assert isinstance(run_log, RunLog)
-
-    states = [run_log.state for run_log in run_logs]
-
-    assert states == [
-        {
-            "final_output": None,
-            "id": uuid,
-            "logs": {},
-            "streamed_output": [],
-        },
-        {
-            "final_output": {"output": 2},
-            "id": uuid,
-            "logs": {},
-            "streamed_output": [],
-        },
-        {
-            "final_output": {"output": 2},
-            "id": uuid,
-            "logs": {},
-            "streamed_output": [2],
-        },
+    assert [run_log_patch.ops for run_log_patch in run_logs] == [
+        [
+            {
+                "op": "replace",
+                "path": "",
+                "value": {
+                    "final_output": {"output": 2},
+                    "id": uuid,
+                    "logs": {},
+                    "streamed_output": [],
+                },
+            }
+        ],
+        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
+        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
     ]
-
-    # Check that we're picking up one extra op on each chunk
-    assert [len(run_log.ops) for run_log in run_logs] == [1, 2, 3]
 
 
 @pytest.mark.asyncio
@@ -760,3 +747,39 @@ def test_rename_pydantic_model() -> None:
 
     assert isinstance(Model, type)
     assert Model.__name__ == "Bar"
+
+
+@pytest.mark.asyncio
+async def test_input_schema_typed_dict() -> None:
+    class InputType(TypedDict):
+        foo: str
+        bar: List[int]
+
+    async def passthrough_dict(d: Any) -> Any:
+        return d
+
+    runnable_lambda = RunnableLambda(func=passthrough_dict)
+    app = FastAPI()
+    add_routes(app, runnable_lambda, input_type=InputType, config_keys=["tags"])
+
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+        res = await client.get("/input_schema")
+        assert res.json() == {
+            "title": "Input",
+            "allOf": [{"$ref": "#/definitions/InputType"}],
+            "definitions": {
+                "InputType": {
+                    "properties": {
+                        "bar": {
+                            "items": {"type": "integer"},
+                            "title": "Bar",
+                            "type": "array",
+                        },
+                        "foo": {"title": "Foo", "type": "string"},
+                    },
+                    "required": ["foo", "bar"],
+                    "title": "InputType",
+                    "type": "object",
+                }
+            },
+        }
