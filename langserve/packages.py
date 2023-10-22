@@ -58,6 +58,7 @@ def add_package_route(
 
     # get langserve export
     package = get_langserve_export(pyproject_path)
+    package_name = package["package_name"]
     try:
         # import module
         mod = importlib.import_module(package["module"])
@@ -70,11 +71,11 @@ def add_package_route(
         logging.warning(f"Try fixing with `poetry add --editable {package_path}`")
         logging.warning(
             "To remove packages, use `poe` instead of `poetry`: "
-            f"`poe remove {package["package_name"]}`"
+            f"`poe remove {package_name}`"
         )
         return
     # get attr
-    chain = getattr(mod, package.attr)
+    chain = getattr(mod, package["attr"])
     add_routes(app, chain, path=mount_path)
 
 
