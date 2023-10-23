@@ -60,12 +60,12 @@ def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
 def add_package_route(
     app: Union[FastAPI, APIRouter], package_path: Path, mount_path: str
 ) -> None:
-    pyproject_path = package_path / "pyproject.toml"
-
-    # get langserve export
-    package = get_langserve_export(pyproject_path)
-    package_name = package["package_name"]
     try:
+        pyproject_path = package_path / "pyproject.toml"
+
+        # get langserve export
+        package = get_langserve_export(pyproject_path)
+        package_name = package["package_name"]
         # import module
         mod = importlib.import_module(package["module"])
     except KeyError as e:
