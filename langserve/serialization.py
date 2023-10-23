@@ -3,6 +3,7 @@
 Specialized JSON serialization for well known LangChain objects that
 can be expected to be frequently transmitted between chains.
 """
+import abc
 import json
 from typing import Any, Union
 
@@ -67,41 +68,53 @@ class _LangChainEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-# Custom JSON Decoder
-class _LangChainDecoder(json.JSONDecoder):
-    """Custom JSON Decoder that handles well known LangChain objects."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initialize the LangChainDecoder."""
-        super().__init__(object_hook=self.decoder, *args, **kwargs)
-
-    def decoder(self, value) -> Any:
-        """Decode the value."""
-        if isinstance(value, dict):
-            try:
-                obj = WellKnownLCObject.parse_obj(value)
-                return obj.__root__
-            except ValidationError:
-                return {key: self.decoder(v) for key, v in value.items()}
-        elif isinstance(value, list):
-            return [self.decoder(item) for item in value]
-        else:
-            return value
+def _decode_lc_objects(value: Any) -> Any:
+    """Decode the value."""
+    if isinstance(value, dict):
+        try:
+            obj = WellKnownLCObject.parse_obj(value)
+            return obj.__root__
+        except ValidationError:
+            return {key: _decode_lc_objects(v) for key, v in value.items()}
+    elif isinstance(value, list):
+        return [_decode_lc_objects(item) for item in value]
+    else:
+        return value
 
 
 # PUBLIC API
 
 
-def simple_dumpd(obj: Any) -> Any:
-    """Convert the given object to a JSON serializable object."""
-    return json.loads(json.dumps(obj, cls=_LangChainEncoder))
+class Serializer(abc.ABC):
+    @abc.abstractmethod
+    def dumpd(self, obj: Any) -> Any:
+        """Convert the given object to a JSON serializable object."""
+
+    @abc.abstractmethod
+    def dumps(self, obj: Any) -> str:
+        """Dump the given object as a JSON string."""
+
+    @abc.abstractmethod
+    def loads(self, s: str) -> Any:
+        """Load the given JSON string."""
+
+    @abc.abstractmethod
+    def loadd(self, obj: Any) -> Any:
+        """Load the given object."""
 
 
-def simple_dumps(obj: Any) -> str:
-    """Dump the given object as a JSON string."""
-    return json.dumps(obj, cls=_LangChainEncoder)
+class WellKnownLCSerializer(Serializer):
+    def dumpd(self, obj: Any) -> Any:
+        """Convert the given object to a JSON serializable object."""
+        return json.loads(json.dumps(obj, cls=_LangChainEncoder))  # :*(
 
+    def dumps(self, obj: Any) -> str:
+        """Dump the given object as a JSON string."""
+        return json.dumps(obj, cls=_LangChainEncoder)
 
-def simple_loads(s: str) -> Any:
-    """Load the given JSON string."""
-    return json.loads(s, cls=_LangChainDecoder)
+    def loadd(self, obj: Any) -> Any:
+        return _decode_lc_objects(obj)
+
+    def loads(self, s: str) -> Any:
+        """Load the given JSON string."""
+        return self.loadd(json.loads(s))

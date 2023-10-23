@@ -63,7 +63,9 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
-        add_routes(app, runnable_lambda, config_keys=["tags"])
+        add_routes(
+            app, runnable_lambda, config_keys=["tags"], include_callback_events=True
+        )
         yield app
     finally:
         del app
@@ -86,7 +88,12 @@ def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
     runnable_lambda = RunnableLambda(func=return_config)
     app = FastAPI()
     try:
-        add_routes(app, runnable_lambda, config_keys=["tags", "metadata"])
+        add_routes(
+            app,
+            runnable_lambda,
+            config_keys=["tags", "metadata"],
+            include_callback_events=True,
+        )
         yield app
     finally:
         del app
@@ -98,8 +105,10 @@ def client(app: FastAPI) -> RemoteRunnable:
     remote_runnable_client = RemoteRunnable(url="http://localhost:9999")
     sync_client = TestClient(app=app)
     remote_runnable_client.sync_client = sync_client
-    yield remote_runnable_client
-    sync_client.close()
+    try:
+        yield remote_runnable_client
+    finally:
+        sync_client.close()
 
 
 @asynccontextmanager
@@ -156,13 +165,28 @@ def test_server(app: FastAPI) -> None:
 
     # Test invoke
     response = sync_client.post("/invoke", json={"input": 1})
-    assert response.json() == {"output": 2}
+    assert response.json()["output"] == 2
+    callback_events = response.json()["callback_events"]
+
+    assert len(callback_events) == 2
+    assert [event["type"] for event in callback_events] == [
+        "on_chain_start",
+        "on_chain_end",
+    ]
 
     # Test batch
-    response = sync_client.post("/batch", json={"inputs": [1]})
-    assert response.json() == {
-        "output": [2],
-    }
+    response = sync_client.post("/batch", json={"inputs": [1, 2, 3]})
+    assert response.json()["output"] == [2, 3, 4]
+    callback_events = response.json()["callback_events"]
+    # callback events is a list of lists for batch
+
+    assert len(callback_events) == 3
+
+    for idx in range(3):
+        assert [event["type"] for event in callback_events[idx]] == [
+            "on_chain_start",
+            "on_chain_end",
+        ]
 
     # Test schema
     input_schema = sync_client.get("/input_schema").json()
@@ -190,13 +214,27 @@ async def test_server_async(app: FastAPI) -> None:
 
     # Test invoke
     response = await async_client.post("/invoke", json={"input": 1})
-    assert response.json() == {"output": 2}
+    assert response.json()["output"] == 2
+    callback_events = response.json()["callback_events"]
+
+    assert len(callback_events) == 2
+    assert [event["type"] for event in callback_events] == [
+        "on_chain_start",
+        "on_chain_end",
+    ]
 
     # Test batch
-    response = await async_client.post("/batch", json={"inputs": [1]})
-    assert response.json() == {
-        "output": [2],
-    }
+    response = await async_client.post("/batch", json={"inputs": [1, 3, 5]})
+    assert response.json()["output"] == [2, 4, 6]
+    callback_events = response.json()["callback_events"]
+    # callback events is a list of lists for batch
+    assert len(callback_events) == 3
+    for idx in range(3):
+        # Verify each input gets corresponding callback events
+        assert [event["type"] for event in callback_events[idx]] == [
+            "on_chain_start",
+            "on_chain_end",
+        ]
 
     # Test stream
     response = await async_client.post("/stream", json={"input": 1})
@@ -216,7 +254,8 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        "output": {"tags": ["another-one", "test"], "configurable": None}
+        "output": {"tags": ["another-one", "test"], "configurable": None},
+        "callback_events": [],
     }
 
     # Test batch
@@ -226,7 +265,8 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {
-        "output": [{"tags": ["another-one", "test"], "configurable": None}]
+        "output": [{"tags": ["another-one", "test"], "configurable": None}],
+        "callback_events": [],
     }
 
     # Test stream
@@ -794,6 +834,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     app = FastAPI()
 
     add_routes(app, RunnableLambda(add_one), path="/add_one")
+
     # Custom input type
     add_routes(
         app,
