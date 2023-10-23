@@ -22,6 +22,7 @@ from langchain.schema.messages import (
     SystemMessage,
     SystemMessageChunk,
 )
+from bson import ObjectId
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
@@ -64,6 +65,8 @@ class _LangChainEncoder(json.JSONEncoder):
     def default(self, obj) -> Any:
         if isinstance(obj, BaseModel):
             return obj.dict()
+        if isinstance(obj, ObjectId):
+            return str(obj)
         return super().default(obj)
 
 
