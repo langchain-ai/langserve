@@ -51,7 +51,7 @@ def _include_path(path: Path) -> bool:
     return True
 
 
-def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
+def list_packages(path: str = "packages") -> Generator[Path, None, None]:
     """
     Yields Path objects for each folder that contains a pyproject.toml file within a
     path. Use this to find packages to add to the server.
