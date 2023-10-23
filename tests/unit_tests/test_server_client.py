@@ -253,10 +253,11 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "output": {"tags": ["another-one", "test"], "configurable": None},
-        "callback_events": [],
+    assert response.json()["output"] == {
+        "tags": ["another-one", "test"],
+        "configurable": None,
     }
+    assert response.json()["callback_events"] != []
 
     # Test batch
     response = await async_client.post(
@@ -264,10 +265,9 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
         json={"inputs": [1], "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "output": [{"tags": ["another-one", "test"], "configurable": None}],
-        "callback_events": [],
-    }
+    assert response.json()["output"] == [
+        {"tags": ["another-one", "test"], "configurable": None}
+    ]
 
     # Test stream
     response = await async_client.post(
