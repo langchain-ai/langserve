@@ -69,10 +69,11 @@ def add_package_route(
         # import module
         mod = importlib.import_module(package["module"])
     except KeyError as e:
-        logging.warning(f"Error: {e}")
-        logging.warning(f"Try editing {pyproject_path}")
+        logging.warning(
+            f"Skipping {package_path} because it is not a valid LangServe package (see pyproject.toml)"
+        )
         return
-    except ModuleNotFoundError as e:
+    except ImportError as e:
         logging.warning(f"Error: {e}")
         logging.warning(f"Try fixing with `poetry add --editable {package_path}`")
         logging.warning(
