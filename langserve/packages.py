@@ -77,9 +77,10 @@ def add_package_route(
         package_name = package["package_name"]
         # import module
         mod = importlib.import_module(package["module"])
-    except KeyError as e:
+    except KeyError:
         logging.warning(
-            f"Skipping {package_path} because it is not a valid LangServe package (see pyproject.toml)"
+            f"Skipping {package_path} because it is not a valid LangServe "
+            "package (see pyproject.toml)"
         )
         return
     except ImportError as e:
