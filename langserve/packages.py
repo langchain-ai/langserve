@@ -27,15 +27,15 @@ def get_langserve_export(filepath: Path) -> LangServeExport:
     return LangServeExport(module=module, attr=attr, package_name=package_name)
 
 
-exclude_paths = set(["__pycache__", ".venv", ".git", ".github"])
+EXCLUDE_PATHS = set(["__pycache__", ".venv", ".git", ".github"])
 
 
 def _include_path(path: Path) -> bool:
     """
-    Skip paths that are in exclude_paths or start with an underscore.
+    Skip paths that are in EXCLUDE_PATHS or start with an underscore.
     """
     for part in path.parts:
-        if part in exclude_paths:
+        if part in EXCLUDE_PATHS:
             return False
         if part.startswith("_"):
             return False
@@ -43,6 +43,12 @@ def _include_path(path: Path) -> bool:
 
 
 def list_packages(path: str = "../packages") -> Generator[Path, None, None]:
+    """
+    Yields Path objects for each folder that contains a pyproject.toml file within a
+    path. Use this to find packages to add to the server.
+
+    See `add_package_routes` below for an example of how to use this.
+    """
     # traverse path for routes to host (any directory holding a pyproject.toml file)
     package_root = Path(path)
     for pyproject_path in package_root.glob("**/pyproject.toml"):
