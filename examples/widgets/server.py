@@ -52,14 +52,14 @@ add_routes(
     app,
     RunnableLambda(chat_with_bot).with_types(input_type=ChatHistory),
     config_keys=["configurable"],
-    path="chat",
+    path="/chat",
 )
 
 add_routes(
     app,
     RunnableLambda(process_file).with_types(input_type=FileProcessingRequest),
     config_keys=["configurable"],
-    path="pdf",
+    path="/pdf",
 )
 
 
