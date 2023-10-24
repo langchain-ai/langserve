@@ -1,4 +1,4 @@
-# LangServe 🦜️🔗
+# LangServe 🦜️🏓
 
 ## Overview
 
