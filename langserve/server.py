@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import copy
 import json
 import re
 import weakref
@@ -27,8 +28,8 @@ from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import merge_configs
 from typing_extensions import Annotated
 
+from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
-from langserve.version import __version__
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -36,7 +37,7 @@ except ImportError:
     from pydantic import BaseModel, Field, create_model
 
 from langserve.playground import serve_playground
-from langserve.serialization import simple_dumpd, simple_dumps
+from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
     create_batch_request_model,
     create_batch_response_model,
@@ -45,6 +46,7 @@ from langserve.validation import (
     create_stream_log_request_model,
     create_stream_request_model,
 )
+from langserve.version import __version__
 
 try:
     from fastapi import APIRouter, FastAPI
@@ -199,6 +201,26 @@ def _add_tracing_info_to_metadata(config: Dict[str, Any], request: Request) -> N
     config["metadata"] = metadata
 
 
+def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
+    """Scrub exceptions and change to a serializable format."""
+    type_ = event["type"]
+    # Check if the event type is one that could contain an error key
+    # for example, on_chain_error, on_tool_error, etc.
+    if "error" not in type_:
+        return event
+
+    # This is not scrubbing -- it's doing serialization
+    if "error" not in event:  # if there is an error key, scrub it
+        return event
+
+    if isinstance(event["error"], BaseException):
+        event.copy()
+        event["error"] = {"status_code": 500, "message": "Internal Server Error"}
+        return event
+
+    raise AssertionError(f"Expected an exception got {type(event['error'])}")
+
+
 _APP_SEEN = weakref.WeakSet()
 
 
@@ -213,6 +235,7 @@ def add_routes(
     input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     config_keys: Sequence[str] = (),
+    include_callback_events: bool = False,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -239,6 +262,10 @@ def add_routes(
             User is free to provide a custom type annotation.
         config_keys: list of config keys that will be accepted, by default
                      no config keys are accepted.
+        include_callback_events: Whether to include callback events in the response.
+            If true, the client will be able to show trace information
+            including events that occurred on the server side.
+            Be sure not to include any sensitive information in the callback events.
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -249,6 +276,8 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    well_known_lc_serializer = WellKnownLCSerializer()
+
     if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
         _APP_SEEN.add(app)
         app.openapi_tags = [
@@ -258,7 +287,10 @@ def add_routes(
             },
             {
                 "name": "config",
-                "description": "Endpoints with a default configuration set by `config_hash` path parameter.",  # noqa: E501
+                "description": (
+                    "Endpoints with a default configuration "
+                    "set by `config_hash` path parameter."
+                ),
             },
         ]
 
@@ -315,11 +347,27 @@ def add_routes(
             config_hash, invoke_request.config, keys=config_keys, model=ConfigPayload
         )
         _add_tracing_info_to_metadata(config, request)
+        event_aggregator = AsyncEventAggregatorCallback()
+        config["callbacks"] = [event_aggregator]
         output = await runnable.ainvoke(
-            _unpack_input(invoke_request.input), config=config
+            _unpack_input(invoke_request.input),
+            config=config,
         )
 
-        return InvokeResponse(output=simple_dumpd(output))
+        if include_callback_events:
+            callback_events = [
+                _scrub_exceptions_in_event(event)
+                for event in event_aggregator.callback_events
+            ]
+        else:
+            callback_events = []
+
+        return InvokeResponse(
+            output=well_known_lc_serializer.dumpd(output),
+            # Callbacks are scrubbed and exceptions are converted to serializable format
+            # before returned in the response.
+            callback_events=callback_events,
+        )
 
     @app.post(
         namespace + "/c/{config_hash}/batch",
@@ -333,25 +381,61 @@ def add_routes(
         config_hash: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
+        # First convert to list type
         if isinstance(batch_request.config, list):
-            config = [
-                _unpack_config(
-                    config_hash, config, keys=config_keys, model=ConfigPayload
-                )
-                for config in batch_request.config
-            ]
-
-            for c in config:
-                _add_tracing_info_to_metadata(c, request)
+            configs = batch_request.config
         else:
-            config = _unpack_config(
-                config_hash, batch_request.config, keys=config_keys, model=ConfigPayload
-            )
-            _add_tracing_info_to_metadata(config, request)
-        inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
-        output = await runnable.abatch(inputs, config=config)
+            configs = [batch_request.config]
 
-        return BatchResponse(output=simple_dumpd(output))
+        # Unpack
+        _configs = [
+            _unpack_config(config_hash, config, keys=config_keys, model=ConfigPayload)
+            for config in configs
+        ]
+
+        # Make sure that the number of configs matches the number of inputs
+        # Since we'll be adding callbacks to the configs.
+        if len(_configs) == 1:
+            _configs = [
+                copy.deepcopy(_configs[0]) for _ in range(len(batch_request.inputs))
+            ]
+        elif len(_configs) == len(batch_request.inputs):
+            _configs = _configs
+        else:
+            raise AssertionError(
+                f"Expected {len(batch_request.inputs)} configs "
+                f"for {len(_configs)} inputs."
+            )
+
+        aggregators = [
+            AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
+        ]
+
+        for c, aggregator in zip(_configs, aggregators):
+            _add_tracing_info_to_metadata(c, request)
+            c["callbacks"] = [aggregator]
+
+        inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
+
+        output = await runnable.abatch(inputs, config=_configs)
+
+        if include_callback_events:
+            callback_events = [
+                # Scrub sensitive information and convert
+                # exceptions to serializable format
+                [
+                    _scrub_exceptions_in_event(event)
+                    for event in aggregator.callback_events
+                ]
+                for aggregator in aggregators
+            ]
+        else:
+            callback_events = []
+
+        return BatchResponse(
+            output=well_known_lc_serializer.dumpd(output),
+            callback_events=callback_events,
+        )
 
     @app.post(namespace + "/c/{config_hash}/stream", tags=["config"])
     @app.post(f"{namespace}/stream")
@@ -417,7 +501,10 @@ def add_routes(
                     input_,
                     config=config,
                 ):
-                    yield {"data": simple_dumps(chunk), "event": "data"}
+                    yield {
+                        "data": well_known_lc_serializer.dumps(chunk),
+                        "event": "data",
+                    }
                 yield {"event": "end"}
             except BaseException:
                 yield {
@@ -518,7 +605,7 @@ def add_routes(
 
                     # Temporary adapter
                     yield {
-                        "data": simple_dumps(data),
+                        "data": well_known_lc_serializer.dumps(data),
                         "event": "data",
                     }
                 yield {"event": "end"}
