@@ -159,13 +159,18 @@ def test_server(app: FastAPI) -> None:
 
     # Test invoke
     response = sync_client.post("/invoke", json={"input": 1})
-    assert response.json() == {"output": 2}
+    assert response.json()["output"] == 2
+    events = response.json()["callback_events"]
+    assert [event["type"] for event in events] == ["on_chain_start", "on_chain_end"]
 
     # Test batch
-    response = sync_client.post("/batch", json={"inputs": [1]})
-    assert response.json() == {
-        "output": [2],
-    }
+    response = sync_client.post("/batch", json={"inputs": [2, 3]})
+    assert response.json()["output"] == [3, 4]
+
+    events = response.json()["callback_events"]
+    assert [event["type"] for event in events[0]] == ["on_chain_start", "on_chain_end"]
+
+    assert [event["type"] for event in events[1]] == ["on_chain_start", "on_chain_end"]
 
     # Test schema
     input_schema = sync_client.get("/input_schema").json()
@@ -193,13 +198,16 @@ async def test_server_async(app: FastAPI) -> None:
 
     # Test invoke
     response = await async_client.post("/invoke", json={"input": 1})
-    assert response.json() == {"output": 2}
+    assert response.json()["output"] == 2
+    events = response.json()["callback_events"]
+    assert [event["type"] for event in events] == ["on_chain_start", "on_chain_end"]
 
     # Test batch
-    response = await async_client.post("/batch", json={"inputs": [1]})
-    assert response.json() == {
-        "output": [2],
-    }
+    response = await async_client.post("/batch", json={"inputs": [1, 2]})
+    assert response.json()["output"] == [2, 3]
+    events = response.json()["callback_events"]
+    assert [event["type"] for event in events[0]] == ["on_chain_start", "on_chain_end"]
+    assert [event["type"] for event in events[1]] == ["on_chain_start", "on_chain_end"]
 
     # Test stream
     response = await async_client.post("/stream", json={"input": 1})
@@ -218,8 +226,9 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "output": {"tags": ["another-one", "test"], "configurable": None}
+    assert response.json()["output"] == {
+        "tags": ["another-one", "test"],
+        "configurable": None,
     }
 
     # Test batch
@@ -228,9 +237,9 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
         json={"inputs": [1], "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "output": [{"tags": ["another-one", "test"], "configurable": None}]
-    }
+    assert response.json()["output"] == [
+        {"tags": ["another-one", "test"], "configurable": None}
+    ]
 
     # Test stream
     response = await async_client.post(
