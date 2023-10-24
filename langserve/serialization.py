@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Union
 
 from langchain.prompts.base import StringPromptValue
 from langchain.prompts.chat import ChatPromptValueConcrete
-from langchain.schema import LLMResult
 from langchain.schema.agent import AgentAction, AgentActionMessageLog, AgentFinish
 from langchain.schema.document import Document
 from langchain.schema.messages import (
@@ -32,6 +31,12 @@ from langchain.schema.messages import (
     HumanMessageChunk,
     SystemMessage,
     SystemMessageChunk,
+)
+from langchain.schema.output import (
+    ChatGeneration,
+    ChatGenerationChunk,
+    Generation,
+    LLMResult,
 )
 
 from langserve.validation import CallbackEvent
@@ -77,6 +82,9 @@ class WellKnownLCObject(BaseModel):
         AgentFinish,
         AgentActionMessageLog,
         LLMResult,
+        ChatGeneration,
+        Generation,
+        ChatGenerationChunk,
     ]
 
 
@@ -95,8 +103,11 @@ def _decode_lc_objects(value: Any) -> Any:
     if isinstance(value, dict):
         try:
             obj = WellKnownLCObject.parse_obj(value)
-            return obj.__root__
-        except ValidationError:
+            parsed = obj.__root__
+            if set(parsed.dict()) != set(value):
+                raise ValueError("Invalid object")
+            return parsed
+        except (ValidationError, ValueError):
             return {key: _decode_lc_objects(v) for key, v in value.items()}
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]

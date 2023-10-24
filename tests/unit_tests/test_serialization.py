@@ -7,6 +7,7 @@ from langchain.schema.messages import (
     HumanMessageChunk,
     SystemMessage,
 )
+from langchain.schema.output import ChatGeneration
 
 try:
     from pydantic.v1 import BaseModel
@@ -40,6 +41,7 @@ from langserve.serialization import WellKnownLCSerializer, load_events
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
+        [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
 def test_serialization(data: Any) -> None:

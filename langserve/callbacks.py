@@ -7,8 +7,8 @@ from uuid import UUID
 from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.callbacks.manager import (
     BaseRunManager,
-    _ahandle_event,
-    _handle_event,
+    ahandle_event,
+    handle_event,
 )
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, Document, LLMResult
 from typing_extensions import TypedDict
@@ -444,7 +444,7 @@ async def ahandle_callbacks(
 
         event_data = {key: value for key, value in event.items() if key != "type"}
 
-        await _ahandle_event(
+        await ahandle_event(
             # Unpacking like this may not work
             callback_manager.handlers,
             event["type"],
@@ -466,7 +466,7 @@ def handle_callbacks(
 
         event_data = {key: value for key, value in event.items() if key != "type"}
 
-        _handle_event(
+        handle_event(
             # Unpacking like this may not work
             callback_manager.handlers,
             event["type"],
