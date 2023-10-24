@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 import pytest
@@ -12,7 +13,7 @@ try:
 except ImportError:
     from pydantic import BaseModel
 
-from langserve.serialization import WellKnownLCSerializer
+from langserve.serialization import WellKnownLCSerializer, load_events
 
 
 @pytest.mark.parametrize(
@@ -79,3 +80,40 @@ def _get_full_representation(data: Any) -> Any:
         return data.schema()
     else:
         return data
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        ([], []),
+        (
+            [
+                {
+                    "type": "on_llm_start",
+                    "serialized": {},
+                    "prompts": [],
+                    "run_id": str(uuid.UUID(int=2)),
+                    "parent_run_id": str(uuid.UUID(int=1)),
+                    "tags": ["h"],
+                    "metadata": {},
+                    "kwargs": {},
+                }
+            ],
+            [
+                {
+                    "type": "on_llm_start",
+                    "serialized": {},
+                    "prompts": [],
+                    "run_id": uuid.UUID(int=2),
+                    "parent_run_id": uuid.UUID(int=1),
+                    "tags": ["h"],
+                    "metadata": {},
+                    "kwargs": {},
+                }
+            ],
+        ),
+    ],
+)
+def test_decode_events(data: Any, expected: Any) -> None:
+    """Test decoding events."""
+    assert load_events(data) == expected

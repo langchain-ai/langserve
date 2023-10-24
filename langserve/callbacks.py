@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
 from langchain.callbacks.base import AsyncCallbackHandler
+from langchain.callbacks.manager import (
+    BaseRunManager,
+    _ahandle_event,
+    _handle_event,
+)
 from langchain.schema import AgentAction, AgentFinish, BaseMessage, Document, LLMResult
 from typing_extensions import TypedDict
 
@@ -357,4 +363,113 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
                 "tags": tags,
                 "kwargs": kwargs,
             }
+        )
+
+
+def replace_uuids(
+    callback_events: Sequence[CallbackEventDict],
+) -> List[CallbackEventDict]:
+    """Replace uids in the event callbacks with new uids.
+
+    This function mutates the event callback events in place.
+
+    Args:
+        callback_events: A list of event callbacks.
+    """
+    # Create a dictionary to store mappings from old UID to new UID
+    uid_mapping: dict = {}
+
+    updated_events = []
+
+    # Iterate through the list of event callbacks
+    for event in callback_events:
+        updated_event = event.copy()
+        # Replace UIDs in the 'run_id' field
+        if "run_id" in updated_event and updated_event["run_id"] is not None:
+            if updated_event["run_id"] not in uid_mapping:
+                # Generate a new UUID
+                new_uid = uuid.uuid4()
+                uid_mapping[updated_event["run_id"]] = new_uid
+            # Replace the old UID with the new one
+            updated_event["run_id"] = uid_mapping[updated_event["run_id"]]
+
+        # Replace UIDs in the 'parent_run_id' field if it's not None
+        if (
+            "parent_run_id" in updated_event
+            and updated_event["parent_run_id"] is not None
+        ):
+            if updated_event["parent_run_id"] not in uid_mapping:
+                # Generate a new UUID
+                new_uid = uuid.uuid4()
+                uid_mapping[updated_event["parent_run_id"]] = new_uid
+            # Replace the old UID with the new one
+            updated_event["parent_run_id"] = uid_mapping[updated_event["parent_run_id"]]
+        updated_events.append(updated_event)
+    return updated_events
+
+
+# Mapping from event name to ignore condition name
+NAME_TO_IGNORE_CONDITION = {
+    "on_retry": "ignore_retry",
+    "on_text": None,
+    "on_agent_action": "ignore_agent",
+    "on_agent_finish": "ignore_agent",
+    "on_llm_start": "ignore_llm",
+    "on_llm_end": "ignore_llm",
+    "on_llm_error": "ignore_llm",
+    "on_chain_start": "ignore_chain",
+    "on_chain_end": "ignore_chain",
+    "on_chain_error": "ignore_chain",
+    "on_chat_model_start": "ignore_chat_model",
+    "on_tool_start": "ignore_agent",
+    "on_tool_end": "ignore_agent",
+    "on_tool_error": "ignore_agent",
+    "on_retriever_start": "ignore_retriever",
+    "on_retriever_end": "ignore_retriever",
+    "on_retriever_error": "ignore_retriever",
+}
+
+
+async def ahandle_callbacks(
+    callback_manager: BaseRunManager,
+    callback_events: Sequence[CallbackEventDict],
+) -> None:
+    """Invoke all the callback handlers with the given callback events."""
+    callback_events = replace_uuids(callback_events)
+
+    # 1. Do I need inheritable handlers
+    for event in callback_events:
+        if event["parent_run_id"] is None:  # How do we make sure it's None!?
+            event["parent_run_id"] = callback_manager.run_id
+
+        event_data = {key: value for key, value in event.items() if key != "type"}
+
+        await _ahandle_event(
+            # Unpacking like this may not work
+            callback_manager.handlers,
+            event["type"],
+            ignore_condition_name=NAME_TO_IGNORE_CONDITION.get(event["type"], None),
+            **event_data,
+        )
+
+
+def handle_callbacks(
+    callback_manager: BaseRunManager,
+    callback_events: Sequence[CallbackEventDict],
+) -> None:
+    """Invoke all the callback handlers with the given callback events."""
+    callback_events = replace_uuids(callback_events)
+
+    for event in callback_events:
+        if event["parent_run_id"] is None:  # How do we make sure it's None!?
+            event["parent_run_id"] = callback_manager.run_id
+
+        event_data = {key: value for key, value in event.items() if key != "type"}
+
+        _handle_event(
+            # Unpacking like this may not work
+            callback_manager.handlers,
+            event["type"],
+            ignore_condition_name=NAME_TO_IGNORE_CONDITION.get(event["type"], None),
+            **event_data,
         )

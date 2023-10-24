@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import weakref
@@ -14,12 +15,17 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Tuple,
     Union,
 )
 from urllib.parse import urljoin
 
 import httpx
 from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes, VerifyTypes
+from langchain.callbacks.manager import (
+    AsyncCallbackManagerForChainRun,
+    CallbackManagerForChainRun,
+)
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.dump import dumpd
 from langchain.schema.runnable import Runnable
@@ -31,8 +37,11 @@ from langchain.schema.runnable.config import (
 )
 from langchain.schema.runnable.utils import Input, Output
 
+from langserve.callbacks import CallbackEventDict, ahandle_callbacks, handle_callbacks
 from langserve.serialization import (
+    Serializer,
     WellKnownLCSerializer,
+    load_events,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,10 +53,33 @@ def _without_callbacks(config: Optional[RunnableConfig]) -> RunnableConfig:
     return {k: v for k, v in _config.items() if k != "callbacks"}
 
 
-@lru_cache(maxsize=1_000)  # Will accommodate up to 100 different error messages
+@lru_cache(maxsize=1_000)  # Will accommodate up to 1_000 different error messages
 def _log_error_message_once(error_message: str) -> None:
     """Log an error message once."""
     logger.error(error_message)
+
+
+def _sanitize_request(request: httpx.Request) -> httpx.Request:
+    """Remove sensitive headers from the request."""
+    accept_headers = {
+        "accept",
+        "content-type",
+        "user-agent",
+        "connection",
+        "content-length",
+        "accept-encoding",
+        "host",
+    }
+    new_headers = request.headers.copy()
+    for key, value in new_headers.items():
+        if key.lower() not in accept_headers:
+            new_headers[key] = "<redacted>"
+        else:
+            new_headers[key] = value
+
+    new_request = copy.copy(request)
+    new_request.headers = new_headers
+    return new_request
 
 
 def _raise_for_status(response: httpx.Response) -> None:
@@ -71,7 +103,7 @@ def _raise_for_status(response: httpx.Response) -> None:
 
         raise httpx.HTTPStatusError(
             message=message,
-            request=e.request,
+            request=_sanitize_request(e.request),
             response=e.response,
         )
 
@@ -114,17 +146,53 @@ def _raise_exception_from_data(data: str, request: httpx.Request) -> None:
     except json.JSONDecodeError:
         raise httpx.HTTPStatusError(
             message="invalid json in error event sent from server",
-            request=request,
+            request=_sanitize_request(request),
             response=httpx.Response(status_code=500, text=data),
         )
     raise httpx.HTTPStatusError(
         message=decoded_data["message"],
-        request=request,
+        request=_sanitize_request(request),
         response=httpx.Response(
             status_code=decoded_data["status_code"],
             text=decoded_data["message"],
         ),
     )
+
+
+def _decode_response(
+    serializer: Serializer,
+    response: httpx.Response,
+    *,
+    is_batch: bool = False,
+) -> Tuple[Any, Union[List[CallbackEventDict], List[List[CallbackEventDict]]]]:
+    """Decode the response."""
+    _raise_for_status(response)
+    obj = response.json()
+    if not isinstance(obj, dict):
+        raise ValueError(f"Expected a dictionary, got {obj}")
+
+    if "output" not in obj:
+        raise ValueError("Key `output` not found in")
+
+    output = serializer.loadd(obj["output"])
+
+    if "callback_events" in obj:
+        if is_batch:
+            if not isinstance(obj["callback_events"], list):
+                raise ValueError(
+                    f"Expected a list of callback events, got {obj['callback_events']}"
+                )
+            else:
+                callback_events = [
+                    load_events(callback_events)
+                    for callback_events in obj["callback_events"]
+                ]
+        else:
+            callback_events = load_events(obj["callback_events"])
+    else:
+        callback_events = []
+
+    return output, callback_events
 
 
 class RemoteRunnable(Runnable[Input, Output]):
@@ -136,8 +204,6 @@ class RemoteRunnable(Runnable[Input, Output]):
 
     - `batch` with `return_exceptions=True` since we do not support exception
       translation from the server.
-    - Callbacks via the `config` argument as serialization of callbacks is not
-      supported.
     """
 
     def __init__(
@@ -151,6 +217,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         verify: VerifyTypes = True,
         cert: Optional[CertTypes] = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
+        use_server_callback_events: bool = True,
     ) -> None:
         """Initialize the client.
 
@@ -163,7 +230,9 @@ class RemoteRunnable(Runnable[Input, Output]):
             verify: Whether to verify SSL certificates
             cert: SSL certificate to use for requests
             client_kwargs: If provided will be unpacked as kwargs to both the sync
-                           and async httpx clients
+                and async httpx clients
+            use_server_callback_events: Whether to invoke callbacks on any
+                callback events returned by the server.
         """
         _client_kwargs = client_kwargs or {}
         self.url = url
@@ -191,9 +260,14 @@ class RemoteRunnable(Runnable[Input, Output]):
         # Register cleanup handler once RemoteRunnable is garbage collected
         weakref.finalize(self, _close_clients, self.sync_client, self.async_client)
         self._lc_serializer = WellKnownLCSerializer()
+        self._use_server_callback_events = use_server_callback_events
 
     def _invoke(
-        self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
+        self,
+        input: Input,
+        run_manager: CallbackManagerForChainRun,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Any,
     ) -> Output:
         """Invoke the runnable with the given input and config."""
         response = self.sync_client.post(
@@ -204,8 +278,13 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self._lc_serializer.loads(response.text)["output"]
+        output, callback_events = _decode_response(
+            self._lc_serializer, response, is_batch=False
+        )
+
+        if self._use_server_callback_events and callback_events:
+            handle_callbacks(run_manager, callback_events)
+        return output
 
     def invoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -215,7 +294,11 @@ class RemoteRunnable(Runnable[Input, Output]):
         return self._call_with_config(self._invoke, input, config=config)
 
     async def _ainvoke(
-        self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
+        self,
+        input: Input,
+        run_manager: AsyncCallbackManagerForChainRun,
+        config: Optional[RunnableConfig] = None,
+        **kwargs: Any,
     ) -> Output:
         """Invoke the runnable with the given input and config."""
         response = await self.async_client.post(
@@ -226,8 +309,12 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self._lc_serializer.loads(response.text)["output"]
+        output, callback_events = _decode_response(
+            self._lc_serializer, response, is_batch=False
+        )
+        if self._use_server_callback_events and callback_events:
+            handle_callbacks(run_manager, callback_events)
+        return output
 
     async def ainvoke(
         self, input: Input, config: Optional[RunnableConfig] = None, **kwargs: Any
@@ -239,6 +326,7 @@ class RemoteRunnable(Runnable[Input, Output]):
     def _batch(
         self,
         inputs: List[Input],
+        run_manager: List[CallbackManagerForChainRun],
         config: Optional[Union[RunnableConfig, List[RunnableConfig]]] = None,
         *,
         return_exceptions: bool = False,
@@ -264,8 +352,18 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self._lc_serializer.loads(response.text)["output"]
+        outputs, corresponding_callback_events = _decode_response(
+            self._lc_serializer, response, is_batch=True
+        )
+
+        # Now handle callbacks if any were returned
+        if self._use_server_callback_events and corresponding_callback_events:
+            for run_manager_, callback_events in zip(
+                run_manager, corresponding_callback_events
+            ):
+                handle_callbacks(run_manager_, callback_events)
+
+        return outputs
 
     def batch(
         self,
@@ -280,6 +378,7 @@ class RemoteRunnable(Runnable[Input, Output]):
     async def _abatch(
         self,
         inputs: List[Input],
+        run_manager: List[AsyncCallbackManagerForChainRun],
         config: Optional[Union[RunnableConfig, List[RunnableConfig]]] = None,
         *,
         return_exceptions: bool = False,
@@ -306,8 +405,22 @@ class RemoteRunnable(Runnable[Input, Output]):
                 "kwargs": kwargs,
             },
         )
-        _raise_for_status(response)
-        return self._lc_serializer.loads(response.text)["output"]
+        outputs, corresponding_callback_events = _decode_response(
+            self._lc_serializer, response, is_batch=True
+        )
+
+        # Now handle callbacks
+
+        if self._use_server_callback_events and corresponding_callback_events:
+            tasks = []
+            for run_manager_, callback_events in zip(
+                run_manager, corresponding_callback_events
+            ):
+                tasks.append(ahandle_callbacks(run_manager_, callback_events))
+
+            # Execute coroutines concurrently
+            await asyncio.gather(*tasks)
+        return outputs
 
     async def abatch(
         self,
