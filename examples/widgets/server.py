@@ -10,9 +10,6 @@ from pydantic import Field
 
 from langserve.server import add_routes
 
-app = FastAPI()
-
-
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
