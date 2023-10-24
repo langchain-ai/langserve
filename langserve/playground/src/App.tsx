@@ -42,7 +42,6 @@ import {
   vanillaRenderers,
   InputControl,
 } from "@jsonforms/vanilla-renderers";
-
 import { useSchemas } from "./useSchemas";
 import { RunState, useStreamLog } from "./useStreamLog";
 import {
@@ -61,6 +60,14 @@ import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
 import { cn } from "./utils/cn";
 import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
+import {
+  chatMessagesTester,
+  ChatMessagesControlRenderer,
+} from "./components/ChatMessagesControlRenderer";
+import {
+  ChatMessageTuplesControlRenderer,
+  chatMessagesTupleTester,
+} from "./components/ChatMessageTuplesControlRenderer";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -98,6 +105,11 @@ const renderers = [
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
   { tester: isObject, renderer: InputControl },
+  { tester: chatMessagesTester, renderer: ChatMessagesControlRenderer },
+  {
+    tester: chatMessagesTupleTester,
+    renderer: ChatMessageTuplesControlRenderer,
+  },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
@@ -184,7 +196,7 @@ function App() {
         errors: [],
         defaults: true,
       });
-      setInputData({ data: null, errors: [] });
+      setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemas.config]);
