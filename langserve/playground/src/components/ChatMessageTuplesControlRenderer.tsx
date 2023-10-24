@@ -85,9 +85,10 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
                   <button
                     className="p-1 border rounded opacity-0 transition-opacity border-divider-700 group-focus-within:opacity-100 group-hover:opacity-100"
                     onClick={() => {
-                      const newData = [...data];
-                      newData.splice(index, 1);
-                      props.handleChange(props.path, newData);
+                      props.handleChange(
+                        props.path,
+                        data.filter((_, i) => i !== index)
+                      );
                     }}
                   >
                     <TrashIcon className="w-4 h-4" />
