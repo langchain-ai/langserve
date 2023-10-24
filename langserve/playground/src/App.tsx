@@ -19,7 +19,6 @@ import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
 import ChevronRight from "./assets/ChevronRight.svg?react";
 import { compressToEncodedURIComponent } from "lz-string";
-import { AIMessageChunk } from "langchain/schema";
 
 import {
   BooleanCell,
@@ -117,7 +116,78 @@ const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
   return jsonSchema.type === "array";
 });
 
-type BaseMessageFields = ConstructorParameters<typeof AIMessageChunk>[0];
+// inlined from langchain/schema
+interface BaseMessageFields {
+  content: string;
+  name?: string;
+  additional_kwargs?: {
+    [key: string]: unknown;
+  };
+}
+
+class AIMessageChunk {
+  /** The text of the message. */
+  content: string;
+
+  /** The name of the message sender in a multi-user chat. */
+  name?: string;
+
+  /** Additional keyword arguments */
+  additional_kwargs: NonNullable<BaseMessageFields["additional_kwargs"]>;
+
+  constructor(fields: BaseMessageFields) {
+    // Make sure the default value for additional_kwargs is passed into super() for serialization
+    if (!fields.additional_kwargs) {
+      // eslint-disable-next-line no-param-reassign
+      fields.additional_kwargs = {};
+    }
+
+    this.name = fields.name;
+    this.content = fields.content;
+    this.additional_kwargs = fields.additional_kwargs;
+  }
+
+  static _mergeAdditionalKwargs(
+    left: NonNullable<BaseMessageFields["additional_kwargs"]>,
+    right: NonNullable<BaseMessageFields["additional_kwargs"]>
+  ): NonNullable<BaseMessageFields["additional_kwargs"]> {
+    const merged = { ...left };
+    for (const [key, value] of Object.entries(right)) {
+      if (merged[key] === undefined) {
+        merged[key] = value;
+      } else if (typeof merged[key] !== typeof value) {
+        throw new Error(
+          `additional_kwargs[${key}] already exists in the message chunk, but with a different type.`
+        );
+      } else if (typeof merged[key] === "string") {
+        merged[key] = (merged[key] as string) + value;
+      } else if (
+        !Array.isArray(merged[key]) &&
+        typeof merged[key] === "object"
+      ) {
+        merged[key] = this._mergeAdditionalKwargs(
+          merged[key] as NonNullable<BaseMessageFields["additional_kwargs"]>,
+          value as NonNullable<BaseMessageFields["additional_kwargs"]>
+        );
+      } else {
+        throw new Error(
+          `additional_kwargs[${key}] already exists in this message chunk.`
+        );
+      }
+    }
+    return merged;
+  }
+
+  concat(chunk: AIMessageChunk) {
+    return new AIMessageChunk({
+      content: this.content + chunk.content,
+      additional_kwargs: AIMessageChunk._mergeAdditionalKwargs(
+        this.additional_kwargs,
+        chunk.additional_kwargs
+      ),
+    });
+  }
+}
 
 function isAiMessageChunkFields(value: unknown): value is BaseMessageFields {
   if (typeof value !== "object" || value == null) return false;
