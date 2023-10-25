@@ -256,9 +256,13 @@ def add_routes(
         input_type: type to use for input validation.
             Default is "auto" which will use the InputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         output_type: type to use for output validation.
             Default is "auto" which will use the OutputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
                      no config keys are accepted.
         include_callback_events: Whether to include callback events in the response.
@@ -303,14 +307,20 @@ def add_routes(
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
-    input_type_ = _resolve_model(
-        runnable.input_schema if input_type == "auto" else input_type,
-        "Input",
-        model_namespace,
-    )
+    with_types = {}
+
+    if input_type != "auto":
+        with_types["input_type"] = input_type
+    if output_type != "auto":
+        with_types["output_type"] = output_type
+
+    if with_types:
+        runnable = runnable.with_types(**with_types)
+
+    input_type_ = _resolve_model(runnable.get_input_schema(), "Input", model_namespace)
 
     output_type_ = _resolve_model(
-        runnable.output_schema if output_type == "auto" else output_type,
+        runnable.get_output_schema(),
         "Output",
         model_namespace,
     )
@@ -318,6 +328,7 @@ def add_routes(
     ConfigPayload = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
+
     InvokeRequest = create_invoke_request_model(
         model_namespace, input_type_, ConfigPayload
     )
@@ -628,37 +639,24 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema.schema()
-            if input_type == "auto"
-            else input_type_.schema()
-        )
+        return runnable.get_input_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).output_schema.schema()
-            if output_type_ == "auto"
-            else output_type_.schema()
-        )
+        return runnable.get_output_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            )
-            .config_schema(include=config_keys)
-            .schema()
-        )
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
@@ -668,15 +666,10 @@ def add_routes(
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
         return await serve_playground(
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ),
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema
-            if input_type == "auto"
-            else input_type_,
+            runnable.with_config(config),
+            runnable.with_config(config).input_schema,
             config_keys,
             f"{namespace}/playground",
             file_path,

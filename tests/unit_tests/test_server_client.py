@@ -3,7 +3,7 @@ import asyncio
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 import pytest
@@ -176,7 +176,7 @@ def test_server(app: FastAPI) -> None:
     input_schema = sync_client.get("/input_schema").json()
     assert isinstance(input_schema, dict)
     assert input_schema["title"] == "RunnableLambdaInput"
-
+    #
     output_schema = sync_client.get("/output_schema").json()
     assert isinstance(output_schema, dict)
     assert output_schema["title"] == "RunnableLambdaOutput"
@@ -186,7 +186,7 @@ def test_server(app: FastAPI) -> None:
     assert output_schema["title"] == "RunnableLambdaConfig"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
-    ## Test stream
+    # # Test stream
     # response = sync_client.post("/stream", json={"input": 1})
     # assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
 
@@ -671,7 +671,7 @@ async def test_input_validation(
 
     config = {"tags": ["test"], "metadata": {"a": 5}}
 
-    invoke_spy_1 = mocker.spy(server_runnable, "ainvoke")
+    server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
     # Verify config is handled correctly
     async with get_async_client(app, path="/add_one") as runnable1:
         # Verify that can be invoked with valid input
@@ -679,18 +679,18 @@ async def test_input_validation(
         assert await runnable1.ainvoke(1, config=config) == 2
         # Config should be ignored but default debug information
         # will still be added
-        config_seen = invoke_spy_1.call_args[1]["config"]
+        config_seen = server_runnable_spy.call_args[0][1]
         assert "metadata" in config_seen
         assert "__useragent" in config_seen["metadata"]
         assert "__langserve_version" in config_seen["metadata"]
 
-    invoke_spy_2 = mocker.spy(server_runnable2, "ainvoke")
+    server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
     async with get_async_client(app, path="/add_one_config") as runnable2:
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
 
-        config_seen = invoke_spy_2.call_args[1]["config"]
+        config_seen = server_runnable2_spy.call_args[0][1]
         assert config_seen["tags"] == ["test"]
         assert config_seen["metadata"]["a"] == 5
         assert "__useragent" in config_seen["metadata"]
@@ -702,10 +702,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
     """Test client side and server side exceptions."""
 
     app = FastAPI()
-    # Test with langchain objects
-    add_routes(
-        app, RunnablePassthrough(), input_type=List[HumanMessage], config_keys=["tags"]
-    )
+
+    class InputType(TypedDict):
+        messages: List[HumanMessage]
+
+    runnable = RunnablePassthrough()
+    add_routes(app, runnable, config_keys=["tags"], input_type=InputType)
     # Invoke request
     async with get_async_client(app) as passthrough_runnable:
         with pytest.raises(httpx.HTTPError):
@@ -718,15 +720,17 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
             await passthrough_runnable.ainvoke([SystemMessage(content="hello")])
 
         # Valid
-        result = await passthrough_runnable.ainvoke([HumanMessage(content="hello")])
+        await passthrough_runnable.ainvoke(
+            {"messages": [HumanMessage(content="hello")]}
+        )
 
         # Valid
         result = await passthrough_runnable.ainvoke(
-            [HumanMessage(content="hello")], config={"tags": ["test"]}
+            {"messages": [HumanMessage(content="hello")]}, config={"tags": ["test"]}
         )
 
-        assert isinstance(result, list)
-        assert isinstance(result[0], HumanMessage)
+        assert isinstance(result, dict)
+        assert isinstance(result["messages"][0], HumanMessage)
 
     # Batch request
     async with get_async_client(app) as passthrough_runnable:
@@ -739,10 +743,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
             await passthrough_runnable.abatch([[SystemMessage(content="hello")]])
 
         # valid
-        result = await passthrough_runnable.abatch([[HumanMessage(content="hello")]])
+        result = await passthrough_runnable.abatch(
+            [{"messages": [HumanMessage(content="hello")]}]
+        )
         assert isinstance(result, list)
-        assert isinstance(result[0], list)
-        assert isinstance(result[0][0], HumanMessage)
+        assert isinstance(result[0], dict)
+        assert isinstance(result[0]["messages"][0], HumanMessage)
 
 
 def test_client_close() -> None:
@@ -924,7 +930,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         RunnableLambda(add_two),
         path="/add_two_custom",
         input_type=float,
-        output_type=Sequence[float],
+        output_type=float,
         config_keys=["tags", "configurable"],
     )
     add_routes(app, PromptTemplate.from_template("{question}"), path="/prompt_1")
@@ -944,7 +950,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
 
         response = await async_client.get("/add_two_custom/input_schema")
-        assert response.json() == {"title": "Input", "type": "number"}
+        assert response.json() == {"title": "RunnableBindingInput", "type": "number"}
 
         response = await async_client.get("/prompt_1/input_schema")
         assert response.json() == {
@@ -968,11 +974,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         }
 
         response = await async_client.get("/add_two_custom/output_schema")
-        assert response.json() == {
-            "items": {"type": "number"},
-            "title": "Output",
-            "type": "array",
-        }
+        assert response.json() == {"title": "RunnableBindingOutput", "type": "number"}
 
         # Just verify that the schema is not empty (it's pretty long)
         # and the actual value should be tested in LangChain
@@ -1040,8 +1042,7 @@ async def test_input_schema_typed_dict() -> None:
     async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
         res = await client.get("/input_schema")
         assert res.json() == {
-            "title": "Input",
-            "allOf": [{"$ref": "#/definitions/InputType"}],
+            "$ref": "#/definitions/InputType",
             "definitions": {
                 "InputType": {
                     "properties": {
@@ -1057,6 +1058,7 @@ async def test_input_schema_typed_dict() -> None:
                     "type": "object",
                 }
             },
+            "title": "RunnableBindingInput",
         }
 
 
