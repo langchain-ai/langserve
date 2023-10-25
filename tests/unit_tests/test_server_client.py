@@ -191,6 +191,17 @@ def test_server(app: FastAPI) -> None:
     # assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
 
 
+def test_serve_playground(app: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    sync_client = TestClient(app=app)
+    response = sync_client.get("/playground/index.html")
+    assert response.status_code == 200
+    response = sync_client.get("/playground/i_do_not_exist.txt")
+    assert response.status_code == 404
+    response = sync_client.get("/playground//etc/passwd")
+    assert response.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_server_async(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
