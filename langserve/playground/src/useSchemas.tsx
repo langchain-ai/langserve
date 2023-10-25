@@ -55,7 +55,7 @@ export function useSchemas(
     if (!debouncedConfigData.defaults) {
       fetch(
         resolveApiUrl(
-          `c/${compressToEncodedURIComponent(
+          `/c/${compressToEncodedURIComponent(
             JSON.stringify(debouncedConfigData.data)
           )}/input_schema`
         )
