@@ -27,7 +27,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 
 ## Security
 
-* Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing arbitrary files on server.
+* Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing arbitrary files on server. [Resolved in 0.0.16](https://github.com/langchain-ai/langserve/pull/98).
 
 ## LangChain CLI 🛠️
 
