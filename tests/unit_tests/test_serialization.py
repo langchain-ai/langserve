@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 import pytest
@@ -6,13 +7,14 @@ from langchain.schema.messages import (
     HumanMessageChunk,
     SystemMessage,
 )
+from langchain.schema.output import ChatGeneration
 
 try:
     from pydantic.v1 import BaseModel
 except ImportError:
     from pydantic import BaseModel
 
-from langserve.serialization import WellKnownLCSerializer
+from langserve.serialization import WellKnownLCSerializer, load_events
 
 
 @pytest.mark.parametrize(
@@ -39,6 +41,7 @@ from langserve.serialization import WellKnownLCSerializer
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
+        [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
 def test_serialization(data: Any) -> None:
@@ -79,3 +82,40 @@ def _get_full_representation(data: Any) -> Any:
         return data.schema()
     else:
         return data
+
+
+@pytest.mark.parametrize(
+    "data,expected",
+    [
+        ([], []),
+        (
+            [
+                {
+                    "type": "on_llm_start",
+                    "serialized": {},
+                    "prompts": [],
+                    "run_id": str(uuid.UUID(int=2)),
+                    "parent_run_id": str(uuid.UUID(int=1)),
+                    "tags": ["h"],
+                    "metadata": {},
+                    "kwargs": {},
+                }
+            ],
+            [
+                {
+                    "type": "on_llm_start",
+                    "serialized": {},
+                    "prompts": [],
+                    "run_id": uuid.UUID(int=2),
+                    "parent_run_id": uuid.UUID(int=1),
+                    "tags": ["h"],
+                    "metadata": {},
+                    "kwargs": {},
+                }
+            ],
+        ),
+    ],
+)
+def test_decode_events(data: Any, expected: Any) -> None:
+    """Test decoding events."""
+    assert load_events(data) == expected
