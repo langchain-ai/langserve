@@ -24,24 +24,38 @@ async def serve_playground(
     base_url: str,
     file_path: str,
 ) -> Response:
-    local_file_path = os.path.join(
-        os.path.dirname(__file__),
-        "./playground/dist",
-        file_path or "index.html",
+    """Serve the playground."""
+    local_file_path = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "./playground/dist",
+            file_path or "index.html",
+        )
     )
-    with open(local_file_path) as f:
-        mime_type = mimetypes.guess_type(local_file_path)[0]
-        if mime_type in ("text/html", "text/css", "application/javascript"):
-            res = PlaygroundTemplate(f.read()).substitute(
-                LANGSERVE_BASE_URL=base_url[1:]
-                if base_url.startswith("/")
-                else base_url,
-                LANGSERVE_CONFIG_SCHEMA=json.dumps(
-                    runnable.config_schema(include=config_keys).schema()
-                ),
-                LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
-            )
-        else:
-            res = f.buffer.read()
 
-    return Response(res, media_type=mime_type)
+    base_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "./playground/dist")
+    )
+
+    if base_dir != os.path.commonpath((base_dir, local_file_path)):
+        return Response("Not Found", status_code=404)
+
+    try:
+        with open(local_file_path) as f:
+            mime_type = mimetypes.guess_type(local_file_path)[0]
+            if mime_type in ("text/html", "text/css", "application/javascript"):
+                response = PlaygroundTemplate(f.read()).substitute(
+                    LANGSERVE_BASE_URL=base_url[1:]
+                    if base_url.startswith("/")
+                    else base_url,
+                    LANGSERVE_CONFIG_SCHEMA=json.dumps(
+                        runnable.config_schema(include=config_keys).schema()
+                    ),
+                    LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
+                )
+            else:
+                response = f.buffer.read()
+    except FileNotFoundError:
+        return Response("Not Found", status_code=404)
+
+    return Response(response, media_type=mime_type)

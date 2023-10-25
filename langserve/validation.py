@@ -19,7 +19,13 @@ generating OpenAPI specs.
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 from uuid import UUID
 
-from langchain.schema import BaseMessage, Document, LLMResult
+from langchain.schema import (
+    BaseMessage,
+    ChatGeneration,
+    Document,
+    Generation,
+    RunInfo,
+)
 
 try:
     from pydantic.v1 import BaseModel, Field, create_model
@@ -350,6 +356,21 @@ class OnLLMStart(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     kwargs: Any = None
     type: Literal["on_llm_start"] = "on_llm_start"
+
+
+class LLMResult(BaseModel):
+    """Concrete instance of LLMResult for validation only.
+
+    Must be kept in sync with langchain.schema.llm.LLMResult.
+    """
+
+    generations: List[List[Union[Generation, ChatGeneration]]]
+    """List of generated outputs. This is a List[List[]] because
+    each input could have multiple candidate generations."""
+    llm_output: Optional[dict] = None
+    """Arbitrary LLM provider-specific output."""
+    run: Optional[List[RunInfo]] = None
+    """List of metadata info for model call for each input."""
 
 
 class OnLLMEnd(BaseModel):
