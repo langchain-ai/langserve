@@ -1178,3 +1178,11 @@ def test_error_on_bad_path() -> None:
     with pytest.raises(ValueError):
         add_routes(app, RunnableLambda(lambda foo: "hello"), path="foo")
     add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
+
+
+def test_error_on_path_collision() -> None:
+    """Test error on path collision."""
+    app = FastAPI()
+    add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
+    with pytest.raises(ValueError):
+        add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")

@@ -221,7 +221,24 @@ def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
 
 
 _APP_SEEN = weakref.WeakSet()
+_APP_TO_PATHS = weakref.WeakKeyDictionary()
 
+
+def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
+    """Register a path when its added to app. Raise if path already seen."""
+    if app in _APP_TO_PATHS:
+        seen_paths = _APP_TO_PATHS.get(app)
+        if path in seen_paths:
+            raise ValueError(
+                f"A runnable already exists at path: {path}. If adding "
+                f"multiple runnables make sure they have different paths."
+            )
+        seen_paths.add(path)
+    else:
+        _APP_TO_PATHS[app] = {path}
+
+
+# PUBLIC API
 
 # PUBLIC API
 
@@ -279,6 +296,7 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    _register_path_for_app(app, path)
     well_known_lc_serializer = WellKnownLCSerializer()
 
     if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
