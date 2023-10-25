@@ -2,7 +2,7 @@ import json
 import mimetypes
 import os
 from string import Template
-from typing import List, Type
+from typing import Type, Sequence
 
 from fastapi.responses import Response
 from langchain.schema.runnable import Runnable
@@ -20,7 +20,7 @@ class PlaygroundTemplate(Template):
 async def serve_playground(
     runnable: Runnable,
     input_schema: Type[BaseModel],
-    config_keys: List[str],
+    config_keys: Sequence[str],
     base_url: str,
     file_path: str,
 ) -> Response:
