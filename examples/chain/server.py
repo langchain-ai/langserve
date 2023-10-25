@@ -55,13 +55,7 @@ class ChainInput(BaseModel):
     topic: str
 
 
-add_routes(
-    app,
-    chain,
-    input_type=ChainInput,
-    config_keys=["configurable"],
-    include_callback_events=True,
-)
+add_routes(app, chain, input_type=ChainInput, config_keys=["configurable"])
 
 # Alternatively, you can rely on langchain's type inference
 # to infer the input type from the runnable interface.
