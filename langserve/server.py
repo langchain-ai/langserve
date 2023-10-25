@@ -293,6 +293,12 @@ def add_routes(
             },
         ]
 
+    if path and not path.startswith("/"):
+        raise ValueError(
+            f"Got an invalid path: {path}. "
+            f"If specifying path please start it with a `/`"
+        )
+
     namespace = path or ""
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))

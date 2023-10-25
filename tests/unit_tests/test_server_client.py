@@ -1168,3 +1168,11 @@ def test_server_side_error_sync() -> None:
             assert chunks == [1, 2]
             assert e.response.status_code == 500
             assert e.response.text == "Internal Server Error"
+
+
+def test_error_on_bad_path() -> None:
+    """Test error on bad path"""
+    app = FastAPI()
+    with pytest.raises(ValueError):
+        add_routes(app, RunnableLambda(lambda foo: "hello"), path="foo")
+    add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
