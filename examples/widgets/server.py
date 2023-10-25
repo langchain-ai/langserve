@@ -1,12 +1,12 @@
 import base64
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.schema.runnable import RunnableLambda
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from langserve.server import add_routes
 
@@ -14,6 +14,17 @@ app = FastAPI(
     title="LangChain Server",
     version="1.0",
     description="Spin up a simple api server using Langchain's Runnable interfaces",
+)
+
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -27,7 +38,7 @@ class ChatHistory(BaseModel):
 
 
 class FileProcessingRequest(BaseModel):
-    file1: bytes = Field(..., extra={"widget": {"type": "base64file"}})
+    file: bytes = Field(..., extra={"widget": {"type": "base64file"}})
     num_chars: int = 100
 
 
