@@ -4,6 +4,7 @@ import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
+from typing import TypedDict
 
 import httpx
 import pytest
@@ -691,10 +692,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
     """Test client side and server side exceptions."""
 
     app = FastAPI()
-    # Test with langchain objects
-    add_routes(
-        app, RunnablePassthrough(), input_type=List[HumanMessage], config_keys=["tags"]
-    )
+
+    class InputType(TypedDict):
+        messages: List[HumanMessage]
+
+    runnable = RunnablePassthrough()
+    add_routes(app, runnable, config_keys=["tags"], input_type=InputType)
     # Invoke request
     async with get_async_client(app) as passthrough_runnable:
         with pytest.raises(httpx.HTTPError):
@@ -707,15 +710,17 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
             await passthrough_runnable.ainvoke([SystemMessage(content="hello")])
 
         # Valid
-        result = await passthrough_runnable.ainvoke([HumanMessage(content="hello")])
+        await passthrough_runnable.ainvoke(
+            {"messages": [HumanMessage(content="hello")]}
+        )
 
         # Valid
         result = await passthrough_runnable.ainvoke(
-            [HumanMessage(content="hello")], config={"tags": ["test"]}
+            {"messages": [HumanMessage(content="hello")]}, config={"tags": ["test"]}
         )
 
-        assert isinstance(result, list)
-        assert isinstance(result[0], HumanMessage)
+        assert isinstance(result, dict)
+        assert isinstance(result["messages"][0], HumanMessage)
 
     # Batch request
     async with get_async_client(app) as passthrough_runnable:
@@ -728,10 +733,12 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
             await passthrough_runnable.abatch([[SystemMessage(content="hello")]])
 
         # valid
-        result = await passthrough_runnable.abatch([[HumanMessage(content="hello")]])
+        result = await passthrough_runnable.abatch(
+            [{"messages": [HumanMessage(content="hello")]}]
+        )
         assert isinstance(result, list)
-        assert isinstance(result[0], list)
-        assert isinstance(result[0][0], HumanMessage)
+        assert isinstance(result[0], dict)
+        assert isinstance(result[0]["messages"][0], HumanMessage)
 
 
 def test_client_close() -> None:

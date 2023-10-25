@@ -12,16 +12,8 @@ app = FastAPI(
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
 
-add_routes(
-    app,
-    ChatOpenAI(),
-    path="/openai",
-)
-add_routes(
-    app,
-    ChatAnthropic(),
-    path="/anthropic",
-)
+add_routes(app, ChatOpenAI(), path="/openai", include_callback_events=True)
+add_routes(app, ChatAnthropic(), path="/anthropic", include_callback_events=True)
 
 if __name__ == "__main__":
     import uvicorn

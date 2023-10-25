@@ -298,14 +298,20 @@ def add_routes(
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
-    input_type_ = _resolve_model(
-        runnable.input_schema if input_type == "auto" else input_type,
-        "Input",
-        model_namespace,
-    )
+    with_types = {}
+
+    if input_type != "auto":
+        with_types["input_type"] = input_type
+    if output_type != "auto":
+        with_types["output_type"] = output_type
+
+    if with_types:
+        runnable = runnable.with_types(**with_types)
+
+    input_type_ = _resolve_model(runnable.get_input_schema(), "Input", model_namespace)
 
     output_type_ = _resolve_model(
-        runnable.output_schema if output_type == "auto" else output_type,
+        runnable.get_output_schema(),
         "Output",
         model_namespace,
     )
@@ -627,24 +633,16 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema.schema()
-            if input_type == "auto"
-            else input_type_.schema()
+        return runnable.get_input_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
         )
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).output_schema.schema()
-            if output_type_ == "auto"
-            else output_type_.schema()
+        return runnable.get_output_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
         )
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
