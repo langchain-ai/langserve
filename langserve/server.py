@@ -5,7 +5,6 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
-import copy
 import json
 import re
 import weakref
@@ -25,7 +24,7 @@ from fastapi import HTTPException, Request
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
-from langchain.schema.runnable.config import merge_configs
+from langchain.schema.runnable.config import get_config_list, merge_configs
 from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
@@ -383,29 +382,25 @@ def add_routes(
         """Invoke the runnable with the given inputs and config."""
         # First convert to list type
         if isinstance(batch_request.config, list):
-            configs = batch_request.config
+            configs = [
+                _unpack_config(
+                    config_hash, config, keys=config_keys, model=ConfigPayload
+                )
+                for config in batch_request.config
+            ]
         else:
-            configs = [batch_request.config]
+            configs = _unpack_config(
+                config_hash,
+                batch_request.config,
+                keys=config_keys,
+                model=ConfigPayload,
+            )
 
         # Unpack
-        _configs = [
-            _unpack_config(config_hash, config, keys=config_keys, model=ConfigPayload)
-            for config in configs
-        ]
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
-        if len(_configs) == 1:
-            _configs = [
-                copy.deepcopy(_configs[0]) for _ in range(len(batch_request.inputs))
-            ]
-        elif len(_configs) == len(batch_request.inputs):
-            _configs = _configs
-        else:
-            raise AssertionError(
-                f"Expected {len(batch_request.inputs)} configs "
-                f"for {len(_configs)} inputs."
-            )
+        _configs = get_config_list(configs, len(batch_request.inputs))
 
         aggregators = [
             AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
