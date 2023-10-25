@@ -1,11 +1,20 @@
-"""Serialization module for Well Known LangChain objects.
+"""Serialization for well known objects and callback events.
 
 Specialized JSON serialization for well known LangChain objects that
 can be expected to be frequently transmitted between chains.
+
+Callback events handle well known objects together with a few other
+common types like UUIDs and Exceptions that might appear in the callback.
+
+By default, exceptions are serialized as a generic exception without
+any information about the exception. This is done to prevent leaking
+sensitive information from the server to the client.
 """
 import abc
 import json
-from typing import Any, Union
+import logging
+from functools import lru_cache
+from typing import Any, Dict, List, Union
 
 from langchain.prompts.base import StringPromptValue
 from langchain.prompts.chat import ChatPromptValueConcrete
@@ -23,11 +32,28 @@ from langchain.schema.messages import (
     SystemMessage,
     SystemMessageChunk,
 )
+from langchain.schema.output import (
+    ChatGeneration,
+    ChatGenerationChunk,
+    Generation,
+    LLMResult,
+)
+
+from langserve.validation import CallbackEvent
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
 except ImportError:
     from pydantic import BaseModel, ValidationError
+
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1_000)  # Will accommodate up to 1_000 different error messages
+def _log_error_message_once(error_message: str) -> None:
+    """Log an error message once."""
+    logger.error(error_message)
 
 
 class WellKnownLCObject(BaseModel):
@@ -55,6 +81,10 @@ class WellKnownLCObject(BaseModel):
         AgentAction,
         AgentFinish,
         AgentActionMessageLog,
+        LLMResult,
+        ChatGeneration,
+        Generation,
+        ChatGenerationChunk,
     ]
 
 
@@ -73,11 +103,42 @@ def _decode_lc_objects(value: Any) -> Any:
     if isinstance(value, dict):
         try:
             obj = WellKnownLCObject.parse_obj(value)
-            return obj.__root__
-        except ValidationError:
+            parsed = obj.__root__
+            if set(parsed.dict()) != set(value):
+                raise ValueError("Invalid object")
+            return parsed
+        except (ValidationError, ValueError):
             return {key: _decode_lc_objects(v) for key, v in value.items()}
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]
+    else:
+        return value
+
+
+class ServerSideException(Exception):
+    """Exception raised when a server side exception occurs.
+
+    The goal of this exception is to provide a way to communicate
+    to the client that a server side exception occurred without
+    revealing too much information about the exception as it may contain
+    sensitive information.
+    """
+
+
+def _decode_event_data(value: Any) -> Any:
+    """Decode the event data from a JSON object representation."""
+    if isinstance(value, dict):
+        try:
+            obj = CallbackEvent.parse_obj(value)
+            return obj.__root__
+        except ValidationError:
+            try:
+                obj = WellKnownLCObject.parse_obj(value)
+                return obj.__root__
+            except ValidationError:
+                return {key: _decode_event_data(v) for key, v in value.items()}
+    elif isinstance(value, list):
+        return [_decode_event_data(item) for item in value]
     else:
         return value
 
@@ -118,3 +179,53 @@ class WellKnownLCSerializer(Serializer):
     def loads(self, s: str) -> Any:
         """Load the given JSON string."""
         return self.loadd(json.loads(s))
+
+
+def load_events(events: Any) -> List[Dict[str, Any]]:
+    """Load and validate the event.
+
+    Args:
+        events: The events to load and validate.
+
+    Returns:
+        The loaded and validated events.
+    """
+    if not isinstance(events, list):
+        _log_error_message_once(f"Expected a list got {type(events)}")
+        return []
+
+    decoded_events = []
+
+    for event in events:
+        if not isinstance(event, dict):
+            _log_error_message_once(f"Expected a dict got {type(event)}")
+            # Discard the event / potentially error
+            continue
+
+        # First load all inner objects
+        decoded_event_data = {
+            key: _decode_lc_objects(value) for key, value in event.items()
+        }
+
+        # Then validate the event
+        try:
+            full_event = CallbackEvent.parse_obj(decoded_event_data)
+        except ValidationError as e:
+            msg = f"Encountered an invalid event: {e}"
+            if "type" in decoded_event_data:
+                msg += f' of type {repr(decoded_event_data["type"])}'
+            _log_error_message_once(msg)
+            continue
+
+        decoded_event_data = full_event.dict()["__root__"]
+
+        if decoded_event_data["type"].endswith("_error"):
+            # Data is validated by this point, so we can assume that the shape
+            # of the data is correct
+            error = decoded_event_data["error"]
+            msg = f"{error['status_code']}: {error['message']}"
+            decoded_event_data["error"] = ServerSideException(msg)
+
+        decoded_events.append(decoded_event_data)
+
+    return decoded_events
