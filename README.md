@@ -25,6 +25,10 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Client callbacks are not yet supported for events that originate on the server
 - Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
 
+## Security
+
+* Vulnerability in Versions 0.0.13 - 0.0.15, playground end point allows accessing arbitrary files on machine. Please upgrade.
+
 ## LangChain CLI 🛠️
 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
