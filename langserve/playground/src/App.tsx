@@ -1,8 +1,8 @@
 import "./App.css";
 
-import React, { ChangeEvent, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import defaults from "json-schema-defaults";
-import { JsonForms, withJsonFormsControlProps } from "@jsonforms/react";
+import { JsonForms } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
   MaterialAllOfRenderer,
@@ -52,7 +52,6 @@ import {
   uiTypeIs,
   schemaMatches,
   schemaTypeIs,
-  isControl,
 } from "@jsonforms/core";
 import CustomArrayControlRenderer, {
   materialArrayControlTester,
@@ -69,7 +68,10 @@ import {
   ChatMessageTuplesControlRenderer,
   chatMessagesTupleTester,
 } from "./components/ChatMessageTuplesControlRenderer";
-import { isJsonSchemaExtra } from "./utils/schema";
+import {
+  fileBase64Tester,
+  FileBase64ControlRenderer,
+} from "./components/FileBase64Tester";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -94,17 +96,6 @@ const isObjectWithPropertiesControl = rankWith(
 const isObject = rankWith(1, and(uiTypeIs("Control"), schemaTypeIs("object")));
 const isElse = rankWith(1, and(uiTypeIs("Control")));
 
-const base64Tester = rankWith(
-  12,
-  and(
-    isControl,
-    schemaMatches((schema) => {
-      if (!isJsonSchemaExtra(schema)) return false;
-      return schema.extra.widget.type === "base64file";
-    })
-  )
-);
-
 const renderers = [
   ...vanillaRenderers,
 
@@ -123,38 +114,7 @@ const renderers = [
     tester: chatMessagesTupleTester,
     renderer: ChatMessageTuplesControlRenderer,
   },
-
-  {
-    tester: base64Tester,
-    renderer: withJsonFormsControlProps((props) => {
-      const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-
-        reader.onload = () => {
-          const base64String = reader.result as string | null;
-          if (base64String != null) {
-            const prefix = base64String.indexOf("base64,") + "base64,".length;
-            props.handleChange(props.path, base64String.slice(prefix));
-          }
-        };
-
-        reader.readAsDataURL(file);
-      };
-
-      return (
-        <div className="control">
-          <label className="text-xs uppercase font-semibold text-ls-gray-100">
-            {props.label}
-          </label>
-
-          <input type="file" onChange={handleFileUpload} />
-        </div>
-      );
-    }),
-  },
+  { tester: fileBase64Tester, renderer: FileBase64ControlRenderer },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
