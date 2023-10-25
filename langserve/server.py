@@ -319,6 +319,7 @@ def add_routes(
     ConfigPayload = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
+
     InvokeRequest = create_invoke_request_model(
         model_namespace, input_type_, ConfigPayload
     )
@@ -635,7 +636,7 @@ def add_routes(
         """Return the input schema of the runnable."""
         return runnable.get_input_schema(
             _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-        )
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
@@ -643,19 +644,14 @@ def add_routes(
         """Return the output schema of the runnable."""
         return runnable.get_output_schema(
             _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-        )
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            )
-            .config_schema(include=config_keys)
-            .schema()
-        )
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
@@ -665,15 +661,10 @@ def add_routes(
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
         return await serve_playground(
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ),
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema
-            if input_type == "auto"
-            else input_type_,
+            runnable.with_config(config),
+            runnable.with_config(config).input_schema,
             config_keys,
             f"{namespace}/playground",
             file_path,
