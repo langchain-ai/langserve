@@ -332,7 +332,8 @@ def add_routes(
     async def _get_input(request: Request, config: RunnableConfig) -> Any:
         """Get the input from the request."""
         body = await request.json()
-        return runnable.with_config(config).input_schema(**body["input"])
+        schema = runnable.with_config(config).input_schema
+        return schema.validate(body["input"])
 
     @app.post(
         namespace + "/c/{config_hash}/invoke",
