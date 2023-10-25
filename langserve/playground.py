@@ -2,7 +2,7 @@ import json
 import mimetypes
 import os
 from string import Template
-from typing import Type, Sequence
+from typing import Sequence, Type
 
 from fastapi.responses import Response
 from langchain.schema.runnable import Runnable

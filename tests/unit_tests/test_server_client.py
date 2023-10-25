@@ -3,8 +3,7 @@ import asyncio
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
-from typing import TypedDict
+from typing import Any, Dict, Iterator, List, Optional, Sequence, TypedDict, Union
 
 import httpx
 import pytest
@@ -659,17 +658,17 @@ async def test_input_validation(
         path="/add_one_config",
         config_keys=["tags", "run_name", "metadata"],
     )
-    #
-    # async with get_async_client(app, path="/add_one") as runnable:
-    #     # Verify that can be invoked with valid input
-    #     assert await runnable.ainvoke(1) == 2
-    #     # Verify that the following substring is present in the error message
-    #     with pytest.raises(httpx.HTTPError):
-    #         await runnable.ainvoke("hello")
-    #
-    #     with pytest.raises(httpx.HTTPError):
-    #         await runnable.abatch(["hello"])
-    #
+
+    async with get_async_client(app, path="/add_one") as runnable:
+        # Verify that can be invoked with valid input
+        assert await runnable.ainvoke(1) == 2
+        # Verify that the following substring is present in the error message
+        with pytest.raises(httpx.HTTPError):
+            await runnable.ainvoke("hello")
+
+        with pytest.raises(httpx.HTTPError):
+            await runnable.abatch(["hello"])
+
     config = {"tags": ["test"], "metadata": {"a": 5}}
 
     server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
@@ -680,19 +679,18 @@ async def test_input_validation(
         assert await runnable1.ainvoke(1, config=config) == 2
         # Config should be ignored but default debug information
         # will still be added
-        raise ValueError(server_runnable_spy.call_args)
-        config_seen = server_runnable_spy.call_args[1]["config"]
+        config_seen = server_runnable_spy.call_args[0][1]
         assert "metadata" in config_seen
         assert "__useragent" in config_seen["metadata"]
         assert "__langserve_version" in config_seen["metadata"]
 
-    invoke_spy_2 = mocker.spy(server_runnable2, "ainvoke")
+    server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
     async with get_async_client(app, path="/add_one_config") as runnable2:
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
 
-        config_seen = invoke_spy_2.call_args[1]["config"]
+        config_seen = server_runnable2_spy.call_args[0][1]
         assert config_seen["tags"] == ["test"]
         assert config_seen["metadata"]["a"] == 5
         assert "__useragent" in config_seen["metadata"]
