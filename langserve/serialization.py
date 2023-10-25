@@ -101,14 +101,16 @@ class _LangChainEncoder(json.JSONEncoder):
 def _decode_lc_objects(value: Any) -> Any:
     """Decode the value."""
     if isinstance(value, dict):
+        v = {key: _decode_lc_objects(v) for key, v in value.items()}
+
         try:
-            obj = WellKnownLCObject.parse_obj(value)
+            obj = WellKnownLCObject.parse_obj(v)
             parsed = obj.__root__
             if set(parsed.dict()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
         except (ValidationError, ValueError):
-            return {key: _decode_lc_objects(v) for key, v in value.items()}
+            return v
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]
     else:
@@ -181,6 +183,11 @@ class WellKnownLCSerializer(Serializer):
         return self.loadd(json.loads(s))
 
 
+def _project_top_level(model: BaseModel) -> Dict[str, Any]:
+    """Project the top level of the model as dict."""
+    return {key: getattr(model, key) for key in model.__fields__}
+
+
 def load_events(events: Any) -> List[Dict[str, Any]]:
     """Load and validate the event.
 
@@ -217,7 +224,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
             _log_error_message_once(msg)
             continue
 
-        decoded_event_data = full_event.dict()["__root__"]
+        decoded_event_data = _project_top_level(full_event.__root__)
 
         if decoded_event_data["type"].endswith("_error"):
             # Data is validated by this point, so we can assume that the shape
