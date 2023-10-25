@@ -257,9 +257,13 @@ def add_routes(
         input_type: type to use for input validation.
             Default is "auto" which will use the InputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         output_type: type to use for output validation.
             Default is "auto" which will use the OutputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
                      no config keys are accepted.
         include_callback_events: Whether to include callback events in the response.
