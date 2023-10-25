@@ -16,8 +16,9 @@ from typing import (
     Literal,
     Mapping,
     Sequence,
+    Set,
     Type,
-    Union, Set,
+    Union,
 )
 
 from fastapi import HTTPException, Request
@@ -221,7 +222,7 @@ def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
 
 
 _APP_SEEN = weakref.WeakSet()
-_APP_TO_PATHS: Dict[Union[FastAPI, APIRouter], Set[str]] = weakref.WeakKeyDictionary()
+_APP_TO_PATHS = weakref.WeakKeyDictionary[Union[FastAPI, APIRouter], Set[str]]()
 
 
 def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
@@ -296,6 +297,7 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    _register_path_for_app(app, path)
     well_known_lc_serializer = WellKnownLCSerializer()
 
     if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
