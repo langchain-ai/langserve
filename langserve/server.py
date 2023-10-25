@@ -222,7 +222,7 @@ def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
 
 
 _APP_SEEN = weakref.WeakSet()
-_APP_TO_PATHS = weakref.WeakKeyDictionary[Union[FastAPI, APIRouter], Set[str]]()
+_APP_TO_PATHS = weakref.WeakKeyDictionary()
 
 
 def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
