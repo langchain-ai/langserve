@@ -16,7 +16,6 @@ from typing import (
     Literal,
     Mapping,
     Sequence,
-    Set,
     Type,
     Union,
 )
