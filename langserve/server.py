@@ -24,8 +24,6 @@ from fastapi import HTTPException, Request
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
-from langchain.schema.runnable.config import merge_configs
-from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from typing_extensions import Annotated
 
