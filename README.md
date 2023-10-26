@@ -267,3 +267,29 @@ how to use base64 encoding to send a file to a remote runnable.
 
 Remember, you can always upload files by reference (e.g., s3 url) or upload them as
 multipart/form-data to a dedicated endpoint.
+
+### Custom User Types
+
+Inherit from `CustomUserType` if you want the data to de-serialize into a 
+pydantic model rather than the equivalent dict representation.
+
+At the moment, this type only works *server* side and is used
+to specify desired *decoding* behavior. If inheriting from this type
+the server will keep the decoded type as a pydantic model instead
+of converting it into a dict.
+
+```python
+from langserve.schema import CustomUserType
+
+app = FastAPI()
+
+class Foo(CustomUserType):
+    bar: int
+
+def func(foo: Foo) -> int:
+    """Sample function that expects a Foo type which is a pydantic model"""
+    assert isinstance(foo, Foo)
+    return foo.bar
+
+add_routes(app, RunnableLambda(func), path="/foo")
+```

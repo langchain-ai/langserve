@@ -29,6 +29,7 @@ from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
+from langserve.schema import CustomUserType
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -94,7 +95,9 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     else:
         model = validated_model
 
-    if isinstance(model, BaseModel) and not isinstance(model, Serializable):
+    if isinstance(model, BaseModel) and not isinstance(
+        model, (Serializable, CustomUserType)
+    ):
         # If the model is a pydantic model, but not a Serializable, then
         # it was created by the server as part of validation and isn't expected
         # to be accepted by the runnables as input as a pydantic model,

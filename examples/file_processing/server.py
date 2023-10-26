@@ -16,11 +16,10 @@ import base64
 from fastapi import FastAPI
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
-from langchain.load.serializable import Serializable
 from langchain.schema.runnable import RunnableLambda
 from pydantic import Field
 
-from langserve.server import add_routes
+from langserve import CustomUserType, add_routes
 
 app = FastAPI(
     title="LangChain Server",
@@ -29,8 +28,9 @@ app = FastAPI(
 )
 
 
-# ATTENTION: For now please inherit from Serializable instead of BaseModel
-class FileProcessingRequest(Serializable):
+# ATTENTION: Inherit from CustomUserType instead of BaseModel otherwise
+#            the server will decode it into a dict instead of a pydantic model.
+class FileProcessingRequest(CustomUserType):
     """Request including a base64 encoded file."""
 
     # The extra field is used to specify a widget for the playground UI.
