@@ -33,6 +33,8 @@ app = FastAPI(
 class FileProcessingRequest(Serializable):
     """Request including a base64 encoded file."""
 
+    # The extra field is used to specify a widget for the playground UI.
+    # (If you do not
     file: str = Field(..., extra={"widget": {"type": "base64file"}})
     num_chars: int = 100
 
