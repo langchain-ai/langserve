@@ -244,3 +244,26 @@ You can deploy to GCP Cloud Run using the following command:
 ```
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
+
+## Advanced
+
+### Files
+
+LLM applications often deal with files. There are different architectures
+that can be made to implement file processing; at a high level:
+
+1. The file may be uploaded to the server via a dedicated endpoint and processed using a separate endpoint
+2. The file may be uploaded by either value (bytes of file) or reference (e.g., s3 url to file content)
+3. The processing endpoint may be blocking or non-blocking
+4. If significant processing is required, the processing may be offloaded to a dedicated process pool
+
+You should determine what is the appropriate architecture for your application.
+
+Currently, to upload files by value to a runnable, use base64 encoding for the 
+file (`multipart/form-data` is not supported yet). 
+
+Here's an [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing) that shows
+how to use base64 encoding to send a file to a remote runnable.
+
+Remember, you can always upload files by reference (e.g., s3 url) or upload them as
+multipart/form-data to a dedicated endpoint.
