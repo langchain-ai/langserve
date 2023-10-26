@@ -240,8 +240,6 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
 
 # PUBLIC API
 
-# PUBLIC API
-
 
 def add_routes(
     app: Union[FastAPI, APIRouter],
