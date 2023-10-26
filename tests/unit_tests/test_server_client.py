@@ -25,6 +25,7 @@ from langserve import server
 from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
+from langserve.schema import CustomUserType
 from langserve.server import (
     _rename_pydantic_model,
     _replace_non_alphanumeric_with_underscores,
@@ -1186,3 +1187,37 @@ def test_error_on_path_collision() -> None:
     add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
     with pytest.raises(ValueError):
         add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
+    with pytest.raises(ValueError):
+        add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
+    add_routes(app, RunnableLambda(lambda foo: "hello"), path="/baz")
+
+
+@pytest.mark.asyncio
+async def test_custom_user_type() -> None:
+    """Test custom user type."""
+    app = FastAPI()
+
+    class Foo(CustomUserType):
+        bar: int
+
+    def func(foo: Foo) -> int:
+        """Sample function that expects a Foo type which is a pydantic model"""
+        assert isinstance(foo, Foo)
+        return foo.bar
+
+    class Baz(BaseModel):
+        bar: int
+
+    def func2(baz) -> int:
+        """Sample function that expects a Foo type which is a pydantic model"""
+        assert isinstance(baz, dict)
+        return baz["bar"]
+
+    add_routes(app, RunnableLambda(func), path="/foo")
+    add_routes(app, RunnableLambda(func2).with_types(input_type=Baz), path="/baz")
+
+    # Invoke request
+    async with get_async_client(
+        app, path="/foo", raise_app_exceptions=False
+    ) as runnable:
+        assert await runnable.ainvoke({"bar": 1}) == 1
