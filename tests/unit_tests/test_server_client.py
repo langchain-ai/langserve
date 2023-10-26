@@ -1186,23 +1186,3 @@ def test_error_on_path_collision() -> None:
     add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
     with pytest.raises(ValueError):
         add_routes(app, RunnableLambda(lambda foo: "hello"), path="/foo")
-
-
-def test_bytes_upload() -> None:
-    """Test uploading json bytes."""
-
-    class FileUpload(BaseModel):
-        file: bytes
-
-    #
-    def process_file(input: FileUpload) -> str:
-        raise ValueError(input)
-        return 'hello'
-
-    app = FastAPI()
-    add_routes(app, RunnableLambda(process_file).with_types(input_type=FileUpload))
-
-    with get_sync_client(app) as runnable:
-        result = runnable.invoke("hello")
-
-        assert result == "hello"

@@ -12,13 +12,13 @@ This example also specifies a "base64file" widget, which will create a widget
 allowing one to upload a binary file using the langserve playground UI.
 """
 import base64
-from typing import Any, Dict
 
 from fastapi import FastAPI
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
+from langchain.load.serializable import Serializable
 from langchain.schema.runnable import RunnableLambda
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from langserve.server import add_routes
 
@@ -29,23 +29,21 @@ app = FastAPI(
 )
 
 
-class FileProcessingRequest(BaseModel):
+# ATTENTION: For now please inherit from Serializable instead of BaseModel
+class FileProcessingRequest(Serializable):
     """Request including a base64 encoded file."""
 
-    file: bytes = Field(..., extra={"widget": {"type": "base64file"}})
-    first_num_chars: int = Field(
-        default=100,
-        description="Will extract up to this number of characters from the first page.",
-    )
+    file: str = Field(..., extra={"widget": {"type": "base64file"}})
+    num_chars: int = 100
 
 
-def _process_file(thingy: Dict[str, Any]) -> str:
+def _process_file(request: FileProcessingRequest) -> str:
     """Extract the text from the first page of the PDF."""
-    content = base64.decodebytes(thingy["file"])
+    content = base64.b64decode(request.file.encode("utf-8"))
     blob = Blob(data=content)
     documents = list(PDFMinerParser().lazy_parse(blob))
     content = documents[0].page_content
-    return content[: input["num_chars"]]
+    return content[: request.num_chars]
 
 
 add_routes(
