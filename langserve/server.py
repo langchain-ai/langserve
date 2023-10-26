@@ -384,12 +384,14 @@ def add_routes(
         config = _unpack_config(
             config_hash, invoke_request.config, keys=config_keys, model=ConfigPayload
         )
-        _add_tracing_info_to_metadata(config, request)
+        # Unpack the input dynamically using the input schema of the runnable.
+        # This takes into account changes in the input type when using configuration.
+        input_ = await _get_input(request, config)
+
         event_aggregator = AsyncEventAggregatorCallback()
+        _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
-        output = await runnable.ainvoke(
-            _unpack_input(await _get_input(request, config)), config=config
-        )
+        output = await runnable.ainvoke(_unpack_input(input_), config=config)
 
         if include_callback_events:
             callback_events = [
@@ -438,8 +440,20 @@ def add_routes(
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
+        # Need to look at get_config_list it adds `callbacks` which does not exist
+        # Can probably just project it out
         _configs = get_config_list(configs, len(batch_request.inputs))
+        for _config in _configs:
+            del _config["callbacks"]
 
+        body = await request.json()
+
+        inputs = [
+            _unpack_input(runnable.with_config(config).input_schema.validate(input_))
+            for config, input_ in zip(_configs, body["inputs"])
+        ]
+
+        # Update the configuration with callbacks
         aggregators = [
             AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
         ]
@@ -447,12 +461,6 @@ def add_routes(
         for c, aggregator in zip(_configs, aggregators):
             _add_tracing_info_to_metadata(c, request)
             c["callbacks"] = [aggregator]
-
-        body = await request.json()
-        inputs = [
-            _unpack_input(runnable.with_config(config).input_schema(input_))
-            for config, input_ in zip(_configs, body["inputs"])
-        ]
 
         output = await runnable.abatch(inputs, config=_configs)
 
