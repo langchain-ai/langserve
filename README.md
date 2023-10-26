@@ -25,6 +25,10 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Client callbacks are not yet supported for events that originate on the server
 - Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
 
+## Security
+
+* Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing arbitrary files on server. [Resolved in 0.0.16](https://github.com/langchain-ai/langserve/pull/98).
+
 ## LangChain CLI 🛠️
 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
@@ -239,4 +243,53 @@ You can deploy to GCP Cloud Run using the following command:
 
 ```
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
+```
+
+## Advanced
+
+### Files
+
+LLM applications often deal with files. There are different architectures
+that can be made to implement file processing; at a high level:
+
+1. The file may be uploaded to the server via a dedicated endpoint and processed using a separate endpoint
+2. The file may be uploaded by either value (bytes of file) or reference (e.g., s3 url to file content)
+3. The processing endpoint may be blocking or non-blocking
+4. If significant processing is required, the processing may be offloaded to a dedicated process pool
+
+You should determine what is the appropriate architecture for your application.
+
+Currently, to upload files by value to a runnable, use base64 encoding for the 
+file (`multipart/form-data` is not supported yet). 
+
+Here's an [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing) that shows
+how to use base64 encoding to send a file to a remote runnable.
+
+Remember, you can always upload files by reference (e.g., s3 url) or upload them as
+multipart/form-data to a dedicated endpoint.
+
+### Custom User Types
+
+Inherit from `CustomUserType` if you want the data to de-serialize into a 
+pydantic model rather than the equivalent dict representation.
+
+At the moment, this type only works *server* side and is used
+to specify desired *decoding* behavior. If inheriting from this type
+the server will keep the decoded type as a pydantic model instead
+of converting it into a dict.
+
+```python
+from langserve.schema import CustomUserType
+
+app = FastAPI()
+
+class Foo(CustomUserType):
+    bar: int
+
+def func(foo: Foo) -> int:
+    """Sample function that expects a Foo type which is a pydantic model"""
+    assert isinstance(foo, Foo)
+    return foo.bar
+
+add_routes(app, RunnableLambda(func), path="/foo")
 ```

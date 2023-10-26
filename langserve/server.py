@@ -5,7 +5,6 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
-import copy
 import json
 import re
 import weakref
@@ -25,11 +24,12 @@ from fastapi import HTTPException, Request
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable
-from langchain.schema.runnable.config import merge_configs
+from langchain.schema.runnable.config import get_config_list, merge_configs
 from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
+from langserve.schema import CustomUserType
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -95,7 +95,9 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     else:
         model = validated_model
 
-    if isinstance(model, BaseModel) and not isinstance(model, Serializable):
+    if isinstance(model, BaseModel) and not isinstance(
+        model, (Serializable, CustomUserType)
+    ):
         # If the model is a pydantic model, but not a Serializable, then
         # it was created by the server as part of validation and isn't expected
         # to be accepted by the runnables as input as a pydantic model,
@@ -222,6 +224,21 @@ def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
 
 
 _APP_SEEN = weakref.WeakSet()
+_APP_TO_PATHS = weakref.WeakKeyDictionary()
+
+
+def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
+    """Register a path when its added to app. Raise if path already seen."""
+    if app in _APP_TO_PATHS:
+        seen_paths = _APP_TO_PATHS.get(app)
+        if path in seen_paths:
+            raise ValueError(
+                f"A runnable already exists at path: {path}. If adding "
+                f"multiple runnables make sure they have different paths."
+            )
+        seen_paths.add(path)
+    else:
+        _APP_TO_PATHS[app] = {path}
 
 
 # PUBLIC API
@@ -257,9 +274,13 @@ def add_routes(
         input_type: type to use for input validation.
             Default is "auto" which will use the InputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         output_type: type to use for output validation.
             Default is "auto" which will use the OutputType of the runnable.
             User is free to provide a custom type annotation.
+            Favor using runnable.with_types(input_type=..., output_type=...) instead.
+            This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
                      no config keys are accepted.
         include_callback_events: Whether to include callback events in the response.
@@ -276,6 +297,7 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    _register_path_for_app(app, path)
     well_known_lc_serializer = WellKnownLCSerializer()
 
     if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
@@ -294,18 +316,30 @@ def add_routes(
             },
         ]
 
+    if path and not path.startswith("/"):
+        raise ValueError(
+            f"Got an invalid path: {path}. "
+            f"If specifying path please start it with a `/`"
+        )
+
     namespace = path or ""
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
-    input_type_ = _resolve_model(
-        runnable.input_schema if input_type == "auto" else input_type,
-        "Input",
-        model_namespace,
-    )
+    with_types = {}
+
+    if input_type != "auto":
+        with_types["input_type"] = input_type
+    if output_type != "auto":
+        with_types["output_type"] = output_type
+
+    if with_types:
+        runnable = runnable.with_types(**with_types)
+
+    input_type_ = _resolve_model(runnable.get_input_schema(), "Input", model_namespace)
 
     output_type_ = _resolve_model(
-        runnable.output_schema if output_type == "auto" else output_type,
+        runnable.get_output_schema(),
         "Output",
         model_namespace,
     )
@@ -313,6 +347,7 @@ def add_routes(
     ConfigPayload = _add_namespace_to_model(
         model_namespace, runnable.config_schema(include=config_keys)
     )
+
     InvokeRequest = create_invoke_request_model(
         model_namespace, input_type_, ConfigPayload
     )
@@ -383,29 +418,25 @@ def add_routes(
         """Invoke the runnable with the given inputs and config."""
         # First convert to list type
         if isinstance(batch_request.config, list):
-            configs = batch_request.config
+            configs = [
+                _unpack_config(
+                    config_hash, config, keys=config_keys, model=ConfigPayload
+                )
+                for config in batch_request.config
+            ]
         else:
-            configs = [batch_request.config]
+            configs = _unpack_config(
+                config_hash,
+                batch_request.config,
+                keys=config_keys,
+                model=ConfigPayload,
+            )
 
         # Unpack
-        _configs = [
-            _unpack_config(config_hash, config, keys=config_keys, model=ConfigPayload)
-            for config in configs
-        ]
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
-        if len(_configs) == 1:
-            _configs = [
-                copy.deepcopy(_configs[0]) for _ in range(len(batch_request.inputs))
-            ]
-        elif len(_configs) == len(batch_request.inputs):
-            _configs = _configs
-        else:
-            raise AssertionError(
-                f"Expected {len(batch_request.inputs)} configs "
-                f"for {len(_configs)} inputs."
-            )
+        _configs = get_config_list(configs, len(batch_request.inputs))
 
         aggregators = [
             AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
@@ -627,37 +658,24 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema.schema()
-            if input_type == "auto"
-            else input_type_.schema()
-        )
+        return runnable.get_input_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).output_schema.schema()
-            if output_type_ == "auto"
-            else output_type_.schema()
-        )
+        return runnable.get_output_schema(
+            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        ).schema()
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        return (
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            )
-            .config_schema(include=config_keys)
-            .schema()
-        )
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
@@ -667,15 +685,10 @@ def add_routes(
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
+        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
         return await serve_playground(
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ),
-            runnable.with_config(
-                _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-            ).input_schema
-            if input_type == "auto"
-            else input_type_,
+            runnable.with_config(config),
+            runnable.with_config(config).input_schema,
             config_keys,
             f"{namespace}/playground",
             file_path,
