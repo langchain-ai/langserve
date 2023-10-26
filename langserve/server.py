@@ -13,6 +13,7 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
+    List,
     Literal,
     Mapping,
     Sequence,
@@ -364,8 +365,21 @@ def add_routes(
     async def _get_input(request: Request, config: RunnableConfig) -> Any:
         """Get the input from the request."""
         body = await request.json()
+        if "input" not in body:
+            raise HTTPException(422, "Missing 'input' key in request body")
         schema = runnable.with_config(config).input_schema
         return schema.validate(body["input"])
+
+    async def _get_batch_inputs(request: Request, configs: List[RunnableConfig]) -> Any:
+        """Get the input from the request."""
+        body = await request.json()
+        if "inputs" not in body:
+            raise HTTPException(422, "Missing 'inputs' key in request body")
+        inputs = [
+            _unpack_input(runnable.with_config(config).input_schema.validate(input_))
+            for config, input_ in zip(configs, body["inputs"])
+        ]
+        return inputs
 
     @app.post(
         namespace + "/c/{config_hash}/invoke",
@@ -420,7 +434,7 @@ def add_routes(
         config_hash: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
-        # First convert to list type
+        # First unpack the config
         if isinstance(batch_request.config, list):
             configs = [
                 _unpack_config(
@@ -436,31 +450,21 @@ def add_routes(
                 model=ConfigPayload,
             )
 
-        # Unpack
-
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
-        # Need to look at get_config_list it adds `callbacks` which does not exist
-        # Can probably just project it out
-        _configs = get_config_list(configs, len(batch_request.inputs))
-        for _config in _configs:
-            del _config["callbacks"]
-
-        body = await request.json()
-
-        inputs = [
-            _unpack_input(runnable.with_config(config).input_schema.validate(input_))
-            for config, input_ in zip(_configs, body["inputs"])
+        _configs = [
+            {k: v for k, v in _config.items() if k in config_keys}
+            for _config in get_config_list(configs, len(batch_request.inputs))
         ]
+
+        inputs = await _get_batch_inputs(request, _configs)
 
         # Update the configuration with callbacks
-        aggregators = [
-            AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
-        ]
+        aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
 
-        for c, aggregator in zip(_configs, aggregators):
-            _add_tracing_info_to_metadata(c, request)
-            c["callbacks"] = [aggregator]
+        for _config, aggregator in zip(_configs, aggregators):
+            _add_tracing_info_to_metadata(_config, request)
+            _config["callbacks"] = [aggregator]
 
         output = await runnable.abatch(inputs, config=_configs)
 
