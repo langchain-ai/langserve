@@ -19,8 +19,7 @@ from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.schema.runnable import RunnableLambda
 from pydantic import Field
 
-from langserve import CustomUserType
-from langserve import add_routes
+from langserve import CustomUserType, add_routes
 
 app = FastAPI(
     title="LangChain Server",
