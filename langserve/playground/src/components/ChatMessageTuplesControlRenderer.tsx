@@ -9,6 +9,7 @@ import {
   isControl,
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
+import { isJsonSchemaExtra } from "../utils/schema";
 
 type MessageTuple = [string, string];
 
@@ -21,6 +22,10 @@ export const chatMessagesTupleTester = rankWith(
       if (typeof schema.items !== "object" || schema.items == null)
         return false;
 
+      if (!isJsonSchemaExtra(schema) || schema.extra.widget.type !== "chat") {
+        return false;
+      }
+
       if ("type" in schema.items) {
         return (
           schema.items.type === "array" &&
@@ -28,8 +33,7 @@ export const chatMessagesTupleTester = rankWith(
           schema.items.maxItems === 2 &&
           Array.isArray(schema.items.items) &&
           schema.items.items.length === 2 &&
-          schema.items.items.every((schema) => schema.type === "string") &&
-          schema.title === "Chat History"
+          schema.items.items.every((schema) => schema.type === "string")
         );
       }
 

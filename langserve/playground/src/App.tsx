@@ -68,6 +68,10 @@ import {
   ChatMessageTuplesControlRenderer,
   chatMessagesTupleTester,
 } from "./components/ChatMessageTuplesControlRenderer";
+import {
+  fileBase64Tester,
+  FileBase64ControlRenderer,
+} from "./components/FileBase64Tester";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -110,6 +114,7 @@ const renderers = [
     tester: chatMessagesTupleTester,
     renderer: ChatMessageTuplesControlRenderer,
   },
+  { tester: fileBase64Tester, renderer: FileBase64ControlRenderer },
 ];
 
 const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
