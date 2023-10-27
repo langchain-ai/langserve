@@ -230,6 +230,7 @@ _APP_TO_PATHS = weakref.WeakKeyDictionary()
 def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
+        # ruff: noqa: E501
         LANGSERVE = """
  __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
