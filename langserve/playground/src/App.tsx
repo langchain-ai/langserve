@@ -1,6 +1,6 @@
 import "./App.css";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import defaults from "./utils/defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
@@ -202,6 +202,13 @@ function App() {
     return () => window.removeEventListener("message", listener);
   }, []);
 
+  const isInputResetable = useMemo(() => {
+    if (!schemas.input) return false;
+    return (
+      JSON.stringify(defaults(schemas.input)) !== JSON.stringify(inputData.data)
+    );
+  }, [schemas.input, inputData.data]);
+
   return schemas.config && schemas.input ? (
     <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
       <div className="flex flex-col flex-grow gap-4 px-4 pt-6 max-w-[800px] w-full">
@@ -246,7 +253,23 @@ function App() {
             <h2 className="text-xl font-semibold">Try it</h2>
 
             <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
-              <h3 className="font-medium">Inputs</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Inputs</h3>
+                {isInputResetable && (
+                  <button
+                    type="button"
+                    className="text-sm px-1 -mr-1 py-0.5 rounded-md hover:bg-divider-500/50 active:bg-divider-500 text-ls-gray-100"
+                    onClick={() =>
+                      setInputData({
+                        data: defaults(schemas.input),
+                        errors: [],
+                      })
+                    }
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
 
               <JsonForms
                 schema={schemas.input}
