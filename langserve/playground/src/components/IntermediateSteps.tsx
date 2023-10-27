@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import ChevronRight from "../assets/ChevronRight.svg?react";
 import { RunState } from "../useStreamLog";
 import { cn } from "../utils/cn";
-import { str } from "../App";
+import { str } from "../utils/str";
 
 export function IntermediateSteps(props: { latest: RunState }) {
   const [expanded, setExpanded] = useState(false);
