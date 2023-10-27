@@ -1,7 +1,7 @@
 import "./App.css";
 
 import React, { useEffect, useRef, useState } from "react";
-import defaults from "json-schema-defaults";
+import defaults from "./utils/defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
@@ -303,6 +303,8 @@ function App() {
         errors: [],
         defaults: true,
       });
+
+      console.log(defaults(schemas.input), schemas.input);
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
