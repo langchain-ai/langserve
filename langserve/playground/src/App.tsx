@@ -209,6 +209,33 @@ function App() {
     );
   }, [schemas.input, inputData.data]);
 
+  function onSubmit() {
+    if (
+      !stopStream &&
+      (!!inputData.errors?.length || !!configData.errors?.length)
+    ) {
+      return;
+    }
+
+    if (stopStream) {
+      stopStream();
+    } else {
+      startStream(inputData.data, configData.data);
+    }
+  }
+
+  const submitRef = useRef<(() => void) | null>(null);
+  submitRef.current = onSubmit;
+
+  useEffect(() => {
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        submitRef.current?.();
+      }
+    });
+  }, []);
+
   return schemas.config && schemas.input ? (
     <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
       <div className="flex flex-col flex-grow gap-4 px-4 pt-6 max-w-[800px] w-full">
@@ -353,11 +380,7 @@ function App() {
               <button
                 type="button"
                 className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
-                onClick={() => {
-                  stopStream
-                    ? stopStream()
-                    : startStream(inputData.data, configData.data);
-                }}
+                onClick={onSubmit}
                 disabled={
                   !stopStream &&
                   (!!inputData.errors?.length || !!configData.errors?.length)
