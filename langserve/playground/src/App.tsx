@@ -1,13 +1,11 @@
 import "./App.css";
 
-import React, { useEffect, useRef, useState } from "react";
-import defaults from "json-schema-defaults";
+import { useEffect, useMemo, useRef, useState } from "react";
+import defaults from "./utils/defaults";
 import { JsonForms } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
   MaterialAllOfRenderer,
-  materialAnyOfControlTester,
-  MaterialAnyOfRenderer,
   MaterialObjectRenderer,
   materialOneOfControlTester,
   MaterialOneOfRenderer,
@@ -17,7 +15,6 @@ import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
-import ChevronRight from "./assets/ChevronRight.svg?react";
 import { compressToEncodedURIComponent } from "lz-string";
 
 import {
@@ -43,7 +40,7 @@ import {
   InputControl,
 } from "@jsonforms/vanilla-renderers";
 import { useSchemas } from "./useSchemas";
-import { RunState, useStreamLog } from "./useStreamLog";
+import { useStreamLog } from "./useStreamLog";
 import {
   JsonFormsCore,
   RankedTester,
@@ -58,7 +55,6 @@ import CustomArrayControlRenderer, {
 } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
-import { cn } from "./utils/cn";
 import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
 import {
   chatMessagesTester,
@@ -72,15 +68,15 @@ import {
   fileBase64Tester,
   FileBase64ControlRenderer,
 } from "./components/FileBase64Tester";
+import { IntermediateSteps } from "./components/IntermediateSteps";
+import { StreamOutput } from "./components/StreamOutput";
+import {
+  customAnyOfTester,
+  CustomAnyOfRenderer,
+} from "./components/CustomAnyOfRenderer";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
-
-function str(o: unknown): React.ReactNode {
-  return typeof o === "object"
-    ? JSON.stringify(o, null, 2)
-    : (o as React.ReactNode);
-}
 
 const isObjectWithPropertiesControl = rankWith(
   2,
@@ -96,15 +92,16 @@ const isObjectWithPropertiesControl = rankWith(
 const isObject = rankWith(1, and(uiTypeIs("Control"), schemaTypeIs("object")));
 const isElse = rankWith(1, and(uiTypeIs("Control")));
 
-const renderers = [
+export const renderers = [
   ...vanillaRenderers,
 
   // use material renderers to handle objects and json schema references
   // they should yield the rendering to simpler cells
   { tester: isObjectWithPropertiesControl, renderer: MaterialObjectRenderer },
   { tester: materialAllOfControlTester, renderer: MaterialAllOfRenderer },
-  { tester: materialAnyOfControlTester, renderer: MaterialAnyOfRenderer },
   { tester: materialOneOfControlTester, renderer: MaterialOneOfRenderer },
+
+  { tester: customAnyOfTester, renderer: CustomAnyOfRenderer },
 
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
@@ -121,109 +118,7 @@ const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
   return jsonSchema.type === "array";
 });
 
-// inlined from langchain/schema
-interface BaseMessageFields {
-  content: string;
-  name?: string;
-  additional_kwargs?: {
-    [key: string]: unknown;
-  };
-}
-
-class AIMessageChunk {
-  /** The text of the message. */
-  content: string;
-
-  /** The name of the message sender in a multi-user chat. */
-  name?: string;
-
-  /** Additional keyword arguments */
-  additional_kwargs: NonNullable<BaseMessageFields["additional_kwargs"]>;
-
-  constructor(fields: BaseMessageFields) {
-    // Make sure the default value for additional_kwargs is passed into super() for serialization
-    if (!fields.additional_kwargs) {
-      // eslint-disable-next-line no-param-reassign
-      fields.additional_kwargs = {};
-    }
-
-    this.name = fields.name;
-    this.content = fields.content;
-    this.additional_kwargs = fields.additional_kwargs;
-  }
-
-  static _mergeAdditionalKwargs(
-    left: NonNullable<BaseMessageFields["additional_kwargs"]>,
-    right: NonNullable<BaseMessageFields["additional_kwargs"]>
-  ): NonNullable<BaseMessageFields["additional_kwargs"]> {
-    const merged = { ...left };
-    for (const [key, value] of Object.entries(right)) {
-      if (merged[key] === undefined) {
-        merged[key] = value;
-      } else if (typeof merged[key] !== typeof value) {
-        throw new Error(
-          `additional_kwargs[${key}] already exists in the message chunk, but with a different type.`
-        );
-      } else if (typeof merged[key] === "string") {
-        merged[key] = (merged[key] as string) + value;
-      } else if (
-        !Array.isArray(merged[key]) &&
-        typeof merged[key] === "object"
-      ) {
-        merged[key] = this._mergeAdditionalKwargs(
-          merged[key] as NonNullable<BaseMessageFields["additional_kwargs"]>,
-          value as NonNullable<BaseMessageFields["additional_kwargs"]>
-        );
-      } else {
-        throw new Error(
-          `additional_kwargs[${key}] already exists in this message chunk.`
-        );
-      }
-    }
-    return merged;
-  }
-
-  concat(chunk: AIMessageChunk) {
-    return new AIMessageChunk({
-      content: this.content + chunk.content,
-      additional_kwargs: AIMessageChunk._mergeAdditionalKwargs(
-        this.additional_kwargs,
-        chunk.additional_kwargs
-      ),
-    });
-  }
-}
-
-function isAiMessageChunkFields(value: unknown): value is BaseMessageFields {
-  if (typeof value !== "object" || value == null) return false;
-  return "content" in value && typeof value["content"] === "string";
-}
-
-function isAiMessageChunkFieldsList(
-  value: unknown[]
-): value is BaseMessageFields[] {
-  return value.length > 0 && value.every((x) => isAiMessageChunkFields(x));
-}
-
-function StreamOutput(props: { streamed: unknown[] }) {
-  // check if we're streaming AIMessageChunk
-  if (isAiMessageChunkFieldsList(props.streamed)) {
-    const concat = props.streamed.reduce<AIMessageChunk | null>(
-      (memo, field) => {
-        const chunk = new AIMessageChunk(field);
-        if (memo == null) return chunk;
-        return memo.concat(chunk);
-      },
-      null
-    );
-
-    return concat?.content || "...";
-  }
-
-  return props.streamed.map(str).join("") || "...";
-}
-
-const cells = [
+export const cells = [
   { tester: booleanCellTester, cell: BooleanCell },
   { tester: dateCellTester, cell: DateCell },
   { tester: dateTimeCellTester, cell: DateTimeCell },
@@ -237,41 +132,6 @@ const cells = [
   { tester: nestedArrayControlTester, cell: CustomArrayControlRenderer },
   { tester: isElse, cell: JsonTextAreaCell },
 ];
-
-function IntermediateSteps(props: { latest: RunState }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
-      <button
-        className="font-medium text-left p-4 flex items-center justify-between"
-        onClick={() => setExpanded((open) => !open)}
-      >
-        <span>Intermediate steps</span>
-        <ChevronRight
-          className={cn("transition-all", expanded && "rotate-90")}
-        />
-      </button>
-      {expanded && (
-        <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
-          {Object.values(props.latest.logs).map((log) => (
-            <div
-              className="gap-3 flex-col min-w-0 flex bg-background pt-3 first-of-type:pt-0"
-              key={log.id}
-            >
-              <div className="flex items-center justify-between">
-                <strong className="text-sm font-medium">{log.name}</strong>
-                <p className="text-sm">{dayjs.utc(log.start_time).fromNow()}</p>
-              </div>
-              <pre className="break-words whitespace-pre-wrap min-w-0 text-sm bg-ls-gray-400 rounded-lg p-3">
-                {str(log.final_output) ?? "..."}
-              </pre>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function App() {
   const [isIframe] = useState(() => window.self !== window.top);
@@ -303,6 +163,7 @@ function App() {
         errors: [],
         defaults: true,
       });
+
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -341,46 +202,101 @@ function App() {
     return () => window.removeEventListener("message", listener);
   }, []);
 
+  const isInputResetable = useMemo(() => {
+    if (!schemas.input) return false;
+    return (
+      JSON.stringify(defaults(schemas.input)) !== JSON.stringify(inputData.data)
+    );
+  }, [schemas.input, inputData.data]);
+
+  function onSubmit() {
+    if (
+      !stopStream &&
+      (!!inputData.errors?.length || !!configData.errors?.length)
+    ) {
+      return;
+    }
+
+    if (stopStream) {
+      stopStream();
+    } else {
+      startStream(inputData.data, configData.data);
+    }
+  }
+
+  const submitRef = useRef<(() => void) | null>(null);
+  submitRef.current = onSubmit;
+
+  useEffect(() => {
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        submitRef.current?.();
+      }
+    });
+  }, []);
+
   return schemas.config && schemas.input ? (
     <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
       <div className="flex flex-col flex-grow gap-4 px-4 pt-6 max-w-[800px] w-full">
         <h1 className="text-2xl text-left">
           <strong>🦜 LangServe</strong> Playground
         </h1>
-        <div className="flex flex-col gap-3">
-          {!isIframe && <h2 className="text-xl font-semibold">Configure</h2>}
+        {Object.keys(schemas.config).length > 0 && (
+          <div className="flex flex-col gap-3 [&:has(.content>.vertical-layout:first-child:last-child:empty)]:hidden">
+            {!isIframe && <h2 className="text-xl font-semibold">Configure</h2>}
 
-          <JsonForms
-            schema={schemas.config}
-            data={configData.data}
-            renderers={renderers}
-            cells={cells}
-            onChange={({ data, errors }) =>
-              data
-                ? setConfigData({ data, errors, defaults: false })
-                : undefined
-            }
-          />
-          {!!configData.errors?.length && configData.data && (
-            <div className="bg-background rounded-xl">
-              <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
-                <strong className="font-bold">Validation Errors</strong>
-                <ul className="list-disc pl-5">
-                  {configData.errors?.map((e, i) => (
-                    <li key={i}>{e.message}</li>
-                  ))}
-                </ul>
-              </div>
+            <div className="content flex flex-col gap-3">
+              <JsonForms
+                schema={schemas.config}
+                data={configData.data}
+                renderers={renderers}
+                cells={cells}
+                onChange={({ data, errors }) =>
+                  data
+                    ? setConfigData({ data, errors, defaults: false })
+                    : undefined
+                }
+              />
+
+              {!!configData.errors?.length && configData.data && (
+                <div className="bg-background rounded-xl">
+                  <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
+                    <strong className="font-bold">Validation Errors</strong>
+                    <ul className="list-disc pl-5">
+                      {configData.errors?.map((e, i) => (
+                        <li key={i}>{e.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {!isIframe && (
           <div className="flex flex-col gap-3">
             <h2 className="text-xl font-semibold">Try it</h2>
 
             <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background">
-              <h3 className="font-medium">Inputs</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Inputs</h3>
+                {isInputResetable && (
+                  <button
+                    type="button"
+                    className="text-sm px-1 -mr-1 py-0.5 rounded-md hover:bg-divider-500/50 active:bg-divider-500 text-ls-gray-100"
+                    onClick={() =>
+                      setInputData({
+                        data: defaults(schemas.input),
+                        errors: [],
+                      })
+                    }
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
 
               <JsonForms
                 schema={schemas.input}
@@ -464,18 +380,35 @@ function App() {
               <button
                 type="button"
                 className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
-                onClick={() => {
-                  stopStream
-                    ? stopStream()
-                    : startStream(inputData.data, configData.data);
-                }}
+                onClick={onSubmit}
                 disabled={
                   !stopStream &&
                   (!!inputData.errors?.length || !!configData.errors?.length)
                 }
               >
                 {stopStream ? (
-                  <span className="text-white">Stop</span>
+                  <>
+                    <div role="status">
+                      <svg
+                        aria-hidden="true"
+                        className="w-5 h-5 animate-spin text-white fill-ls-blue"
+                        viewBox="0 0 100 101"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                          fill="currentColor"
+                        />
+                        <path
+                          d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                          fill="currentFill"
+                        />
+                      </svg>
+                      <span className="sr-only">Loading...</span>
+                    </div>
+                    <span className="text-white">Stop</span>
+                  </>
                 ) : (
                   <>
                     <SendIcon className="flex-shrink-0" />

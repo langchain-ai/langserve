@@ -50,7 +50,7 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
       <div className="control">
         <div className="flex items-center justify-between">
           <label className="text-xs uppercase font-semibold text-ls-gray-100">
-            {props.label}
+            {props.label || "Messages"}
           </label>
           <button
             className="p-1 rounded-full"
