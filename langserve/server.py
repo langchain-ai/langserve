@@ -252,7 +252,7 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
             print(f'{green("LANGSERVE:")}  │')
             print(f'{green("LANGSERVE:")}  └──> {path}/playground')
             print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at /docs')
+        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}')
         print()
 
 
