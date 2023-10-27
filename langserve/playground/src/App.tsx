@@ -6,8 +6,6 @@ import { JsonForms } from "@jsonforms/react";
 import {
   materialAllOfControlTester,
   MaterialAllOfRenderer,
-  materialAnyOfControlTester,
-  MaterialAnyOfRenderer,
   MaterialObjectRenderer,
   materialOneOfControlTester,
   MaterialOneOfRenderer,
@@ -72,6 +70,10 @@ import {
 } from "./components/FileBase64Tester";
 import { IntermediateSteps } from "./components/IntermediateSteps";
 import { StreamOutput } from "./components/StreamOutput";
+import {
+  customAnyOfTester,
+  CustomAnyOfRenderer,
+} from "./components/CustomAnyOfRenderer";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -90,15 +92,16 @@ const isObjectWithPropertiesControl = rankWith(
 const isObject = rankWith(1, and(uiTypeIs("Control"), schemaTypeIs("object")));
 const isElse = rankWith(1, and(uiTypeIs("Control")));
 
-const renderers = [
+export const renderers = [
   ...vanillaRenderers,
 
   // use material renderers to handle objects and json schema references
   // they should yield the rendering to simpler cells
   { tester: isObjectWithPropertiesControl, renderer: MaterialObjectRenderer },
   { tester: materialAllOfControlTester, renderer: MaterialAllOfRenderer },
-  { tester: materialAnyOfControlTester, renderer: MaterialAnyOfRenderer },
   { tester: materialOneOfControlTester, renderer: MaterialOneOfRenderer },
+
+  { tester: customAnyOfTester, renderer: CustomAnyOfRenderer },
 
   // custom renderers
   { tester: materialArrayControlTester, renderer: CustomArrayControlRenderer },
@@ -115,7 +118,7 @@ const nestedArrayControlTester: RankedTester = rankWith(1, (_, jsonSchema) => {
   return jsonSchema.type === "array";
 });
 
-const cells = [
+export const cells = [
   { tester: booleanCellTester, cell: BooleanCell },
   { tester: dateCellTester, cell: DateCell },
   { tester: dateTimeCellTester, cell: DateTimeCell },
