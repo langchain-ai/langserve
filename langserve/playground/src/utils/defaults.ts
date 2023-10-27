@@ -174,6 +174,13 @@ const defaults = (schema: any, definitions: Record<string, any>): unknown => {
           values.pop();
         }
       }
+
+      // if all values are undefined -> return undefined even
+      // if minItems is set
+      if (values.every((item: unknown) => typeof item === "undefined")) {
+        return undefined;
+      }
+
       return values;
     }
 
