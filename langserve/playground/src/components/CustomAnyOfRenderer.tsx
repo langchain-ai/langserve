@@ -17,6 +17,9 @@ export const CustomAnyOfRenderer = withJsonFormsAnyOfProps((props) => {
     props.uischemas
   );
 
+  // just assume the last type is the selected one
+  // for `anyOf` caused by passing inputs from LLMs/Chat Models
+  // this will result in showing the Message renderer
   const selectedIndex = anyOfRenderInfos.length - 1;
   const selectedAnyOfRenderInfo = anyOfRenderInfos[selectedIndex];
 
