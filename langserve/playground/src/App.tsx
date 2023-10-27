@@ -17,7 +17,6 @@ import utc from "dayjs/plugin/utc";
 import relativeDate from "dayjs/plugin/relativeTime";
 import SendIcon from "./assets/SendIcon.svg?react";
 import ShareIcon from "./assets/ShareIcon.svg?react";
-import ChevronRight from "./assets/ChevronRight.svg?react";
 import { compressToEncodedURIComponent } from "lz-string";
 
 import {
@@ -43,7 +42,7 @@ import {
   InputControl,
 } from "@jsonforms/vanilla-renderers";
 import { useSchemas } from "./useSchemas";
-import { RunState, useStreamLog } from "./useStreamLog";
+import { useStreamLog } from "./useStreamLog";
 import {
   JsonFormsCore,
   RankedTester,
@@ -58,7 +57,6 @@ import CustomArrayControlRenderer, {
 } from "./components/CustomArrayControlRenderer";
 import CustomTextAreaCell from "./components/CustomTextAreaCell";
 import JsonTextAreaCell from "./components/JsonTextAreaCell";
-import { cn } from "./utils/cn";
 import { getStateFromUrl, ShareDialog } from "./components/ShareDialog";
 import {
   chatMessagesTester,
@@ -72,11 +70,12 @@ import {
   fileBase64Tester,
   FileBase64ControlRenderer,
 } from "./components/FileBase64Tester";
+import { IntermediateSteps } from "./components/IntermediateSteps";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
 
-function str(o: unknown): React.ReactNode {
+export function str(o: unknown): React.ReactNode {
   return typeof o === "object"
     ? JSON.stringify(o, null, 2)
     : (o as React.ReactNode);
@@ -217,7 +216,12 @@ function StreamOutput(props: { streamed: unknown[] }) {
       null
     );
 
-    return concat?.content || "...";
+    const functionCall = concat?.additional_kwargs?.function_call;
+    return (
+      concat?.content ||
+      (!!functionCall && JSON.stringify(functionCall, null, 2)) ||
+      "..."
+    );
   }
 
   return props.streamed.map(str).join("") || "...";
@@ -237,41 +241,6 @@ const cells = [
   { tester: nestedArrayControlTester, cell: CustomArrayControlRenderer },
   { tester: isElse, cell: JsonTextAreaCell },
 ];
-
-function IntermediateSteps(props: { latest: RunState }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
-      <button
-        className="font-medium text-left p-4 flex items-center justify-between"
-        onClick={() => setExpanded((open) => !open)}
-      >
-        <span>Intermediate steps</span>
-        <ChevronRight
-          className={cn("transition-all", expanded && "rotate-90")}
-        />
-      </button>
-      {expanded && (
-        <div className="flex flex-col gap-5 p-4 pt-0 divide-solid divide-y divide-divider-700 rounded-b-xl">
-          {Object.values(props.latest.logs).map((log) => (
-            <div
-              className="gap-3 flex-col min-w-0 flex bg-background pt-3 first-of-type:pt-0"
-              key={log.id}
-            >
-              <div className="flex items-center justify-between">
-                <strong className="text-sm font-medium">{log.name}</strong>
-                <p className="text-sm">{dayjs.utc(log.start_time).fromNow()}</p>
-              </div>
-              <pre className="break-words whitespace-pre-wrap min-w-0 text-sm bg-ls-gray-400 rounded-lg p-3">
-                {str(log.final_output) ?? "..."}
-              </pre>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function App() {
   const [isIframe] = useState(() => window.self !== window.top);
