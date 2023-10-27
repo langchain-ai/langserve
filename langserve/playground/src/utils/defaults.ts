@@ -207,7 +207,7 @@ const defaults = (schema: any, definitions: Record<string, any>): unknown => {
  * @return {Object}
  */
 export default function (
-  schema: Record<string, unknown>,
+  schema: any,
   definitions?: Record<string, unknown> | undefined
 ) {
   if (typeof definitions === "undefined") {

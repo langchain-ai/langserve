@@ -304,7 +304,6 @@ function App() {
         defaults: true,
       });
 
-      console.log(defaults(schemas.input), schemas.input);
       setInputData({ data: defaults(schemas.input), errors: [] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
