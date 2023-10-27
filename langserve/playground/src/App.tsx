@@ -317,33 +317,38 @@ function App() {
         <h1 className="text-2xl text-left">
           <strong>🦜 LangServe</strong> Playground
         </h1>
-        <div className="flex flex-col gap-3">
-          {!isIframe && <h2 className="text-xl font-semibold">Configure</h2>}
+        {Object.keys(schemas.config).length > 0 && (
+          <div className="flex flex-col gap-3 [&:has(.content>.vertical-layout:first-child:last-child:empty)]:hidden">
+            {!isIframe && <h2 className="text-xl font-semibold">Configure</h2>}
 
-          <JsonForms
-            schema={schemas.config}
-            data={configData.data}
-            renderers={renderers}
-            cells={cells}
-            onChange={({ data, errors }) =>
-              data
-                ? setConfigData({ data, errors, defaults: false })
-                : undefined
-            }
-          />
-          {!!configData.errors?.length && configData.data && (
-            <div className="bg-background rounded-xl">
-              <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
-                <strong className="font-bold">Validation Errors</strong>
-                <ul className="list-disc pl-5">
-                  {configData.errors?.map((e, i) => (
-                    <li key={i}>{e.message}</li>
-                  ))}
-                </ul>
-              </div>
+            <div className="content flex flex-col gap-3">
+              <JsonForms
+                schema={schemas.config}
+                data={configData.data}
+                renderers={renderers}
+                cells={cells}
+                onChange={({ data, errors }) =>
+                  data
+                    ? setConfigData({ data, errors, defaults: false })
+                    : undefined
+                }
+              />
+
+              {!!configData.errors?.length && configData.data && (
+                <div className="bg-background rounded-xl">
+                  <div className="bg-red-500/10 text-red-700 dark:text-red-300 rounded-xl p-3">
+                    <strong className="font-bold">Validation Errors</strong>
+                    <ul className="list-disc pl-5">
+                      {configData.errors?.map((e, i) => (
+                        <li key={i}>{e.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {!isIframe && (
           <div className="flex flex-col gap-3">
