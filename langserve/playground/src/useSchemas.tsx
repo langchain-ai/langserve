@@ -17,7 +17,12 @@ declare global {
 export function useSchemas(
   configData: Pick<JsonFormsCore, "data" | "errors"> & { defaults: boolean }
 ) {
-  const [schemas, setSchemas] = useState({
+  const [schemas, setSchemas] = useState<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    config: null | any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    input: null | any;
+  }>({
     config: null,
     input: null,
   });
