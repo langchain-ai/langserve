@@ -238,8 +238,8 @@ function App() {
   }, []);
 
   const isSendDisabled = 
-  !stopStream &&
-  (!!inputData.errors?.length || !!configData.errors?.length)
+    !stopStream &&
+    (!!inputData.errors?.length || !!configData.errors?.length)
 
   if (!schemas.config || !schemas.input) {
     return <></>;
