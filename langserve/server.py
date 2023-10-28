@@ -227,6 +227,35 @@ _APP_SEEN = weakref.WeakSet()
 _APP_TO_PATHS = weakref.WeakKeyDictionary()
 
 
+def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
+    @app.on_event("startup")
+    async def startup_event():
+        # ruff: noqa: E501
+        LANGSERVE = """
+ __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
+|  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
+|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__   
+|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|  
+|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____ 
+|_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
+"""
+
+        def green(text):
+            return "\x1b[1;32;40m" + text + "\x1b[0m"
+
+        paths = _APP_TO_PATHS[app]
+        print(LANGSERVE)
+        for path in paths:
+            print(
+                f'{green("LANGSERVE:")} Playground for chain "{path or "/"}" is live at:'
+            )
+            print(f'{green("LANGSERVE:")}  │')
+            print(f'{green("LANGSERVE:")}  └──> {path}/playground')
+            print(f'{green("LANGSERVE:")}')
+        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}')
+        print()
+
+
 def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
     """Register a path when its added to app. Raise if path already seen."""
     if app in _APP_TO_PATHS:
@@ -238,6 +267,7 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
             )
         seen_paths.add(path)
     else:
+        _setup_global_app_handlers(app)
         _APP_TO_PATHS[app] = {path}
 
 
