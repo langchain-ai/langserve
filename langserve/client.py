@@ -365,6 +365,11 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         return outputs
 
+    def _enforce_trailing_slash(self, url: str) -> str:
+        if url.endswith("/"):
+            return url
+        return url + "/"
+
     def batch(
         self,
         inputs: List[Input],
@@ -459,7 +464,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
-        endpoint = urljoin(self.url, "stream")
+        endpoint = urljoin(self._enforce_trailing_slash(self.url), "stream")
 
         try:
             from httpx_sse import connect_sse
@@ -522,7 +527,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
-        endpoint = urljoin(self.url, "stream")
+        endpoint = urljoin(self._enforce_trailing_slash(self.url), "stream")
 
         try:
             from httpx_sse import aconnect_sse
