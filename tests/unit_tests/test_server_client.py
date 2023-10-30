@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import httpx
 import pytest
 import pytest_asyncio
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLogPatch
@@ -1221,3 +1221,21 @@ async def test_custom_user_type() -> None:
         app, path="/foo", raise_app_exceptions=False
     ) as runnable:
         assert await runnable.ainvoke({"bar": 1}) == 1
+
+
+@pytest.mark.asyncio
+async def test_using_router() -> None:
+    """Test using a router."""
+    app = FastAPI()
+
+    # Make sure that we can add routers
+    # to an API router
+    router = APIRouter()
+
+    add_routes(
+        router,
+        RunnableLambda(lambda foo: "hello"),
+        path="/chat",
+    )
+
+    app.include_router(router)
