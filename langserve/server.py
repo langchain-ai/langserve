@@ -327,7 +327,10 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
-    _register_path_for_app(app, path)
+    if isinstance(app, FastAPI):  # type: ignore
+        # Cannot do this checking logic for a router since
+        # API routers are not hashable
+        _register_path_for_app(app, path)
     well_known_lc_serializer = WellKnownLCSerializer()
 
     if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
