@@ -244,3 +244,143 @@ You can deploy to GCP Cloud Run using the following command:
 ```
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
+
+## Advanced
+
+### Files
+
+LLM applications often deal with files. There are different architectures
+that can be made to implement file processing; at a high level:
+
+1. The file may be uploaded to the server via a dedicated endpoint and processed using a separate endpoint
+2. The file may be uploaded by either value (bytes of file) or reference (e.g., s3 url to file content)
+3. The processing endpoint may be blocking or non-blocking
+4. If significant processing is required, the processing may be offloaded to a dedicated process pool
+
+You should determine what is the appropriate architecture for your application.
+
+Currently, to upload files by value to a runnable, use base64 encoding for the 
+file (`multipart/form-data` is not supported yet). 
+
+Here's an [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing) that shows
+how to use base64 encoding to send a file to a remote runnable.
+
+Remember, you can always upload files by reference (e.g., s3 url) or upload them as
+multipart/form-data to a dedicated endpoint.
+
+### Custom Input and Output Types
+
+Input and Output types are defined on all runnables.
+
+You can access them via the `input_schema` and `output_schema` properties.
+
+`LangServe` uses these types for validation and documentation.
+
+If you want to override the default inferred types, you can use the `with_types` method.
+
+Here's a toy example to illustrate the idea:
+
+```python
+from typing import Any
+
+from fastapi import FastAPI
+from langchain.schema.runnable import RunnableLambda
+
+app = FastAPI()
+
+
+def func(x: Any) -> int:
+    """Mistyped function that should accept an int but accepts anything."""
+    return x + 1
+
+
+runnable = RunnableLambda(func).with_types(
+    input_schema=int,
+)
+
+add_routes(app, runnable)
+```
+
+### Custom User Types
+
+Inherit from `CustomUserType` if you want the data to de-serialize into a 
+pydantic model rather than the equivalent dict representation.
+
+At the moment, this type only works *server* side and is used
+to specify desired *decoding* behavior. If inheriting from this type
+the server will keep the decoded type as a pydantic model instead
+of converting it into a dict.
+
+```python
+from fastapi import FastAPI
+from langchain.schema.runnable import RunnableLambda
+
+from langserve import add_routes
+from langserve.schema import CustomUserType
+
+app = FastAPI()
+
+
+class Foo(CustomUserType):
+    bar: int
+
+
+def func(foo: Foo) -> int:
+    """Sample function that expects a Foo type which is a pydantic model"""
+    assert isinstance(foo, Foo)
+    return foo.bar
+
+# Note that the input and output type are automatically inferred!
+# You do not need to specify them.
+# runnable = RunnableLambda(func).with_types( # <-- Not needed in this case
+#     input_schema=Foo,
+#     output_schema=int,
+# 
+add_routes(app, RunnableLambda(func), path="/foo")
+```
+
+### Playground Widgets
+
+The playground allows you to define custom widgets for your runnable from the backend.
+
+- A widget is specified at the field level and shipped as part of the JSON schema of the input type
+- A widget must contain a key called `type` with the value being one of a well known list of widgets
+- Other widget keys will be associated with values that describe paths in a JSON object
+
+General schema:
+
+```typescript
+type JsonPath = number | string | (number | string)[];
+type NameSpacedPath = { title: string; path: JsonPath }; // Using title to mimick json schema, but can use namespace
+type OneOfPath = { oneOf: JsonPath[] };
+
+type Widget = {
+    type: string // Some well known type (e.g., base64file, chat etc.)
+    [key: string]: JsonPath | NameSpacedPath | OneOfPath;
+};
+```
+
+
+#### File Upload Widget
+
+Allows creation of a file upload input in the UI playground for files
+that are uploaded as base64 encoded strings. Here's the full [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing).
+
+Snippet:
+
+```python
+from pydantic import Field
+
+from langserve import CustomUserType
+
+
+# ATTENTION: Inherit from CustomUserType instead of BaseModel otherwise
+#            the server will decode it into a dict instead of a pydantic model.
+class FileProcessingRequest(CustomUserType):
+    """Request including a base64 encoded file."""
+
+    # The extra field is used to specify a widget for the playground UI.
+    file: str = Field(..., extra={"widget": {"type": "base64file"}})
+    num_chars: int = 100
+
+```

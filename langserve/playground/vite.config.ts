@@ -6,4 +6,13 @@ import svgr from "vite-plugin-svgr";
 export default defineConfig({
   base: "/____LANGSERVE_BASE_URL/",
   plugins: [svgr(), react()],
+  server: {
+    proxy: {
+      "^/____LANGSERVE_BASE_URL.*/(config_schema|input_schema|stream_log)": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace("/____LANGSERVE_BASE_URL", ""),
+      },
+    },
+  },
 });
