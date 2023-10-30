@@ -74,7 +74,7 @@ import {
   customAnyOfTester,
   CustomAnyOfRenderer,
 } from "./components/CustomAnyOfRenderer";
-import { twMerge } from "tailwind-merge";
+import { cn } from "./utils/cn";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -388,7 +388,7 @@ function App() {
               </ShareDialog>
               <button
                 type="button"
-                className={twMerge("px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 disabled:opacity-50 transition-colors", !isSendDisabled ? "hover:bg-blue-600 active:bg-blue-700" : "")}
+                className={cn("px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 disabled:opacity-50 transition-colors", !isSendDisabled ? "hover:bg-blue-600 active:bg-blue-700" : "")}
                 onClick={onSubmit}
                 disabled={isSendDisabled}
               >
