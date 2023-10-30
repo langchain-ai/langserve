@@ -9,6 +9,8 @@ This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and use
 In addition, it provides a client that can be used to call into runnables deployed on a server.
 A javascript client is available in [LangChainJS](https://js.langchain.com/docs/api/runnables_remote/classes/RemoteRunnable).
 
+🚩We will be releasing a hosted version of LangServe for one-click deployments of LangChain applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2) to get on the waitlist.
+
 ## Features
 
 - Input and Output schemas automatically inferred from your LangChain object, and enforced on every API call, with rich error messages
