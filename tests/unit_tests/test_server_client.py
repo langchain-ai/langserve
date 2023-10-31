@@ -39,6 +39,32 @@ from langserve.server import add_routes
 from tests.unit_tests.utils import FakeListLLM, FakeTracer
 
 
+def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
+    """Simple decoder for testing purposes.
+
+    This is not a good implementation, but it's smple and works for our purposes.
+    """
+    unpacked_response = [line for line in text.split("\r\n") if line.strip()]
+
+    events = []
+
+    for event_info, encoded_data in zip(
+        unpacked_response[::2], unpacked_response[1::2]
+    ):
+        type_ = event_info[len("event: ") :].strip()
+        try:
+            data = json.loads(encoded_data[len("data: ") :])
+        except json.JSONDecodeError:
+            raise AssertionError(f"Could not stream: {text}")
+
+        events.append({"type": type_, "data": data})
+
+    if "end" in unpacked_response[-1]:
+        events.append({"type": "end"})
+
+    return events
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
@@ -246,12 +272,15 @@ async def test_server_async(app: FastAPI) -> None:
         response = await async_client.post("/stream", json={"input": 1})
         assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
 
+        response = await async_client.post("/stream_log", json={"input": 1})
+        assert response.text.startswith("event: data\r\n")
+
     # test bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test invoke
         response = await async_client.post("/invoke", data="bad json []")
         # Client side error bad json.
-        assert response.status_code == 400
+        assert response.status_code == 422
 
         # Missing `input`
         response = await async_client.post("/invoke", json={})
@@ -265,10 +294,13 @@ async def test_server_async(app: FastAPI) -> None:
         # Client side error bad json.
         assert response.status_code == 422
 
+    # test batch bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test invoke
         # Test bad batch requests
         response = await async_client.post("/batch", data="bad json []")
         # Client side error bad json.
-        assert response.status_code == 400
+        assert response.status_code == 422
 
         # Missing `inputs`
         response = await async_client.post("/batch", json={})
@@ -278,6 +310,40 @@ async def test_server_async(app: FastAPI) -> None:
             "/batch", json={"inputs": [1, 2], "config": {"tags": [[]]}}
         )
         assert response.status_code == 422
+
+        response = await async_client.post(
+            "/batch",
+            json={
+                "inputs": [1, 2],
+                "config": [{"tags": ["a"]}, {"tags": ["b"]}, {"tags": ["c"]}],
+            },
+        )
+        assert response.status_code == 422
+
+    # test stream bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test bad stream requests
+        response = await async_client.post("/stream", data="bad json []")
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+        response = await async_client.post("/stream", json={})
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+    # test stream_log bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post("/stream_log", data="bad json []")
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+        response = await async_client.post("/stream_log", json={})
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
 
 
 @pytest.mark.asyncio

@@ -426,7 +426,7 @@ def add_routes(
         try:
             body = await request.json()
         except json.JSONDecodeError:
-            raise HTTPException(400, "Invalid JSON body")
+            raise RequestValidationError(errors=["Invalid JSON body"])
         try:
             body = InvokeRequestShallowValidator.validate(body)
 
@@ -498,7 +498,7 @@ def add_routes(
         try:
             body = await request.json()
         except json.JSONDecodeError:
-            raise HTTPException(400, "Invalid JSON body")
+            raise RequestValidationError(errors=["Invalid JSON body"])
 
         with _with_validation_error_translation():
             body = BatchRequestShallowValidator.validate(body)
@@ -506,6 +506,13 @@ def add_routes(
 
             # First unpack the config
             if isinstance(config, list):
+                if len(config) != len(body.inputs):
+                    raise HTTPException(
+                        422,
+                        f"Number of configs ({len(config)}) must "
+                        f"match number of inputs ({len(body.inputs)})",
+                    )
+
                 configs = [
                     _unpack_request_config(
                         config_hash, config, keys=config_keys, model=ConfigPayload
@@ -528,6 +535,7 @@ def add_routes(
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
+
         configs_ = [
             {k: v for k, v in config_.items() if k in config_keys}
             for config_ in get_config_list(configs, len(inputs_))
@@ -601,21 +609,12 @@ def add_routes(
                     ),
                 }
 
-        try:
-            body = await request.json()
-        except json.JSONDecodeError:
-            # Body as text
-            body = None
-
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
             if validation_exception:
                 yield err_event
                 if isinstance(validation_exception, RequestValidationError):
-                    raise RequestValidationError(
-                        validation_exception.errors(),
-                        body=body,
-                    )
+                    return
                 else:
                     raise AssertionError(
                         "Internal server error"
@@ -683,11 +682,20 @@ def add_routes(
                     ),
                 }
 
-        body = await request.json()
-        # Get stream log parameters
         try:
-            stream_log_request = StreamLogParameters(**body)
-        except ValidationError as e:
+            body = await request.json()
+            with _with_validation_error_translation():
+                stream_log_request = StreamLogParameters(**body)
+        except json.JSONDecodeError:
+            # Body as text
+            validation_exception = RequestValidationError(errors=["Invalid JSON body"])
+            err_event = {
+                "event": "error",
+                "data": json.dumps(
+                    {"status_code": 422, "message": "Invalid JSON body"}
+                ),
+            }
+        except RequestValidationError as e:
             validation_exception = e
             err_event = {
                 "event": "error",
@@ -699,10 +707,7 @@ def add_routes(
             if validation_exception:
                 yield err_event
                 if isinstance(validation_exception, RequestValidationError):
-                    raise RequestValidationError(
-                        validation_exception.errors(),
-                        body=body,
-                    )
+                    return
                 else:
                     raise AssertionError(
                         "Internal server error"
