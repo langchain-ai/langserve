@@ -39,6 +39,32 @@ from langserve.server import add_routes
 from tests.unit_tests.utils import FakeListLLM, FakeTracer
 
 
+def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
+    """Simple decoder for testing purposes.
+
+    This is not a good implementation, but it's smple and works for our purposes.
+    """
+    unpacked_response = [line for line in text.split("\r\n") if line.strip()]
+
+    events = []
+
+    for event_info, encoded_data in zip(
+        unpacked_response[::2], unpacked_response[1::2]
+    ):
+        type_ = event_info[len("event: ") :].strip()
+        try:
+            data = json.loads(encoded_data[len("data: ") :])
+        except json.JSONDecodeError:
+            raise AssertionError(f"Could not stream: {text}")
+
+        events.append({"type": type_, "data": data})
+
+    if "end" in unpacked_response[-1]:
+        events.append({"type": "end"})
+
+    return events
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
@@ -97,39 +123,19 @@ def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
 
 
 @pytest.fixture()
-def client(app: FastAPI) -> RemoteRunnable:
+def sync_remote_runnable(app: FastAPI) -> RemoteRunnable:
     """Create a FastAPI app that exposes the Runnable as an API."""
     remote_runnable_client = RemoteRunnable(url="http://localhost:9999")
     sync_client = TestClient(app=app)
     remote_runnable_client.sync_client = sync_client
-    yield remote_runnable_client
-    sync_client.close()
-
-
-@asynccontextmanager
-async def get_async_client(
-    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
-) -> RemoteRunnable:
-    """Get an async client."""
-    url = "http://localhost:9999"
-    if path:
-        url += path
-    remote_runnable_client = RemoteRunnable(url=url)
-
-    transport = httpx.ASGITransport(
-        app=server,
-        raise_app_exceptions=raise_app_exceptions,
-    )
-    async_client = AsyncClient(app=server, base_url=url, transport=transport)
-    remote_runnable_client.async_client = async_client
     try:
         yield remote_runnable_client
     finally:
-        await async_client.aclose()
+        sync_client.close()
 
 
 @contextmanager
-def get_sync_client(
+def get_sync_remote_runnable(
     server: FastAPI, *, path: Optional[str] = None, raise_server_exceptions: bool = True
 ) -> RemoteRunnable:
     """Get an async client."""
@@ -147,10 +153,46 @@ def get_sync_client(
         sync_client.close()
 
 
+@asynccontextmanager
+async def get_async_test_client(
+    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
+) -> AsyncClient:
+    """Get an async client."""
+    url = "http://localhost:9999"
+    if path:
+        url += path
+    transport = httpx.ASGITransport(
+        app=server,
+        raise_app_exceptions=raise_app_exceptions,
+    )
+    async_client = AsyncClient(app=server, base_url=url, transport=transport)
+    try:
+        yield async_client
+    finally:
+        await async_client.aclose()
+
+
+@asynccontextmanager
+async def get_async_remote_runnable(
+    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
+) -> RemoteRunnable:
+    """Get an async client."""
+    url = "http://localhost:9999"
+    if path:
+        url += path
+    remote_runnable_client = RemoteRunnable(url=url)
+
+    async with get_async_test_client(
+        server, path=path, raise_app_exceptions=raise_app_exceptions
+    ) as async_client:
+        remote_runnable_client.async_client = async_client
+        yield remote_runnable_client
+
+
 @pytest_asyncio.fixture()
-async def async_client(app: FastAPI) -> RemoteRunnable:
+async def async_remote_runnable(app: FastAPI) -> RemoteRunnable:
     """Create a FastAPI app that exposes the Runnable as an API."""
-    async with get_async_client(app) as client:
+    async with get_async_remote_runnable(app) as client:
         yield client
 
 
@@ -206,24 +248,102 @@ def test_serve_playground(app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_server_async(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
-    async_client = AsyncClient(app=app, base_url="http://localhost:9999")
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test invoke
+        response = await async_client.post("/invoke", json={"input": 1})
+        assert response.json()["output"] == 2
+        events = response.json()["callback_events"]
+        assert [event["type"] for event in events] == ["on_chain_start", "on_chain_end"]
 
-    # Test invoke
-    response = await async_client.post("/invoke", json={"input": 1})
-    assert response.json()["output"] == 2
-    events = response.json()["callback_events"]
-    assert [event["type"] for event in events] == ["on_chain_start", "on_chain_end"]
+        # Test batch
+        response = await async_client.post("/batch", json={"inputs": [1, 2]})
+        assert response.json()["output"] == [2, 3]
+        events = response.json()["callback_events"]
+        assert [event["type"] for event in events[0]] == [
+            "on_chain_start",
+            "on_chain_end",
+        ]
+        assert [event["type"] for event in events[1]] == [
+            "on_chain_start",
+            "on_chain_end",
+        ]
 
-    # Test batch
-    response = await async_client.post("/batch", json={"inputs": [1, 2]})
-    assert response.json()["output"] == [2, 3]
-    events = response.json()["callback_events"]
-    assert [event["type"] for event in events[0]] == ["on_chain_start", "on_chain_end"]
-    assert [event["type"] for event in events[1]] == ["on_chain_start", "on_chain_end"]
+        # Test stream
+        response = await async_client.post("/stream", json={"input": 1})
+        assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
 
-    # Test stream
-    response = await async_client.post("/stream", json={"input": 1})
-    assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+        response = await async_client.post("/stream_log", json={"input": 1})
+        assert response.text.startswith("event: data\r\n")
+
+    # test bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test invoke
+        response = await async_client.post("/invoke", data="bad json []")
+        # Client side error bad json.
+        assert response.status_code == 422
+
+        # Missing `input`
+        response = await async_client.post("/invoke", json={})
+        # Client side error bad json.
+        assert response.status_code == 422
+
+        # Missing `input`
+        response = await async_client.post(
+            "/invoke", json={"input": 4, "config": {"tags": [[]]}}
+        )
+        # Client side error bad json.
+        assert response.status_code == 422
+
+    # test batch bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test invoke
+        # Test bad batch requests
+        response = await async_client.post("/batch", data="bad json []")
+        # Client side error bad json.
+        assert response.status_code == 422
+
+        # Missing `inputs`
+        response = await async_client.post("/batch", json={})
+        assert response.status_code == 422
+
+        response = await async_client.post(
+            "/batch", json={"inputs": [1, 2], "config": {"tags": [[]]}}
+        )
+        assert response.status_code == 422
+
+        response = await async_client.post(
+            "/batch",
+            json={
+                "inputs": [1, 2],
+                "config": [{"tags": ["a"]}, {"tags": ["b"]}, {"tags": ["c"]}],
+            },
+        )
+        assert response.status_code == 422
+
+    # test stream bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test bad stream requests
+        response = await async_client.post("/stream", data="bad json []")
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+        response = await async_client.post("/stream", json={})
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+    # test stream_log bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post("/stream_log", data="bad json []")
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+        response = await async_client.post("/stream_log", json={})
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
 
 
 @pytest.mark.asyncio
@@ -265,85 +385,18 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
 
 
-def test_invoke(client: RemoteRunnable) -> None:
+def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     """Test sync invoke."""
-    assert client.invoke(1) == 2
-    assert client.invoke(HumanMessage(content="hello")) == HumanMessage(content="hello")
-    # Test invocation with config
-    assert client.invoke(1, config={"tags": ["test"]}) == 2
-
-    # Test tracing
-    tracer = FakeTracer()
-    assert client.invoke(1, config={"callbacks": [tracer]}) == 2
-    assert len(tracer.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
-
-
-def test_batch(client: RemoteRunnable) -> None:
-    """Test sync batch."""
-    assert client.batch([]) == []
-    assert client.batch([1, 2, 3]) == [2, 3, 4]
-    assert client.batch([HumanMessage(content="hello")]) == [
-        HumanMessage(content="hello")
-    ]
-
-    # Test callbacks
-    # Using a single tracer for both inputs
-    tracer = FakeTracer()
-    assert client.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
-    assert len(tracer.runs) == 2
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
-
-    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
-
-    # Verify that each tracer gets its own run
-    tracer1 = FakeTracer()
-    tracer2 = FakeTracer()
-    assert client.batch(
-        [1, 2], config=[{"callbacks": [tracer1]}, {"callbacks": [tracer2]}]
-    ) == [2, 3]
-    assert len(tracer1.runs) == 1
-    assert len(tracer2.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
-
-    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
-
-
-@pytest.mark.asyncio
-async def test_ainvoke(async_client: RemoteRunnable) -> None:
-    """Test async invoke."""
-    assert await async_client.ainvoke(1) == 2
-
-    assert await async_client.ainvoke(HumanMessage(content="hello")) == HumanMessage(
+    assert sync_remote_runnable.invoke(1) == 2
+    assert sync_remote_runnable.invoke(HumanMessage(content="hello")) == HumanMessage(
         content="hello"
     )
+    # Test invocation with config
+    assert sync_remote_runnable.invoke(1, config={"tags": ["test"]}) == 2
 
     # Test tracing
     tracer = FakeTracer()
-    assert await async_client.ainvoke(1, config={"callbacks": [tracer]}) == 2
+    assert sync_remote_runnable.invoke(1, config={"callbacks": [tracer]}) == 2
     assert len(tracer.runs) == 1
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
@@ -353,19 +406,18 @@ async def test_ainvoke(async_client: RemoteRunnable) -> None:
     )
 
 
-@pytest.mark.asyncio
-async def test_abatch(async_client: RemoteRunnable) -> None:
-    """Test async batch."""
-    assert await async_client.abatch([]) == []
-    assert await async_client.abatch([1, 2, 3]) == [2, 3, 4]
-    assert await async_client.abatch([HumanMessage(content="hello")]) == [
+def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
+    """Test sync batch."""
+    assert sync_remote_runnable.batch([]) == []
+    assert sync_remote_runnable.batch([1, 2, 3]) == [2, 3, 4]
+    assert sync_remote_runnable.batch([HumanMessage(content="hello")]) == [
         HumanMessage(content="hello")
     ]
 
     # Test callbacks
     # Using a single tracer for both inputs
     tracer = FakeTracer()
-    assert await async_client.abatch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
+    assert sync_remote_runnable.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
     assert len(tracer.runs) == 2
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
@@ -382,7 +434,7 @@ async def test_abatch(async_client: RemoteRunnable) -> None:
     # Verify that each tracer gets its own run
     tracer1 = FakeTracer()
     tracer2 = FakeTracer()
-    assert await async_client.abatch(
+    assert sync_remote_runnable.batch(
         [1, 2], config=[{"callbacks": [tracer1]}, {"callbacks": [tracer2]}]
     ) == [2, 3]
     assert len(tracer1.runs) == 1
@@ -402,38 +454,133 @@ async def test_abatch(async_client: RemoteRunnable) -> None:
     )
 
 
-# TODO(Team): Determine how to test
-# Some issue with event loops
-# def test_stream(client: RemoteRunnable) -> None:
-#     """Test stream."""
-#     assert list(client.stream(1)) == [2]
+@pytest.mark.asyncio
+async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
+    """Test async invoke."""
+    assert await async_remote_runnable.ainvoke(1) == 2
+
+    assert await async_remote_runnable.ainvoke(
+        HumanMessage(content="hello")
+    ) == HumanMessage(content="hello")
+
+    # Test tracing
+    tracer = FakeTracer()
+    assert await async_remote_runnable.ainvoke(1, config={"callbacks": [tracer]}) == 2
+    assert len(tracer.runs) == 1
+    # Light test to verify that we're picking up information about the server side
+    # function being invoked via a callback.
+    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    )
 
 
 @pytest.mark.asyncio
-async def test_astream(async_client: RemoteRunnable) -> None:
-    """Test async stream."""
-    outputs = []
+async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
+    """Test async batch."""
+    assert await async_remote_runnable.abatch([]) == []
+    assert await async_remote_runnable.abatch([1, 2, 3]) == [2, 3, 4]
+    assert await async_remote_runnable.abatch([HumanMessage(content="hello")]) == [
+        HumanMessage(content="hello")
+    ]
 
-    async for chunk in async_client.astream(1):
-        outputs.append(chunk)
+    # Test callbacks
+    # Using a single tracer for both inputs
+    tracer = FakeTracer()
+    assert await async_remote_runnable.abatch(
+        [1, 2], config={"callbacks": [tracer]}
+    ) == [2, 3]
+    assert len(tracer.runs) == 2
+    # Light test to verify that we're picking up information about the server side
+    # function being invoked via a callback.
+    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    )
 
-    assert outputs == [2]
+    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    )
 
-    outputs = []
-    data = HumanMessage(content="hello")
+    # Verify that each tracer gets its own run
+    tracer1 = FakeTracer()
+    tracer2 = FakeTracer()
+    assert await async_remote_runnable.abatch(
+        [1, 2], config=[{"callbacks": [tracer1]}, {"callbacks": [tracer2]}]
+    ) == [2, 3]
+    assert len(tracer1.runs) == 1
+    assert len(tracer2.runs) == 1
+    # Light test to verify that we're picking up information about the server side
+    # function being invoked via a callback.
+    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
+        == "add_one_or_passthrough"
+    )
 
-    async for chunk in async_client.astream(data):
-        outputs.append(chunk)
-
-    assert outputs == [data]
+    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
+    assert (
+        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
+        == "add_one_or_passthrough"
+    )
 
 
 @pytest.mark.asyncio
-async def test_astream_log_diff_no_effect(async_client: RemoteRunnable) -> None:
+async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
+    """Test astream log."""
+
+    app = FastAPI()
+
+    async def add_one_or_passthrough(
+        x: Union[int, HumanMessage]
+    ) -> Union[int, HumanMessage]:
+        """Add one to int or passthrough."""
+        if isinstance(x, int):
+            return x + 1
+        else:
+            return x
+
+    runnable = RunnableLambda(add_one_or_passthrough)
+    add_routes(app, runnable)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
+        # Test bad requests
+        # test client side error
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            # Invalid input type (expected string but got int)
+            async for _ in runnable.astream("foo"):
+                pass
+
+        # Verify that this is a 422 error
+        assert cb.value.response.status_code == 422
+
+        # test with good requests
+        outputs = []
+
+        async for chunk in async_remote_runnable.astream(1):
+            outputs.append(chunk)
+
+        assert outputs == [2]
+
+        outputs = []
+        data = HumanMessage(content="hello")
+
+        async for chunk in async_remote_runnable.astream(data):
+            outputs.append(chunk)
+
+        assert outputs == [data]
+
+
+@pytest.mark.asyncio
+async def test_astream_log_diff_no_effect(
+    async_remote_runnable: RemoteRunnable,
+) -> None:
     """Test async stream."""
     run_logs = []
 
-    async for chunk in async_client.astream_log(1, diff=False):
+    async for chunk in async_remote_runnable.astream_log(1, diff=False):
         run_logs.append(chunk)
 
     op = run_logs[0].ops[0]
@@ -458,37 +605,69 @@ async def test_astream_log_diff_no_effect(async_client: RemoteRunnable) -> None:
 
 
 @pytest.mark.asyncio
-async def test_astream_log(async_client: RemoteRunnable) -> None:
-    """Test async stream."""
-    run_log_patches = []
+async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
+    """Test astream log."""
 
-    async for chunk in async_client.astream_log(1, diff=True):
-        run_log_patches.append(chunk)
+    app = FastAPI()
 
-    op = run_log_patches[0].ops[0]
-    uuid = op["value"]["id"]
+    def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
 
-    assert [run_log_patch.ops for run_log_patch in run_log_patches] == [
-        [
-            {
-                "op": "replace",
-                "path": "",
-                "value": {
-                    "final_output": {"output": 2},
-                    "id": uuid,
-                    "logs": {},
-                    "streamed_output": [],
-                },
-            }
-        ],
-        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
-    ]
+    runnable = RunnableLambda(add_one)
+    add_routes(app, runnable)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
+        # Test bad requests
+        # test client side error
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            # Invalid input type (expected string but got int)
+            async for _ in runnable.astream_log("foo"):
+                pass
+
+        # Verify that this is a 422 error
+        assert cb.value.response.status_code == 422
+
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            # Invalid input type (expected string but got int)
+            # include names should not be a list of lists
+            async for _ in runnable.astream_log(1, include_names=[[]]):
+                pass
+
+        # Verify that this is a 422 error
+        assert cb.value.response.status_code == 422
+
+        # Test good requests
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1, diff=True):
+            run_log_patches.append(chunk)
+
+        op = run_log_patches[0].ops[0]
+        uuid = op["value"]["id"]
+
+        assert [run_log_patch.ops for run_log_patch in run_log_patches] == [
+            [
+                {
+                    "op": "replace",
+                    "path": "",
+                    "value": {
+                        "final_output": {"output": 2},
+                        "id": uuid,
+                        "logs": {},
+                        "streamed_output": [],
+                    },
+                }
+            ],
+            [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
+            [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+        ]
 
 
-def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
+def test_invoke_as_part_of_sequence(sync_remote_runnable: RemoteRunnable) -> None:
     """Test as part of sequence."""
-    runnable = client | RunnableLambda(func=lambda x: x + 1)
+    runnable = sync_remote_runnable | RunnableLambda(func=lambda x: x + 1)
     # without config
     assert runnable.invoke(1) == 3
     # with config
@@ -506,13 +685,15 @@ def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
 
 
 @pytest.mark.asyncio
-async def test_invoke_as_part_of_sequence_async(async_client: RemoteRunnable) -> None:
+async def test_invoke_as_part_of_sequence_async(
+    async_remote_runnable: RemoteRunnable,
+) -> None:
     """Test as part of a sequence.
 
     This helps to verify that config is handled properly (e.g., callbacks are not
     passed to the server, but other config is)
     """
-    runnable = async_client | RunnableLambda(
+    runnable = async_remote_runnable | RunnableLambda(
         func=lambda x: x + 1 if isinstance(x, int) else x
     ).with_config({"run_name": "hello"})
     # without config
@@ -608,8 +789,8 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         app, PromptTemplate.from_template("{question} {answer}"), path="/prompt_2"
     )
 
-    async with get_async_client(app, path="/add_one") as runnable:
-        async with get_async_client(app, path="/mul_2") as runnable2:
+    async with get_async_remote_runnable(app, path="/add_one") as runnable:
+        async with get_async_remote_runnable(app, path="/mul_2") as runnable2:
             assert await runnable.ainvoke(1) == 2
             assert await runnable2.ainvoke(4) == 8
 
@@ -620,12 +801,12 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
             composite_runnable_2 = runnable | add_one | runnable2
             assert await composite_runnable_2.ainvoke(3) == 10
 
-    async with get_async_client(app, path="/prompt_1") as runnable:
+    async with get_async_remote_runnable(app, path="/prompt_1") as runnable:
         assert await runnable.ainvoke(
             {"question": "What is your name?"}
         ) == StringPromptValue(text="What is your name?")
 
-    async with get_async_client(app, path="/prompt_2") as runnable:
+    async with get_async_remote_runnable(app, path="/prompt_2") as runnable:
         assert await runnable.ainvoke(
             {"question": "What is your name?", "answer": "Bob"}
         ) == StringPromptValue(text="What is your name? Bob")
@@ -660,7 +841,7 @@ async def test_input_validation(
         config_keys=["tags", "run_name", "metadata"],
     )
 
-    async with get_async_client(
+    async with get_async_remote_runnable(
         app, path="/add_one", raise_app_exceptions=False
     ) as runnable:
         # Verify that can be invoked with valid input
@@ -676,7 +857,7 @@ async def test_input_validation(
 
     server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
     # Verify config is handled correctly
-    async with get_async_client(app, path="/add_one") as runnable1:
+    async with get_async_remote_runnable(app, path="/add_one") as runnable1:
         # Verify that can be invoked with valid input
         # Config ignored for runnable1
         assert await runnable1.ainvoke(1, config=config) == 2
@@ -688,7 +869,7 @@ async def test_input_validation(
         assert "__langserve_version" in config_seen["metadata"]
 
     server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
-    async with get_async_client(app, path="/add_one_config") as runnable2:
+    async with get_async_remote_runnable(app, path="/add_one_config") as runnable2:
         # Config accepted for runnable2
         assert await runnable2.ainvoke(1, config=config) == 2
         # Config ignored
@@ -712,7 +893,7 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
     runnable = RunnablePassthrough()
     add_routes(app, runnable, config_keys=["tags"], input_type=InputType)
     # Invoke request
-    async with get_async_client(
+    async with get_async_remote_runnable(
         app, raise_app_exceptions=False
     ) as passthrough_runnable:
         with pytest.raises(httpx.HTTPError):
@@ -750,7 +931,7 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
         assert isinstance(result["messages"][0], HumanMessage)
 
     # Batch request
-    async with get_async_client(
+    async with get_async_remote_runnable(
         app, raise_app_exceptions=False
     ) as passthrough_runnable:
         # invalid
@@ -870,7 +1051,7 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
     app = FastAPI()
     add_routes(app, chain, config_keys=["tags", "configurable"])
 
-    async with get_async_client(app) as remote_runnable:
+    async with get_async_remote_runnable(app) as remote_runnable:
         # Test with hard-coded LLM
         assert chain.invoke({"name": "cat"}) == "say cat"
         # Test with different prompt
@@ -1117,7 +1298,7 @@ async def test_server_side_error() -> None:
     add_routes(app, ErroringRunnable())
 
     # Invoke request
-    async with get_async_client(app, raise_app_exceptions=False) as runnable:
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
         callback = AsyncEventAggregatorCallback()
         with pytest.raises(httpx.HTTPStatusError) as cm:
             assert await runnable.ainvoke(1, config={"callbacks": [callback]})
@@ -1171,7 +1352,7 @@ def test_server_side_error_sync() -> None:
     add_routes(app, ErroringRunnable())
 
     # Invoke request
-    with get_sync_client(app, raise_server_exceptions=False) as runnable:
+    with get_sync_remote_runnable(app, raise_server_exceptions=False) as runnable:
         with pytest.raises(httpx.HTTPStatusError) as cm:
             assert runnable.invoke(1)
         assert isinstance(cm.value, httpx.HTTPStatusError)
@@ -1235,7 +1416,7 @@ async def test_custom_user_type() -> None:
     add_routes(app, RunnableLambda(func2).with_types(input_type=Baz), path="/baz")
 
     # Invoke request
-    async with get_async_client(
+    async with get_async_remote_runnable(
         app, path="/foo", raise_app_exceptions=False
     ) as runnable:
         assert await runnable.ainvoke({"bar": 1}) == 1

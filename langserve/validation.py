@@ -246,6 +246,37 @@ def create_batch_response_model(
     return batch_response_type
 
 
+class InvokeRequestShallowValidator(BaseModel):
+    """Shallow validator for Invoke Request.
+
+    Validate basic shape of invoke request, downstream code
+    is expected to do further validation.
+    """
+
+    input: Any = Field(..., description="The input to the runnable.")
+    config: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class BatchRequestShallowValidator(BaseModel):
+    """Shallow validator for Batch Request."""
+
+    inputs: Any = Field(..., description="The inputs to the runnable.")
+    config: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = Field(
+        default_factory=dict
+    )
+
+
+class StreamLogParameters(BaseModel):
+    """Shallow validator for Stream Log Request"""
+
+    include_names: Optional[Sequence[str]] = None
+    include_types: Optional[Sequence[str]] = None
+    include_tags: Optional[Sequence[str]] = None
+    exclude_names: Optional[Sequence[str]] = None
+    exclude_types: Optional[Sequence[str]] = None
+    exclude_tags: Optional[Sequence[str]] = None
+
+
 # Pydantic validators for callback events
 # These objects may have a slightly different shape than the callback events
 # used internally in langchain because they represent a serialized version
