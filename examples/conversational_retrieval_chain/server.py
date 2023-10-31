@@ -7,7 +7,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
 
@@ -18,12 +18,17 @@ retriever = vectorstore.as_retriever()
 
 model = ChatOpenAI()
 
+chain = ConversationalRetrievalChain.from_llm(model, retriever)
+
 
 # User input
 class ChatHistory(BaseModel):
     """Chat history with the bot."""
 
-    chat_history: List[Tuple[str, str]]
+    chat_history: List[Tuple[str, str]] = Field(
+        ...,
+        extra={"widget": {"type": "chat", "input": "question"}},
+    )
     question: str
 
 
