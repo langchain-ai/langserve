@@ -483,7 +483,7 @@ async def test_astream_log(async_client: RemoteRunnable) -> None:
         ],
         [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
         [{"op": "add", "path": "/streamed_output/-", "value": 2}],
-    ]
+    er
 
 
 def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
