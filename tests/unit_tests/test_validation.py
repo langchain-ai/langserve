@@ -4,7 +4,7 @@ import pytest
 from langchain.prompts import PromptTemplate
 from langchain.schema.runnable.utils import ConfigurableField
 
-from langserve.server import _unpack_config
+from langserve.server import _unpack_request_config
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
@@ -151,7 +151,7 @@ def test_invoke_request_with_runnables() -> None:
     Model = create_invoke_request_model("", runnable.input_schema, config)
 
     assert (
-        _unpack_config(
+        _unpack_request_config(
             Model(
                 input={"name": "bob"},
             ).config,
@@ -178,6 +178,8 @@ def test_invoke_request_with_runnables() -> None:
         "template": "goodbye {name}",
     }
 
-    assert _unpack_config(request.config, keys=["configurable"], model=config) == {
+    assert _unpack_request_config(
+        request.config, keys=["configurable"], model=config
+    ) == {
         "configurable": {"template": "goodbye {name}"},
     }

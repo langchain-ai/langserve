@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import contextlib
 import json
 import re
 import weakref
@@ -13,8 +14,10 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
+    Generator,
     Literal,
     Mapping,
+    Optional,
     Sequence,
     Tuple,
     Type,
@@ -22,6 +25,7 @@ from typing import (
 )
 
 from fastapi import HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
@@ -35,11 +39,13 @@ from langserve.schema import CustomUserType
 try:
     from pydantic.v1 import BaseModel, create_model
 except ImportError:
-    from pydantic import BaseModel, Field, create_model
+    from pydantic import BaseModel, Field, ValidationError, create_model
 
 from langserve.playground import serve_playground
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
+    BatchRequestShallowValidator,
+    InvokeRequestShallowValidator,
     StreamLogParameters,
     create_batch_request_model,
     create_batch_response_model,
@@ -72,7 +78,7 @@ def _config_from_hash(config_hash: str) -> Dict[str, Any]:
         raise HTTPException(400, "Invalid config hash")
 
 
-def _unpack_config(
+def _unpack_request_config(
     *configs: Union[BaseModel, Mapping, str],
     keys: Sequence[str],
     model: Type[BaseModel],
@@ -275,6 +281,18 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
         _APP_TO_PATHS[app] = {path}
 
 
+@contextlib.contextmanager
+def _with_validation_error_translation() -> Generator[None, None, None]:
+    """Context manager to translate validation errors to request validation errors.
+
+    This makes sure that validation errors are surfaced as client side errors.
+    """
+    try:
+        yield
+    except ValidationError as e:
+        raise RequestValidationError(e.errors(), body=e.model)
+
+
 # PUBLIC API
 
 
@@ -401,42 +419,32 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    async def _get_input(request: Request, config: RunnableConfig) -> Any:
-        """Get the input from the request."""
-        body = await request.json()
-        if "input" not in body:
-            raise HTTPException(422, "Missing 'input' key in request body")
-        schema = runnable.with_config(config).input_schema
-        return schema.validate(body["input"])
-
     async def _get_config_and_input(
         request: Request, config_hash: str
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
-        body = await request.json()
-        if "input" not in body:
-            raise HTTPException(422, "Missing 'input' key in request body")
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            raise HTTPException(400, "Invalid JSON body")
+        try:
+            body = InvokeRequestShallowValidator.validate(body)
 
-        # Get the config that was provided via the body if any.
-        body_config = body.get("config", {})
-        if not isinstance(body_config, dict):
-            raise HTTPException(
-                422, "Value for 'config' key must be a dict if provided"
+            # Merge the config from the path with the config from the body.
+            config = _unpack_request_config(
+                config_hash,
+                body.config,
+                keys=config_keys,
+                model=ConfigPayload,
             )
-
-        # Merge the config from the path with the config from the body.
-        config = _unpack_config(
-            config_hash,
-            body_config,
-            keys=config_keys,
-            model=ConfigPayload,
-        )
-        # Unpack the input dynamically using the input schema of the runnable.
-        # This takes into account changes in the input type when
-        # using configuration.
-        schema = runnable.with_config(config).input_schema
-        input_ = schema.validate(body["input"])
-        return config, _unpack_input(input_)
+            # Unpack the input dynamically using the input schema of the runnable.
+            # This takes into account changes in the input type when
+            # using configuration.
+            schema = runnable.with_config(config).input_schema
+            input_ = schema.validate(body.input)
+            return config, _unpack_input(input_)
+        except ValidationError as e:
+            raise RequestValidationError(e.errors(), body=body)
 
     @app.post(
         namespace + "/c/{config_hash}/invoke",
@@ -487,36 +495,36 @@ def add_routes(
         config_hash: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
-        body = await request.json()
-        config = body.get("config", {})
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            raise HTTPException(400, "Invalid JSON body")
 
-        # First unpack the config
-        if isinstance(config, list):
-            configs = [
-                _unpack_config(
-                    config_hash, config, keys=config_keys, model=ConfigPayload
+        with _with_validation_error_translation():
+            body = BatchRequestShallowValidator.validate(body)
+            config = body.config
+
+            # First unpack the config
+            if isinstance(config, list):
+                configs = [
+                    _unpack_request_config(
+                        config_hash, config, keys=config_keys, model=ConfigPayload
+                    )
+                    for config in config
+                ]
+            elif isinstance(config, dict):
+                configs = _unpack_request_config(
+                    config_hash,
+                    config,
+                    keys=config_keys,
+                    model=ConfigPayload,
                 )
-                for config in config
-            ]
-        elif isinstance(config, dict):
-            configs = _unpack_config(
-                config_hash,
-                config,
-                keys=config_keys,
-                model=ConfigPayload,
-            )
-        else:
-            raise HTTPException(
-                422, "Value for 'config' key must be a dict or list if provided"
-            )
+            else:
+                raise HTTPException(
+                    422, "Value for 'config' key must be a dict or list if provided"
+                )
 
-        if "inputs" not in body:
-            raise HTTPException(422, "Missing 'inputs' key in request body")
-
-        inputs_ = body["inputs"]
-
-        if not isinstance(inputs_, list):
-            raise HTTPException(422, "Value for 'inputs' key must be a list")
+        inputs_ = body.inputs
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
@@ -571,16 +579,16 @@ def add_routes(
         It's attached to _stream_docs endpoint.
         """
         err_event = {}
-        validation_exception = None
+        validation_exception: Optional[BaseException] = None
         try:
             config, input_ = await _get_config_and_input(request, config_hash)
-        except HTTPException as e:
+        except BaseException as e:
             validation_exception = e
-            if 400 <= e.status_code <= 500:
+            if isinstance(e, RequestValidationError):
                 err_event = {
                     "event": "error",
                     "data": json.dumps(
-                        {"status_code": e.status_code, "message": e.detail}
+                        {"status_code": 422, "message": repr(e.errors())}
                     ),
                 }
             else:
@@ -593,11 +601,25 @@ def add_routes(
                     ),
                 }
 
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            # Body as text
+            body = None
+
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
             if validation_exception:
                 yield err_event
-                raise validation_exception
+                if isinstance(validation_exception, RequestValidationError):
+                    raise RequestValidationError(
+                        validation_exception.errors(),
+                        body=body,
+                    )
+                else:
+                    raise AssertionError(
+                        "Internal server error"
+                    ) from validation_exception
 
             try:
                 async for chunk in runnable.astream(
@@ -639,16 +661,16 @@ def add_routes(
         It's attached to _stream_log_docs endpoint.
         """
         err_event = {}
-        validation_exception = None
+        validation_exception: Optional[BaseException] = None
         try:
             config, input_ = await _get_config_and_input(request, config_hash)
-        except HTTPException as e:
+        except BaseException as e:
             validation_exception = e
-            if 400 <= e.status_code <= 500:
+            if isinstance(e, RequestValidationError):
                 err_event = {
                     "event": "error",
                     "data": json.dumps(
-                        {"status_code": e.status_code, "message": e.detail}
+                        {"status_code": 422, "message": repr(e.errors())}
                     ),
                 }
             else:
@@ -663,13 +685,28 @@ def add_routes(
 
         body = await request.json()
         # Get stream log parameters
-        stream_log_request = StreamLogParameters(**body)
+        try:
+            stream_log_request = StreamLogParameters(**body)
+        except ValidationError as e:
+            validation_exception = e
+            err_event = {
+                "event": "error",
+                "data": json.dumps({"status_code": 422, "message": repr(e.errors())}),
+            }
 
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
             if validation_exception:
                 yield err_event
-                raise validation_exception
+                if isinstance(validation_exception, RequestValidationError):
+                    raise RequestValidationError(
+                        validation_exception.errors(),
+                        body=body,
+                    )
+                else:
+                    raise AssertionError(
+                        "Internal server error"
+                    ) from validation_exception
 
             try:
                 async for chunk in runnable.astream_log(
@@ -715,23 +752,31 @@ def add_routes(
     @app.get(f"{namespace}/input_schema")
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
-        return runnable.get_input_schema(
-            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-        ).schema()
+        with _with_validation_error_translation():
+            config = _unpack_request_config(
+                config_hash, keys=config_keys, model=ConfigPayload
+            )
+
+        return runnable.get_input_schema(config).schema()
 
     @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
     @app.get(f"{namespace}/output_schema")
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
-        return runnable.get_output_schema(
-            _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
-        ).schema()
+        with _with_validation_error_translation():
+            config = _unpack_request_config(
+                config_hash, keys=config_keys, model=ConfigPayload
+            )
+        return runnable.get_output_schema(config).schema()
 
     @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
     @app.get(f"{namespace}/config_schema")
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
-        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        with _with_validation_error_translation():
+            config = _unpack_request_config(
+                config_hash, keys=config_keys, model=ConfigPayload
+            )
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
@@ -742,7 +787,10 @@ def add_routes(
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
     async def playground(file_path: str, config_hash: str = "") -> Any:
         """Return the playground of the runnable."""
-        config = _unpack_config(config_hash, keys=config_keys, model=ConfigPayload)
+        with _with_validation_error_translation():
+            config = _unpack_request_config(
+                config_hash, keys=config_keys, model=ConfigPayload
+            )
         return await serve_playground(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,

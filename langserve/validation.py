@@ -41,33 +41,6 @@ Validator = Union[Type[BaseModel], type]
 # PUBLIC API
 
 
-class StreamLogParameters(BaseModel):
-    include_names: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, filter to runnables with matching names",
-    )
-    include_types: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, filter to runnables with matching types",
-    )
-    include_tags: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, filter to runnables with matching tags",
-    )
-    exclude_names: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, exclude runnables with matching names",
-    )
-    exclude_types: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, exclude runnables with matching types",
-    )
-    exclude_tags: Optional[Sequence[str]] = Field(
-        None,
-        description="If specified, exclude runnables with matching tags",
-    )
-
-
 def create_invoke_request_model(
     namespace: str,
     input_type: Validator,
@@ -271,6 +244,37 @@ def create_batch_response_model(
     )
     batch_response_type.update_forward_refs()
     return batch_response_type
+
+
+class InvokeRequestShallowValidator(BaseModel):
+    """Shallow validator for Invoke Request.
+
+    Validate basic shape of invoke request, downstream code
+    is expected to do further validation.
+    """
+
+    input: Any = Field(..., description="The input to the runnable.")
+    config: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class BatchRequestShallowValidator(BaseModel):
+    """Shallow validator for Batch Request."""
+
+    inputs: Any = Field(..., description="The inputs to the runnable.")
+    config: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = Field(
+        default_factory=dict
+    )
+
+
+class StreamLogParameters(BaseModel):
+    """Shallow validator for Stream Log Request"""
+
+    include_names: Optional[Sequence[str]] = None
+    include_types: Optional[Sequence[str]] = None
+    include_tags: Optional[Sequence[str]] = None
+    exclude_names: Optional[Sequence[str]] = None
+    exclude_types: Optional[Sequence[str]] = None
+    exclude_tags: Optional[Sequence[str]] = None
 
 
 # Pydantic validators for callback events
