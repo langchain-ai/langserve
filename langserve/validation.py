@@ -211,8 +211,11 @@ def create_invoke_response_model(
         ),
         metadata=(
             SingletonResponseMetadata,
-            Field(..., description="Metadata about the response that may be useful to specific clients")
-        )
+            Field(
+                ...,
+                description="Metadata about the response that may be useful to specific clients",
+            ),
+        ),
     )
     invoke_response_type.update_forward_refs()
     return invoke_response_type
@@ -251,9 +254,11 @@ def create_batch_response_model(
             BatchResponseMetadata,
             Field(
                 ...,
-                description=("Metadata about the response that may be useful to specific clients")
-            )
-        )
+                description=(
+                    "Metadata about the response that may be useful to specific clients"
+                ),
+            ),
+        ),
     )
     batch_response_type.update_forward_refs()
     return batch_response_type
