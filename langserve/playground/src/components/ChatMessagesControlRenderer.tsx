@@ -32,22 +32,12 @@ export const chatMessagesTester = rankWith(
       }
 
       if ("anyOf" in schema.items && schema.items.anyOf != null) {
-        return schema.items.anyOf.every((schema) => {
-          const isObjectMessage =
+        return schema.items.anyOf.every(
+          (schema) =>
             schema.type === "object" &&
             (schema.title?.endsWith("Message") ||
-              schema.title?.endsWith("MessageChunk"));
-
-          const isTupleMessage =
-            schema.type === "array" &&
-            schema.minItems === 2 &&
-            schema.maxItems === 2 &&
-            Array.isArray(schema.items) &&
-            schema.items.length === 2 &&
-            schema.items.every((schema) => schema.type === "string");
-
-          return isObjectMessage || isTupleMessage;
-        });
+              schema.title?.endsWith("MessageChunk"))
+        );
       }
 
       return false;

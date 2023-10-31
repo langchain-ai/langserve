@@ -7,6 +7,7 @@ import {
   schemaMatches,
   Paths,
   isControl,
+  or,
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { isJsonSchemaExtra } from "../utils/schema";
@@ -17,28 +18,72 @@ export const chatMessagesTupleTester = rankWith(
   12,
   and(
     isControl,
-    schemaMatches((schema) => {
-      if (schema.type !== "array") return false;
-      if (typeof schema.items !== "object" || schema.items == null)
+    or(
+      schemaMatches((schema) => {
+        if (schema.type !== "array") return false;
+        if (typeof schema.items !== "object" || schema.items == null)
+          return false;
+
+        if (!isJsonSchemaExtra(schema) || schema.extra.widget.type !== "chat") {
+          return false;
+        }
+
+        if ("type" in schema.items) {
+          return (
+            schema.items.type === "array" &&
+            schema.items.minItems === 2 &&
+            schema.items.maxItems === 2 &&
+            Array.isArray(schema.items.items) &&
+            schema.items.items.length === 2 &&
+            schema.items.items.every((schema) => schema.type === "string")
+          );
+        }
+
         return false;
+      }),
+      // Show the tuple editor when the schema is derived
+      // from autotype
+      schemaMatches((schema) => {
+        if (schema.type !== "array") return false;
+        if (typeof schema.items !== "object" || schema.items == null)
+          return false;
 
-      if (!isJsonSchemaExtra(schema) || schema.extra.widget.type !== "chat") {
+        if (
+          "type" in schema.items &&
+          schema.items.type != null &&
+          schema.items.title != null
+        ) {
+          return (
+            schema.items.type === "object" &&
+            (schema.items.title?.endsWith("Message") ||
+              schema.items.title?.endsWith("MessageChunk"))
+          );
+        }
+
+        if ("anyOf" in schema.items && schema.items.anyOf != null) {
+          const res = schema.items.anyOf.every((schema) => {
+            const isObjectMessage =
+              schema.type === "object" &&
+              (schema.title?.endsWith("Message") ||
+                schema.title?.endsWith("MessageChunk"));
+
+            const isTupleMessage =
+              schema.type === "array" &&
+              schema.minItems === 2 &&
+              schema.maxItems === 2 &&
+              Array.isArray(schema.items) &&
+              schema.items.length === 2 &&
+              schema.items.every((schema) => schema.type === "string");
+
+            return isObjectMessage || isTupleMessage;
+          });
+
+          return res;
+        }
+
         return false;
-      }
-
-      if ("type" in schema.items) {
-        return (
-          schema.items.type === "array" &&
-          schema.items.minItems === 2 &&
-          schema.items.maxItems === 2 &&
-          Array.isArray(schema.items.items) &&
-          schema.items.items.length === 2 &&
-          schema.items.items.every((schema) => schema.type === "string")
-        );
-      }
-
-      return false;
-    })
+      })
+    )
   )
 );
 
