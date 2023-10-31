@@ -1101,7 +1101,7 @@ def test_rename_pydantic_model() -> None:
     Model = _rename_pydantic_model(Foo, "Bar")
 
     assert isinstance(Model, type)
-    assert Model.__name__ == "Bar"
+    assert Model.__name__ == "BarFoo"
 
 
 @pytest.mark.asyncio

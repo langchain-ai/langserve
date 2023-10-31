@@ -117,14 +117,16 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     return model
 
 
-def _rename_pydantic_model(model: Type[BaseModel], name: str) -> Type[BaseModel]:
+def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseModel]:
     """Rename the given pydantic model to the given name."""
     return create_model(
-        name,
+        prefix + model.__name__,
         __config__=model.__config__,
         **{
             fieldname: (
-                field.annotation,
+                _rename_pydantic_model(field.annotation, prefix)
+                if isclass(field.annotation) and issubclass(field.annotation, BaseModel)
+                else field.annotation,
                 Field(
                     field.default,
                     title=fieldname,
@@ -162,7 +164,7 @@ def _resolve_model(
     if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
         # If the model name has been seen before, but the model itself is different
         # generate a new name for the model.
-        model_to_use = _rename_pydantic_model(model, f"{namespace}{model.__name__}")
+        model_to_use = _rename_pydantic_model(model, namespace)
         hash_ = model_to_use.schema_json()
     else:
         model_to_use = model
@@ -187,10 +189,7 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     Returns:
         A new model with name prepended with the given namespace.
     """
-    model_with_unique_name = _rename_pydantic_model(
-        model,
-        f"{namespace}{model.__name__}",
-    )
+    model_with_unique_name = _rename_pydantic_model(model, namespace)
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
 
@@ -355,22 +354,6 @@ def add_routes(
         _register_path_for_app(app, path)
     well_known_lc_serializer = WellKnownLCSerializer()
 
-    if hasattr(app, "openapi_tags") and app not in _APP_SEEN:
-        _APP_SEEN.add(app)
-        app.openapi_tags = [
-            *(getattr(app, "openapi_tags", []) or []),
-            {
-                "name": "default",
-            },
-            {
-                "name": "config",
-                "description": (
-                    "Endpoints with a default configuration "
-                    "set by `config_hash` path parameter."
-                ),
-            },
-        ]
-
     if path and not path.startswith("/"):
         raise ValueError(
             f"Got an invalid path: {path}. "
@@ -380,6 +363,36 @@ def add_routes(
     namespace = path or ""
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
+
+    route_tags = [path.strip("/")] if path else None
+    route_tags_with_config = [f"{path.strip('/')}/config"] if path else ["config"]
+
+    def _route_name(name: str) -> str:
+        """Return the route name with the given name."""
+        return f"{path.strip('/')} {name}" if path else name
+
+    def _route_name_with_config(name: str) -> str:
+        """Return the route name with the given name."""
+        return (
+            f"{path.strip('/')} {name} with config" if path else f"{name} with config"
+        )
+
+    if hasattr(app, "openapi_tags") and (path or (app not in _APP_SEEN)):
+        if not path:
+            _APP_SEEN.add(app)
+        app.openapi_tags = [
+            *(getattr(app, "openapi_tags", []) or []),
+            {
+                "name": route_tags[0] if route_tags else "default",
+            },
+            {
+                "name": route_tags_with_config[0],
+                "description": (
+                    "Endpoints with a default configuration "
+                    "set by `config_hash` path parameter."
+                ),
+            },
+        ]
 
     with_types = {}
 
@@ -449,9 +462,11 @@ def add_routes(
     @app.post(
         namespace + "/c/{config_hash}/invoke",
         response_model=InvokeResponse,
-        tags=["config"],
+        include_in_schema=False,
     )
-    @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
+    @app.post(
+        f"{namespace}/invoke", response_model=InvokeResponse, include_in_schema=False
+    )
     async def invoke(
         request: Request,
         config_hash: str = "",
@@ -484,7 +499,6 @@ def add_routes(
     @app.post(
         namespace + "/c/{config_hash}/batch",
         response_model=BatchResponse,
-        tags=["config"],
         include_in_schema=False,
     )
     @app.post(
@@ -574,9 +588,11 @@ def add_routes(
         )
 
     @app.post(
-        namespace + "/c/{config_hash}/stream", tags=["config"], include_in_schema=False
+        namespace + "/c/{config_hash}/stream",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("stream"),
     )
-    @app.post(f"{namespace}/stream", include_in_schema=False)
+    @app.post(f"{namespace}/stream", tags=route_tags, name=_route_name("stream"))
     async def stream(
         request: Request,
         config_hash: str = "",
@@ -646,10 +662,12 @@ def add_routes(
 
     @app.post(
         namespace + "/c/{config_hash}/stream_log",
-        tags=["config"],
-        include_in_schema=False,
+        tags=route_tags_with_config,
+        name=_route_name_with_config("stream_log"),
     )
-    @app.post(f"{namespace}/stream_log", include_in_schema=False)
+    @app.post(
+        f"{namespace}/stream_log", tags=route_tags, name=_route_name("stream_log")
+    )
     async def stream_log(
         request: Request,
         config_hash: str = "",
@@ -753,8 +771,14 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
-    @app.get(namespace + "/c/{config_hash}/input_schema", tags=["config"])
-    @app.get(f"{namespace}/input_schema")
+    @app.get(
+        namespace + "/c/{config_hash}/input_schema",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("input_schema"),
+    )
+    @app.get(
+        f"{namespace}/input_schema", tags=route_tags, name=_route_name("input_schema")
+    )
     async def input_schema(config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
@@ -764,8 +788,14 @@ def add_routes(
 
         return runnable.get_input_schema(config).schema()
 
-    @app.get(namespace + "/c/{config_hash}/output_schema", tags=["config"])
-    @app.get(f"{namespace}/output_schema")
+    @app.get(
+        namespace + "/c/{config_hash}/output_schema",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("output_schema"),
+    )
+    @app.get(
+        f"{namespace}/output_schema", tags=route_tags, name=_route_name("output_schema")
+    )
     async def output_schema(config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
@@ -774,8 +804,14 @@ def add_routes(
             )
         return runnable.get_output_schema(config).schema()
 
-    @app.get(namespace + "/c/{config_hash}/config_schema", tags=["config"])
-    @app.get(f"{namespace}/config_schema")
+    @app.get(
+        namespace + "/c/{config_hash}/config_schema",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("config_schema"),
+    )
+    @app.get(
+        f"{namespace}/config_schema", tags=route_tags, name=_route_name("config_schema")
+    )
     async def config_schema(config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
@@ -786,7 +822,6 @@ def add_routes(
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
-        tags=["config"],
         include_in_schema=False,
     )
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
@@ -810,10 +845,15 @@ def add_routes(
     @app.post(
         namespace + "/c/{config_hash}/invoke",
         response_model=InvokeResponse,
-        tags=["config"],
-        name="invoke",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("invoke"),
     )
-    @app.post(f"{namespace}/invoke", response_model=InvokeResponse, name="invoke")
+    @app.post(
+        f"{namespace}/invoke",
+        response_model=InvokeResponse,
+        tags=route_tags,
+        name=_route_name("invoke"),
+    )
     async def _invoke_docs(
         invoke_request: Annotated[InvokeRequest, InvokeRequest],
         config_hash: str = "",
@@ -824,10 +864,15 @@ def add_routes(
     @app.post(
         namespace + "/c/{config_hash}/batch",
         response_model=BatchResponse,
-        tags=["config"],
-        name="batch",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("batch"),
     )
-    @app.post(f"{namespace}/batch", response_model=BatchResponse, name="batch")
+    @app.post(
+        f"{namespace}/batch",
+        response_model=BatchResponse,
+        tags=route_tags,
+        name=_route_name("batch"),
+    )
     async def _batch_docs(
         batch_request: Annotated[BatchRequest, BatchRequest],
         config_hash: str = "",
@@ -835,8 +880,18 @@ def add_routes(
         """Batch invoke the runnable with the given inputs and config."""
         raise AssertionError("This endpoint should not be reachable.")
 
-    @app.post(namespace + "/c/{config_hash}/stream", tags=["config"], name="stream")
-    @app.post(f"{namespace}/stream", name="stream")
+    @app.post(
+        namespace + "/c/{config_hash}/stream",
+        include_in_schema=True,
+        tags=route_tags_with_config,
+        name=_route_name_with_config("stream"),
+    )
+    @app.post(
+        f"{namespace}/stream",
+        include_in_schema=True,
+        tags=route_tags,
+        name=_route_name("stream"),
+    )
     async def _stream_docs(
         stream_request: Annotated[StreamRequest, StreamRequest],
         config_hash: str = "",
@@ -886,14 +941,15 @@ def add_routes(
 
     @app.post(
         namespace + "/c/{config_hash}/stream_log",
-        tags=["config"],
         include_in_schema=True,
-        name="stream_log",
+        tags=route_tags_with_config,
+        name=_route_name_with_config("stream_log"),
     )
     @app.post(
         f"{namespace}/stream_log",
         include_in_schema=True,
-        name="stream_log",
+        tags=route_tags,
+        name=_route_name("stream_log"),
     )
     async def _stream_log_docs(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
