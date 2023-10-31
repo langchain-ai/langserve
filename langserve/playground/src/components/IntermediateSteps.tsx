@@ -7,15 +7,27 @@ import { str } from "../utils/str";
 
 export function IntermediateSteps(props: { latest: RunState }) {
   const [expanded, setExpanded] = useState(false);
+  const length = Object.values(props.latest.logs).length;
+  const disabled = length === 0;
   return (
     <div className="flex flex-col border border-divider-700 rounded-2xl bg-background">
       <button
         className="font-medium text-left p-4 flex items-center justify-between"
+        disabled={disabled}
         onClick={() => setExpanded((open) => !open)}
       >
-        <span>Intermediate steps</span>
+        <span>
+          Intermediate steps{" "}
+          <span className="bg-ls-gray-400 text-ls-gray-100 text-sm px-1 py-0.5 rounded-md ml-1">
+            {length}
+          </span>
+        </span>
         <ChevronRight
-          className={cn("transition-all", expanded && "rotate-90")}
+          className={cn(
+            "transition-all",
+            expanded && "rotate-90",
+            disabled && "opacity-20"
+          )}
         />
       </button>
       {expanded && (
