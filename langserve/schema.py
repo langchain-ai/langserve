@@ -21,3 +21,16 @@ class CustomUserType(BaseModel):
         the server will keep the decoded type as a pydantic model instead
         of converting it into a dict.
     """
+
+class SharedResponseMetadata(BaseModel):
+    pass
+
+class SingletonResponseMetadata(SharedResponseMetadata):
+
+    # Represents the parent run id for a given request
+    run_id: str
+
+class BatchResponseMetadata(SharedResponseMetadata):
+    # Represents each parent run id for a given request, in
+    # the same order in which they were received
+    run_ids: list[str]

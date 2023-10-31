@@ -34,7 +34,7 @@ from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
-from langserve.schema import CustomUserType
+from langserve.schema import BatchResponseMetadata, CustomUserType, SingletonResponseMetadata
 
 try:
     from pydantic.v1 import BaseModel, create_model
@@ -290,6 +290,19 @@ def _with_validation_error_translation() -> Generator[None, None, None]:
         yield
     except ValidationError as e:
         raise RequestValidationError(e.errors(), body=e.model)
+    
+
+def _get_base_run_id_as_str(event_aggregator: AsyncEventAggregatorCallback) -> Optional[str]:
+    """
+    Uses `event_aggregator` to determine the base run ID for a given run. Returns
+    the run_id as a string, or None if it does not exist.
+    """
+    # The first run in the callback_events list corresponds to the 
+    # overall trace for request
+    if event_aggregator.callback_events and event_aggregator.callback_events[0].get("run_id"):
+        return str(event_aggregator.callback_events[0].get("run_id"))
+    else:
+        None
 
 
 # PUBLIC API
@@ -494,6 +507,7 @@ def add_routes(
             # Callbacks are scrubbed and exceptions are converted to serializable format
             # before returned in the response.
             callback_events=callback_events,
+            metadata=SingletonResponseMetadata(run_id=_get_base_run_id_as_str(event_aggregator))
         )
 
     @app.post(
@@ -585,6 +599,9 @@ def add_routes(
         return BatchResponse(
             output=well_known_lc_serializer.dumpd(output),
             callback_events=callback_events,
+            metadata=BatchResponseMetadata(
+                run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
+            )
         )
 
     @app.post(
