@@ -74,6 +74,7 @@ import {
   customAnyOfTester,
   CustomAnyOfRenderer,
 } from "./components/CustomAnyOfRenderer";
+import { cn } from "./utils/cn";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -236,7 +237,15 @@ function App() {
     });
   }, []);
 
-  return schemas.config && schemas.input ? (
+  const isSendDisabled = 
+    !stopStream &&
+    (!!inputData.errors?.length || !!configData.errors?.length)
+
+  if (!schemas.config || !schemas.input) {
+    return <></>;
+  }
+
+  return (
     <div className="flex items-center flex-col text-ls-black bg-gradient-to-b from-[#F9FAFB] to-[#EFF8FF] min-h-[100dvh] dark:from-[#0C111C] dark:to-[#0C111C]">
       <div className="flex flex-col flex-grow gap-4 px-4 pt-6 max-w-[800px] w-full">
         <h1 className="text-2xl text-left">
@@ -379,12 +388,9 @@ function App() {
               </ShareDialog>
               <button
                 type="button"
-                className="px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 transition-colors"
+                className={cn("px-4 py-3 gap-3 font-medium border border-transparent rounded-full flex items-center justify-center bg-blue-500 disabled:opacity-50 transition-colors", !isSendDisabled ? "hover:bg-blue-600 active:bg-blue-700" : "")}
                 onClick={onSubmit}
-                disabled={
-                  !stopStream &&
-                  (!!inputData.errors?.length || !!configData.errors?.length)
-                }
+                disabled={isSendDisabled}
               >
                 {stopStream ? (
                   <>
@@ -421,7 +427,7 @@ function App() {
         </div>
       </div>
     </div>
-  ) : null;
+  );
 }
 
 export default App;
