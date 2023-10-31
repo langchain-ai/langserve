@@ -110,14 +110,16 @@ def _unpack_input(validated_model: BaseModel) -> Any:
     return model
 
 
-def _rename_pydantic_model(model: Type[BaseModel], name: str) -> Type[BaseModel]:
+def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseModel]:
     """Rename the given pydantic model to the given name."""
     return create_model(
-        name,
+        prefix + model.__name__,
         __config__=model.__config__,
         **{
             fieldname: (
-                field.annotation,
+                _rename_pydantic_model(field.annotation, prefix)
+                if isclass(field.annotation) and issubclass(field.annotation, BaseModel)
+                else field.annotation,
                 Field(
                     field.default,
                     title=fieldname,
@@ -155,7 +157,7 @@ def _resolve_model(
     if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
         # If the model name has been seen before, but the model itself is different
         # generate a new name for the model.
-        model_to_use = _rename_pydantic_model(model, f"{namespace}{model.__name__}")
+        model_to_use = _rename_pydantic_model(model, namespace)
         hash_ = model_to_use.schema_json()
     else:
         model_to_use = model
@@ -180,10 +182,7 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     Returns:
         A new model with name prepended with the given namespace.
     """
-    model_with_unique_name = _rename_pydantic_model(
-        model,
-        f"{namespace}{model.__name__}",
-    )
+    model_with_unique_name = _rename_pydantic_model(model, namespace)
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
 
