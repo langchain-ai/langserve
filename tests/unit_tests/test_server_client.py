@@ -485,6 +485,13 @@ async def test_astream_log(async_client: RemoteRunnable) -> None:
         [{"op": "add", "path": "/streamed_output/-", "value": 2}],
     ]
 
+    # Test with filters
+    chunks = []
+    async for chunk in async_client.astream_log(1, include_names=["a"]):
+        chunks.append(chunk)
+
+    assert chunks == []
+
 
 def test_invoke_as_part_of_sequence(client: RemoteRunnable) -> None:
     """Test as part of sequence."""

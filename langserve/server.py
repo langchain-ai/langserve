@@ -17,6 +17,7 @@ from typing import (
     Literal,
     Mapping,
     Sequence,
+    Tuple,
     Type,
     Union,
 )
@@ -40,6 +41,7 @@ except ImportError:
 from langserve.playground import serve_playground
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
+    StreamLogParameters,
     create_batch_request_model,
     create_batch_response_model,
     create_invoke_request_model,
@@ -408,30 +410,10 @@ def add_routes(
         schema = runnable.with_config(config).input_schema
         return schema.validate(body["input"])
 
-    async def _get_batch_inputs(request: Request, configs: List[RunnableConfig]) -> Any:
-        """Get the input from the request."""
-        body = await request.json()
-        if "inputs" not in body:
-            raise HTTPException(422, "Missing 'inputs' key in request body")
-        inputs = [
-            _unpack_input(runnable.with_config(config).input_schema.validate(input_))
-            for config, input_ in zip(configs, body["inputs"])
-        ]
-        return inputs
-
-    @app.post(
-        namespace + "/c/{config_hash}/invoke",
-        response_model=InvokeResponse,
-        tags=["config"],
-    )
-    @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
-    async def invoke(
-        request: Request,
-        config_hash: str = "",
-    ) -> InvokeResponse:
-        """Invoke the runnable with the given input and config."""
-        # We do not use the InvokeRequest model here since configurable runnables
-        # have dynamic schema -- so the validation below is a bit more involved.
+    async def _get_config_and_input(
+        request: Request, config_hash: str
+    ) -> Tuple[RunnableConfig, Any]:
+        """Extract the config and input from the request, validating the request."""
         body = await request.json()
         if "input" not in body:
             raise HTTPException(422, "Missing 'input' key in request body")
@@ -450,16 +432,32 @@ def add_routes(
             keys=config_keys,
             model=ConfigPayload,
         )
-        # raise ValueError(config)
         # Unpack the input dynamically using the input schema of the runnable.
-        # This takes into account changes in the input type when using configuration.
+        # This takes into account changes in the input type when
+        # using configuration.
         schema = runnable.with_config(config).input_schema
-        input = schema.validate(body["input"])
+        input_ = schema.validate(body["input"])
+        return config, _unpack_input(input_)
+
+    @app.post(
+        namespace + "/c/{config_hash}/invoke",
+        response_model=InvokeResponse,
+        tags=["config"],
+    )
+    @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
+    async def invoke(
+        request: Request,
+        config_hash: str = "",
+    ) -> InvokeResponse:
+        """Invoke the runnable with the given input and config."""
+        # We do not use the InvokeRequest model here since configurable runnables
+        # have dynamic schema -- so the validation below is a bit more involved.
+        config, input_ = await _get_config_and_input(request, config_hash)
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
-        output = await runnable.ainvoke(_unpack_input(input), config=config)
+        output = await runnable.ainvoke(input_, config=config)
 
         if include_callback_events:
             callback_events = [
@@ -560,65 +558,48 @@ def add_routes(
             callback_events=callback_events,
         )
 
-    @app.post(namespace + "/c/{config_hash}/stream", tags=["config"])
-    @app.post(f"{namespace}/stream")
+    @app.post(
+        namespace + "/c/{config_hash}/stream", tags=["config"], include_in_schema=False
+    )
+    @app.post(f"{namespace}/stream", include_in_schema=False)
     async def stream(
-        stream_request: Annotated[StreamRequest, StreamRequest],
         request: Request,
         config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
 
-        This endpoint allows to stream the output of the runnable.
-
-        The endpoint uses a server sent event stream to stream the output.
-
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
-
-        This endpoint uses two different types of events:
-
-        * data - for streaming the output of the runnable
-
-            {
-                "event": "data",
-                "data": {
-                ...
-                }
-            }
-
-        * error - for signaling an error in the stream, also ends the stream.
-
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
-
-        * end - for signaling the end of the stream.
-
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
-
-            {
-                "event": "end",
-            }
+        See documentation for endpoint at the end of the file.
+        It's attached to _stream_docs endpoint.
         """
-        # Request is first validated using InvokeRequest which takes into account
-        # config_keys as well as input_type.
-        # After validation, the input is loaded using LangChain's load function.
-        config = _unpack_config(
-            config_hash, stream_request.config, keys=config_keys, model=ConfigPayload
-        )
-        input_ = _unpack_input(await _get_input(request, config))
-        _add_tracing_info_to_metadata(config, request)
+        err_event = {}
+        validation_exception = None
+        try:
+            config, input_ = await _get_config_and_input(request, config_hash)
+        except HTTPException as e:
+            validation_exception = e
+            if 400 <= e.status_code <= 500:
+                err_event = {
+                    "event": "error",
+                    "data": json.dumps(
+                        {"status_code": e.status_code, "message": e.detail}
+                    ),
+                }
+            else:
+                err_event = {
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
+                }
 
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
+            if validation_exception:
+                yield err_event
+                raise validation_exception
+
             try:
                 async for chunk in runnable.astream(
                     input_,
@@ -643,69 +624,54 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
-    @app.post(namespace + "/c/{config_hash}/stream_log", tags=["config"])
-    @app.post(f"{namespace}/stream_log")
+    @app.post(
+        namespace + "/c/{config_hash}/stream_log",
+        tags=["config"],
+        include_in_schema=False,
+    )
+    @app.post(f"{namespace}/stream_log", include_in_schema=False)
     async def stream_log(
-        stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
         request: Request,
         config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
 
-        This endpoint allows to stream the output of the runnable, including
-        the output of all intermediate steps.
-
-        The endpoint uses a server sent event stream to stream the output.
-
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
-
-        This endpoint uses two different types of events:
-
-        * data - for streaming the output of the runnable
-
-            {
-                "event": "data",
-                "data": {
-                ...
-                }
-            }
-
-        * error - for signaling an error in the stream, also ends the stream.
-
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
-
-        * end - for signaling the end of the stream.
-
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
-
-            {
-                "event": "end",
-            }
+        View documentation for endpoint at the end of the file.
+        It's attached to _stream_log_docs endpoint.
         """
-        # Request is first validated using InvokeRequest which takes into account
-        # config_keys as well as input_type.
-        # After validation, the input is loaded using LangChain's load function.
-        config = _unpack_config(
-            config_hash,
-            stream_log_request.config,
-            keys=config_keys,
-            model=ConfigPayload,
-        )
-        input_ = _unpack_input(await _get_input(request, config))
-        _add_tracing_info_to_metadata(config, request)
+        err_event = {}
+        validation_exception = None
+        try:
+            config, input_ = await _get_config_and_input(request, config_hash)
+        except HTTPException as e:
+            validation_exception = e
+            if 400 <= e.status_code <= 500:
+                err_event = {
+                    "event": "error",
+                    "data": json.dumps(
+                        {"status_code": e.status_code, "message": e.detail}
+                    ),
+                }
+            else:
+                err_event = {
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
+                }
+
+        body = await request.json()
+        # Get stream log parameters
+        stream_log_request = StreamLogParameters(**body)
 
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
+            if validation_exception:
+                yield err_event
+                raise validation_exception
+
             try:
                 async for chunk in runnable.astream_log(
                     input_,
@@ -801,7 +767,7 @@ def add_routes(
         config_hash: str = "",
     ) -> InvokeResponse:
         """Invoke the runnable with the given input and config."""
-        raise NotImplementedError("This endpoint is not implemented yet.")
+        raise AssertionError("This endpoint should not be reachable.")
 
     @app.post(
         namespace + "/c/{config_hash}/batch",
@@ -815,4 +781,112 @@ def add_routes(
         config_hash: str = "",
     ) -> BatchResponse:
         """Batch invoke the runnable with the given inputs and config."""
-        raise NotImplementedError("This endpoint is not implemented yet.")
+        raise AssertionError("This endpoint should not be reachable.")
+
+    @app.post(namespace + "/c/{config_hash}/stream", tags=["config"], name="stream")
+    @app.post(f"{namespace}/stream", name="stream")
+    async def _stream_docs(
+        stream_request: Annotated[StreamRequest, StreamRequest],
+        config_hash: str = "",
+    ) -> EventSourceResponse:
+        """Invoke the runnable stream the output.
+
+        This endpoint allows to stream the output of the runnable.
+
+        The endpoint uses a server sent event stream to stream the output.
+
+        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+        Important: Set the "text/event-stream" media type for request headers if
+                   not using an existing SDK.
+
+        This endpoint uses two different types of events:
+
+        * data - for streaming the output of the runnable
+
+            {
+                "event": "data",
+                "data": {
+                ...
+                }
+            }
+
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
+        * end - for signaling the end of the stream.
+
+            This helps the client to know when to stop listening for events and
+            know that the streaming has ended successfully.
+
+            {
+                "event": "end",
+            }
+        """
+        raise AssertionError("This endpoint should not be reachable.")
+
+    @app.post(
+        namespace + "/c/{config_hash}/stream_log",
+        tags=["config"],
+        include_in_schema=True,
+        name="stream_log",
+    )
+    @app.post(
+        f"{namespace}/stream_log",
+        include_in_schema=True,
+        name="stream_log",
+    )
+    async def _stream_log_docs(
+        stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+        config_hash: str = "",
+    ) -> EventSourceResponse:
+        """Invoke the runnable stream_log the output.
+
+        This endpoint allows to stream the output of the runnable, including
+        the output of all intermediate steps.
+
+        The endpoint uses a server sent event stream to stream the output.
+
+        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+        Important: Set the "text/event-stream" media type for request headers if
+                   not using an existing SDK.
+
+        This endpoint uses two different types of events:
+
+        * data - for streaming the output of the runnable
+
+            {
+                "event": "data",
+                "data": {
+                ...
+                }
+            }
+
+        * error - for signaling an error in the stream, also ends the stream.
+
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
+        * end - for signaling the end of the stream.
+
+            This helps the client to know when to stop listening for events and
+            know that the streaming has ended successfully.
+
+            {
+                "event": "end",
+            }
+        """
+        raise AssertionError("This endpoint should not be reachable.")

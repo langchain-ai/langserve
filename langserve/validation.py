@@ -41,6 +41,33 @@ Validator = Union[Type[BaseModel], type]
 # PUBLIC API
 
 
+class StreamLogParameters(BaseModel):
+    include_names: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, filter to runnables with matching names",
+    )
+    include_types: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, filter to runnables with matching types",
+    )
+    include_tags: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, filter to runnables with matching tags",
+    )
+    exclude_names: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, exclude runnables with matching names",
+    )
+    exclude_types: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, exclude runnables with matching types",
+    )
+    exclude_tags: Optional[Sequence[str]] = Field(
+        None,
+        description="If specified, exclude runnables with matching tags",
+    )
+
+
 def create_invoke_request_model(
     namespace: str,
     input_type: Validator,
