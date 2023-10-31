@@ -118,7 +118,7 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
         **{
             fieldname: (
                 _rename_pydantic_model(field.annotation, prefix)
-                if issubclass(field.annotation, BaseModel)
+                if isclass(field.annotation) and issubclass(field.annotation, BaseModel)
                 else field.annotation,
                 Field(
                     field.default,
