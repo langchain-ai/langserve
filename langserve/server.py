@@ -13,6 +13,7 @@ from typing import (
     Any,
     AsyncIterator,
     Dict,
+    List,
     Literal,
     Mapping,
     Sequence,
@@ -23,7 +24,7 @@ from typing import (
 from fastapi import HTTPException, Request
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
-from langchain.schema.runnable import Runnable
+from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from typing_extensions import Annotated
 
@@ -82,8 +83,10 @@ def _unpack_config(
             config_dicts.append(model(**_config_from_hash(config)).dict())
         elif isinstance(config, BaseModel):
             config_dicts.append(config.dict())
+        elif isinstance(config, Mapping):
+            config_dicts.append(model(**config).dict())
         else:
-            config_dicts.append(config)
+            raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
     return {k: config[k] for k in keys if k in config}
 
@@ -397,6 +400,25 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
+    async def _get_input(request: Request, config: RunnableConfig) -> Any:
+        """Get the input from the request."""
+        body = await request.json()
+        if "input" not in body:
+            raise HTTPException(422, "Missing 'input' key in request body")
+        schema = runnable.with_config(config).input_schema
+        return schema.validate(body["input"])
+
+    async def _get_batch_inputs(request: Request, configs: List[RunnableConfig]) -> Any:
+        """Get the input from the request."""
+        body = await request.json()
+        if "inputs" not in body:
+            raise HTTPException(422, "Missing 'inputs' key in request body")
+        inputs = [
+            _unpack_input(runnable.with_config(config).input_schema.validate(input_))
+            for config, input_ in zip(configs, body["inputs"])
+        ]
+        return inputs
+
     @app.post(
         namespace + "/c/{config_hash}/invoke",
         response_model=InvokeResponse,
@@ -404,23 +426,40 @@ def add_routes(
     )
     @app.post(f"{namespace}/invoke", response_model=InvokeResponse)
     async def invoke(
-        invoke_request: Annotated[InvokeRequest, InvokeRequest],
         request: Request,
         config_hash: str = "",
     ) -> InvokeResponse:
         """Invoke the runnable with the given input and config."""
-        # Request is first validated using InvokeRequest which takes into account
-        # config_keys as well as input_type.
+        # We do not use the InvokeRequest model here since configurable runnables
+        # have dynamic schema -- so the validation below is a bit more involved.
+        body = await request.json()
+        if "input" not in body:
+            raise HTTPException(422, "Missing 'input' key in request body")
+
+        # Get the config that was provided via the body if any.
+        body_config = body.get("config", {})
+        if not isinstance(body_config, dict):
+            raise HTTPException(
+                422, "Value for 'config' key must be a dict if provided"
+            )
+
+        # Merge the config from the path with the config from the body.
         config = _unpack_config(
-            config_hash, invoke_request.config, keys=config_keys, model=ConfigPayload
+            config_hash,
+            body_config,
+            keys=config_keys,
+            model=ConfigPayload,
         )
-        _add_tracing_info_to_metadata(config, request)
+        # raise ValueError(config)
+        # Unpack the input dynamically using the input schema of the runnable.
+        # This takes into account changes in the input type when using configuration.
+        schema = runnable.with_config(config).input_schema
+        input = schema.validate(body["input"])
+
         event_aggregator = AsyncEventAggregatorCallback()
+        _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
-        output = await runnable.ainvoke(
-            _unpack_input(invoke_request.input),
-            config=config,
-        )
+        output = await runnable.ainvoke(_unpack_input(input), config=config)
 
         if include_callback_events:
             callback_events = [
@@ -441,47 +480,67 @@ def add_routes(
         namespace + "/c/{config_hash}/batch",
         response_model=BatchResponse,
         tags=["config"],
+        include_in_schema=False,
     )
-    @app.post(f"{namespace}/batch", response_model=BatchResponse)
+    @app.post(
+        f"{namespace}/batch", response_model=BatchResponse, include_in_schema=False
+    )
     async def batch(
-        batch_request: Annotated[BatchRequest, BatchRequest],
         request: Request,
         config_hash: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
-        # First convert to list type
-        if isinstance(batch_request.config, list):
+        body = await request.json()
+        config = body.get("config", {})
+
+        # First unpack the config
+        if isinstance(config, list):
             configs = [
                 _unpack_config(
                     config_hash, config, keys=config_keys, model=ConfigPayload
                 )
-                for config in batch_request.config
+                for config in config
             ]
-        else:
+        elif isinstance(config, dict):
             configs = _unpack_config(
                 config_hash,
-                batch_request.config,
+                config,
                 keys=config_keys,
                 model=ConfigPayload,
             )
+        else:
+            raise HTTPException(
+                422, "Value for 'config' key must be a dict or list if provided"
+            )
 
-        # Unpack
+        if "inputs" not in body:
+            raise HTTPException(422, "Missing 'inputs' key in request body")
+
+        inputs_ = body["inputs"]
+
+        if not isinstance(inputs_, list):
+            raise HTTPException(422, "Value for 'inputs' key must be a list")
 
         # Make sure that the number of configs matches the number of inputs
         # Since we'll be adding callbacks to the configs.
-        _configs = get_config_list(configs, len(batch_request.inputs))
-
-        aggregators = [
-            AsyncEventAggregatorCallback() for _ in range(len(batch_request.inputs))
+        configs_ = [
+            {k: v for k, v in config_.items() if k in config_keys}
+            for config_ in get_config_list(configs, len(inputs_))
         ]
 
-        for c, aggregator in zip(_configs, aggregators):
-            _add_tracing_info_to_metadata(c, request)
-            c["callbacks"] = [aggregator]
+        inputs = [
+            _unpack_input(runnable.with_config(config_).input_schema.validate(input_))
+            for config_, input_ in zip(configs_, inputs_)
+        ]
 
-        inputs = [_unpack_input(input_) for input_ in batch_request.inputs]
+        # Update the configuration with callbacks
+        aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
 
-        output = await runnable.abatch(inputs, config=_configs)
+        for config_, aggregator in zip(configs_, aggregators):
+            _add_tracing_info_to_metadata(config_, request)
+            config_["callbacks"] = [aggregator]
+
+        output = await runnable.abatch(inputs, config=configs_)
 
         if include_callback_events:
             callback_events = [
@@ -552,10 +611,10 @@ def add_routes(
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
-        input_ = _unpack_input(stream_request.input)
         config = _unpack_config(
             config_hash, stream_request.config, keys=config_keys, model=ConfigPayload
         )
+        input_ = _unpack_input(await _get_input(request, config))
         _add_tracing_info_to_metadata(config, request)
 
         async def _stream() -> AsyncIterator[dict]:
@@ -636,13 +695,13 @@ def add_routes(
         # Request is first validated using InvokeRequest which takes into account
         # config_keys as well as input_type.
         # After validation, the input is loaded using LangChain's load function.
-        input_ = _unpack_input(stream_log_request.input)
         config = _unpack_config(
             config_hash,
             stream_log_request.config,
             keys=config_keys,
             model=ConfigPayload,
         )
+        input_ = _unpack_input(await _get_input(request, config))
         _add_tracing_info_to_metadata(config, request)
 
         async def _stream_log() -> AsyncIterator[dict]:
@@ -726,3 +785,34 @@ def add_routes(
             f"{namespace}/playground",
             file_path,
         )
+
+    #######################################
+    # Documentation variants of end points.
+    #######################################
+    @app.post(
+        namespace + "/c/{config_hash}/invoke",
+        response_model=InvokeResponse,
+        tags=["config"],
+        name="invoke",
+    )
+    @app.post(f"{namespace}/invoke", response_model=InvokeResponse, name="invoke")
+    async def _invoke_docs(
+        invoke_request: Annotated[InvokeRequest, InvokeRequest],
+        config_hash: str = "",
+    ) -> InvokeResponse:
+        """Invoke the runnable with the given input and config."""
+        raise NotImplementedError("This endpoint is not implemented yet.")
+
+    @app.post(
+        namespace + "/c/{config_hash}/batch",
+        response_model=BatchResponse,
+        tags=["config"],
+        name="batch",
+    )
+    @app.post(f"{namespace}/batch", response_model=BatchResponse, name="batch")
+    async def _batch_docs(
+        batch_request: Annotated[BatchRequest, BatchRequest],
+        config_hash: str = "",
+    ) -> BatchResponse:
+        """Batch invoke the runnable with the given inputs and config."""
+        raise NotImplementedError("This endpoint is not implemented yet.")

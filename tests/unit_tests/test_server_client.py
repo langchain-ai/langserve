@@ -156,7 +156,7 @@ async def async_client(app: FastAPI) -> RemoteRunnable:
 
 def test_server(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
-    sync_client = TestClient(app=app)
+    sync_client = TestClient(app=app, raise_server_exceptions=True)
 
     # Test invoke
     response = sync_client.post("/invoke", json={"input": 1})
@@ -660,7 +660,9 @@ async def test_input_validation(
         config_keys=["tags", "run_name", "metadata"],
     )
 
-    async with get_async_client(app, path="/add_one") as runnable:
+    async with get_async_client(
+        app, path="/add_one", raise_app_exceptions=False
+    ) as runnable:
         # Verify that can be invoked with valid input
         assert await runnable.ainvoke(1) == 2
         # Verify that the following substring is present in the error message
@@ -710,7 +712,9 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
     runnable = RunnablePassthrough()
     add_routes(app, runnable, config_keys=["tags"], input_type=InputType)
     # Invoke request
-    async with get_async_client(app) as passthrough_runnable:
+    async with get_async_client(
+        app, raise_app_exceptions=False
+    ) as passthrough_runnable:
         with pytest.raises(httpx.HTTPError):
             await passthrough_runnable.ainvoke("Hello")
         with pytest.raises(httpx.HTTPError):
@@ -725,6 +729,18 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
             {"messages": [HumanMessage(content="hello")]}
         )
 
+        # Kwargs not supported yet
+        with pytest.raises(NotImplementedError):
+            await passthrough_runnable.ainvoke(
+                {"messages": [HumanMessage(content="hello")]}, hello=2
+            )
+
+        with pytest.raises(httpx.HTTPError):
+            # tags should be a list of str not a list of lists
+            await passthrough_runnable.ainvoke(
+                {"messages": [HumanMessage(content="hello")]}, config={"tags": [["q"]]}
+            )
+
         # Valid
         result = await passthrough_runnable.ainvoke(
             {"messages": [HumanMessage(content="hello")]}, config={"tags": ["test"]}
@@ -734,7 +750,9 @@ async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> 
         assert isinstance(result["messages"][0], HumanMessage)
 
     # Batch request
-    async with get_async_client(app) as passthrough_runnable:
+    async with get_async_client(
+        app, raise_app_exceptions=False
+    ) as passthrough_runnable:
         # invalid
         with pytest.raises(httpx.HTTPError):
             await passthrough_runnable.abatch("Hello")
