@@ -310,7 +310,7 @@ def _get_base_run_id_as_str(
     ):
         return str(event_aggregator.callback_events[0].get("run_id"))
     else:
-        None
+        raise AssertionError("No run_id found for the given run")
 
 
 # PUBLIC API
