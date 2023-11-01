@@ -1,3 +1,5 @@
+from typing import List
+
 try:
     from pydantic.v1 import BaseModel
 except ImportError:
@@ -56,4 +58,4 @@ class BatchResponseMetadata(SharedResponseMetadata):
 
     # Represents each parent run id for a given request, in
     # the same order in which they were received
-    run_ids: list[str]
+    run_ids: List[str]
