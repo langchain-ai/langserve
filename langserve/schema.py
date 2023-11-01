@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List, Optional, Union
 
 try:
     from pydantic.v1 import BaseModel
@@ -59,3 +59,54 @@ class BatchResponseMetadata(SharedResponseMetadata):
     # Represents each parent run id for a given request, in
     # the same order in which they were received
     run_ids: List[str]
+
+
+class FeedbackCreateRequest(BaseModel):
+    """
+    Represents feedback given on an individual run
+    """
+
+    # TODO: move to uuid once we support serialization of uuids
+    run_id: str
+    """The associated run ID this feedback is logged for."""
+
+    key: str
+    """The metric name, tag, or aspect to provide feedback on."""
+
+    score: Optional[Union[float, int, bool]] = None
+    """Value or score to assign the run."""
+
+    value: Optional[Union[float, int, bool, str, Dict]] = None
+    """The display value for the feedback if not a metric."""
+
+    comment: Optional[str] = None
+    """Comment or explanation for the feedback."""
+
+
+class Feedback(BaseModel):
+    # TODO: move to datetime.datetime once we support serialization of datetimes
+    created_at: str
+    """The time the feedback was created."""
+
+    # TODO: move to datetime.datetime once we support serialization of datetimes
+    modified_at: str
+    """The time the feedback was last modified."""
+
+    # TODO: move to uuid once we support serialization of uuids
+    run_id: str
+    """The associated run ID this feedback is logged for."""
+
+    key: str
+    """The metric name, tag, or aspect to provide feedback on."""
+
+    score: Optional[Union[float, int, bool]] = None
+    """Value or score to assign the run."""
+
+    value: Optional[Union[float, int, bool, str, Dict]] = None
+    """The display value for the feedback if not a metric."""
+
+    comment: Optional[str] = None
+    """Comment or explanation for the feedback."""
+
+    correction: Optional[Dict] = None
+    """Correction for the run."""

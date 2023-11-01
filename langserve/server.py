@@ -30,6 +30,8 @@ from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
+from langsmith import client as ls_client
+from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
@@ -37,6 +39,8 @@ from langserve.lzstring import LZString
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
+    Feedback,
+    FeedbackCreateRequest,
     SingletonResponseMetadata,
 )
 
@@ -359,6 +363,9 @@ def add_routes(
             If true, the client will be able to show trace information
             including events that occurred on the server side.
             Be sure not to include any sensitive information in the callback events.
+        langsmith_client: a constructed langsmith client that can be used to send
+            feedback and other data to langsmith if an integration is enabled. Used
+            for dependency injection testing.
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -387,6 +394,10 @@ def add_routes(
 
     route_tags = [path.strip("/")] if path else None
     route_tags_with_config = [f"{path.strip('/')}/config"] if path else ["config"]
+
+    # Please do not change the naming on ls_client. It is used with mocking
+    # in our unit tests for langsmith integrations.
+    langsmith_client = ls_client.Client() if tracing_is_enabled() else None
 
     def _route_name(name: str) -> str:
         """Return the route name with the given name."""
@@ -864,6 +875,41 @@ def add_routes(
             config_keys,
             f"{namespace}/playground",
             file_path,
+        )
+
+    @app.post(namespace + "/feedback")
+    async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
+        """
+        Send feedback on an individual run to langsmith
+        """
+
+        if not tracing_is_enabled():
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
+        feedback_from_langsmith = langsmith_client.create_feedback(
+            feedback_create_req.run_id,
+            feedback_create_req.key,
+            score=feedback_create_req.score,
+            value=feedback_create_req.value,
+            comment=feedback_create_req.comment,
+        )
+
+        # We purposefully select out fields from langsmith so that we don't
+        # fail validation if langsmith adds extra fields. We prefer this over
+        # using "Extra.allow" in pydantic since syntax changes between pydantic
+        # 1.x and 2.x for this functionality
+        return Feedback(
+            run_id=str(feedback_from_langsmith.run_id),
+            created_at=str(feedback_from_langsmith.created_at),
+            modified_at=str(feedback_from_langsmith.modified_at),
+            key=str(feedback_from_langsmith.key),
+            score=feedback_from_langsmith.score,
+            value=feedback_from_langsmith.value,
+            comment=feedback_from_langsmith.comment,
         )
 
     #######################################

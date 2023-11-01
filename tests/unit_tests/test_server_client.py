@@ -1,10 +1,13 @@
 """Test the server and client together."""
 import asyncio
+import datetime
 import json
+import os
 import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Union
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -19,6 +22,7 @@ from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
+from langsmith import schemas as ls_schemas
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
@@ -26,7 +30,7 @@ from langserve import server
 from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
-from langserve.schema import CustomUserType
+from langserve.schema import CustomUserType, Feedback
 from langserve.server import (
     _rename_pydantic_model,
     _replace_non_alphanumeric_with_underscores,
@@ -89,6 +93,7 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
         else:
             return x
 
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
@@ -1467,3 +1472,69 @@ async def test_batch_returns_run_id(app: FastAPI) -> None:
         assert len(run_ids) == 2
         for run_id in run_ids:
             assert _is_valid_uuid(run_id)
+
+
+@pytest.mark.asyncio
+async def test_feedback_succeeds_when_langsmith_enabled() -> None:
+    """Test the server directly via HTTP requests."""
+
+    with patch("langserve.server.ls_client") as mocked_ls_client_package:
+        mocked_client = MagicMock(return_value=None)
+        mocked_ls_client_package.Client.return_value = mocked_client
+        print(mocked_client)
+        mocked_client.create_feedback.return_value = ls_schemas.Feedback(
+            id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
+            created_at=datetime.datetime(1994, 9, 19, 9, 19),
+            modified_at=datetime.datetime(1994, 9, 19, 9, 19),
+            run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
+            key="silliness",
+            score=1000,
+        )
+
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+        )
+
+        async with get_async_test_client(
+            local_app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/feedback",
+                json={
+                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "key": "silliness",
+                    "score": 1000,
+                },
+            )
+
+            deserialized_response = Feedback.parse_obj(response.json())
+            expected_deserialized_response = Feedback(
+                run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                key="silliness",
+                score=1000,
+                created_at=str(datetime.datetime(1994, 9, 19, 9, 19)),
+                modified_at=str(datetime.datetime(1994, 9, 19, 9, 19)),
+            )
+
+            assert deserialized_response == expected_deserialized_response
+
+
+@pytest.mark.asyncio
+async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    default_env = os.environ
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post(
+            "/feedback",
+            json={
+                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "key": "silliness",
+                "score": 1000,
+            },
+        )
+        assert response.status_code == 400
+
+    os.environ = default_env
