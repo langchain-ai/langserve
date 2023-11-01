@@ -21,6 +21,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
+- [LangServe Hub](https://github.com/langchain-ai/langchain/blob/master/templates/README.md)
 
 ### Limitations
 
