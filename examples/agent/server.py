@@ -74,7 +74,7 @@ class Output(BaseModel):
 # /invoke
 # /batch
 # /stream
-add_routes(app, agent_executor, input_type=Input, output_type=Output)
+add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output))
 
 if __name__ == "__main__":
     import uvicorn

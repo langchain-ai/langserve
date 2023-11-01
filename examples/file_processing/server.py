@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Example that shows how to upload files and process files in the server.
 
 This example uses a very simple architecture for dealing with file uploads

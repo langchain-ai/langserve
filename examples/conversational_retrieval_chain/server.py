@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a conversational retrieval chain."""
+from typing import List, Tuple
+
 from fastapi import FastAPI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
 
@@ -16,6 +19,22 @@ retriever = vectorstore.as_retriever()
 model = ChatOpenAI()
 
 chain = ConversationalRetrievalChain.from_llm(model, retriever)
+
+
+# User input
+class ChatHistory(BaseModel):
+    """Chat history with the bot."""
+
+    chat_history: List[Tuple[str, str]] = Field(
+        ...,
+        extra={"widget": {"type": "chat", "input": "question"}},
+    )
+    question: str
+
+
+chain = ConversationalRetrievalChain.from_llm(model, retriever).with_types(
+    input_type=ChatHistory
+)
 
 app = FastAPI(
     title="LangChain Server",
