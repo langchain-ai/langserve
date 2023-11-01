@@ -40,18 +40,21 @@ We will be releasing a hosted version of LangServe for one-click deployments of 
 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
-To use the langchain CLI make sure that you have a recent version of `langchain` installed
-and also `typer`. (`pip install langchain typer` or `pip install "langchain[cli]"`)
+To use the langchain CLI make sure that you have a recent version of `langchain-cli` 
+installed. You can install it with `pip install -U "langchain-cli[serve]"`.
 
 ```sh
-langchain ../path/to/directory
+langchain app new ../path/to/directory
 ```
-
-And follow the instructions...
 
 ## Examples
 
-For more examples, see the [examples](./examples) directory.
+Get your LangServe instance started quickly with 
+[LangChain Templates](https://github.com/langchain-ai/langchain/blob/master/templates/README.md).
+
+For more examples, see the templates 
+[index](https://github.com/langchain-ai/langchain/blob/master/templates/docs/INDEX.md) 
+or the [examples](./examples) directory.
 
 ### Server
 
