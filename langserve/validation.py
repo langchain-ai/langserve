@@ -213,7 +213,10 @@ def create_invoke_response_model(
             SingletonResponseMetadata,
             Field(
                 ...,
-                description="Metadata about the response that may be useful to specific clients",
+                description=(
+                    "Metadata about the response that may be useful to "
+                    "specific clients"
+                ),
             ),
         ),
     )
