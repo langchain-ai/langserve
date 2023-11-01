@@ -1,6 +1,7 @@
 """Test the server and client together."""
 import asyncio
 import json
+import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Union
@@ -1438,3 +1439,31 @@ async def test_using_router() -> None:
     )
 
     app.include_router(router)
+
+
+def _is_valid_uuid(uuid_as_str: str) -> bool:
+    try:
+        uuid.UUID(str(uuid_as_str))
+        return True
+    except ValueError:
+        return False
+
+
+@pytest.mark.asyncio
+async def test_invoke_returns_run_id(app: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post("/invoke", json={"input": 1})
+        run_id = response.json()["metadata"]["run_id"]
+        assert _is_valid_uuid(run_id)
+
+
+@pytest.mark.asyncio
+async def test_batch_returns_run_id(app: FastAPI) -> None:
+    """Test the server directly via HTTP requests."""
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post("/batch", json={"inputs": [1, 2]})
+        run_ids = response.json()["metadata"]["run_ids"]
+        assert len(run_ids) == 2
+        for run_id in run_ids:
+            assert _is_valid_uuid(run_id)
