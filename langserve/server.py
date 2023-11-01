@@ -896,6 +896,9 @@ def add_routes(
             score=feedback_create_req.score,
             value=feedback_create_req.value,
             comment=feedback_create_req.comment,
+            source_info={
+                "from_langserve": True,
+            },
         )
 
         # We purposefully select out fields from langsmith so that we don't
