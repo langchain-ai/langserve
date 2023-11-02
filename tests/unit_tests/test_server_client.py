@@ -23,6 +23,7 @@ from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthro
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from langsmith import schemas as ls_schemas
+from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
@@ -30,7 +31,7 @@ from langserve import server
 from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
-from langserve.schema import CustomUserType, Feedback
+from langserve.schema import CustomUserType
 from langserve.server import (
     _rename_pydantic_model,
     _replace_non_alphanumeric_with_underscores,
@@ -1481,7 +1482,7 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
     with patch("langserve.server.ls_client") as mocked_ls_client_package:
         mocked_client = MagicMock(return_value=None)
         mocked_ls_client_package.Client.return_value = mocked_client
-        print(mocked_client)
+
         mocked_client.create_feedback.return_value = ls_schemas.Feedback(
             id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
             created_at=datetime.datetime(1994, 9, 19, 9, 19),
@@ -1509,32 +1510,38 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
                 },
             )
 
-            deserialized_response = Feedback.parse_obj(response.json())
-            expected_deserialized_response = Feedback(
-                run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                key="silliness",
-                score=1000,
-                created_at=str(datetime.datetime(1994, 9, 19, 9, 19)),
-                modified_at=str(datetime.datetime(1994, 9, 19, 9, 19)),
-            )
+            expected_response_json = {
+                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "key": "silliness",
+                "score": 1000,
+                "created_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
+                    "%Y-%m-%dT%H:%M:%S"
+                ),
+                "modified_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
+                    "%Y-%m-%dT%H:%M:%S"
+                ),
+                "comment": None,
+                "correction": None,
+                "value": None,
+            }
 
-            assert deserialized_response == expected_deserialized_response
+            assert response.json() == expected_response_json
 
 
 @pytest.mark.asyncio
 async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
-    default_env = os.environ
-    os.environ["LANGCHAIN_TRACING_V2"] = "false"
-    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
-        response = await async_client.post(
-            "/feedback",
-            json={
-                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                "key": "silliness",
-                "score": 1000,
-            },
-        )
-        assert response.status_code == 400
-
-    os.environ = default_env
+    with MonkeyPatch.context() as mp:
+        mp.setenv("LANGCHAIN_TRACING_V2", "false")
+        async with get_async_test_client(
+            app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/feedback",
+                json={
+                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "key": "silliness",
+                    "score": 1000,
+                },
+            )
+            assert response.status_code == 400

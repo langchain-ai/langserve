@@ -363,9 +363,6 @@ def add_routes(
             If true, the client will be able to show trace information
             including events that occurred on the server side.
             Be sure not to include any sensitive information in the callback events.
-        langsmith_client: a constructed langsmith client that can be used to send
-            feedback and other data to langsmith if an integration is enabled. Used
-            for dependency injection testing.
     """
     try:
         from sse_starlette import EventSourceResponse
