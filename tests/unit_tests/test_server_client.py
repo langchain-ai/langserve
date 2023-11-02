@@ -1299,7 +1299,7 @@ class StreamingRunnable(Runnable):
             yield element
 
 
-def test_streaming_dict_sync() -> None:
+def test_streaming_dict_sync(event_loop: AbstractEventLoop) -> None:
     """Test streaming different types of items."""
     app = FastAPI()
 
@@ -1391,7 +1391,7 @@ async def test_server_side_error() -> None:
         #     assert e.response.text == "Internal Server Error"
 
 
-def test_server_side_error_sync() -> None:
+def test_server_side_error_sync(event_loop: AbstractEventLoop) -> None:
     """Test server side error handling."""
 
     app = FastAPI()
