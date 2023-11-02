@@ -9,6 +9,9 @@ import {
   isControl,
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
+import { useStreamCallback } from "../useStreamCallback";
+import { traverseNaiveJsonPath } from "../utils/path";
+import { isJsonSchemaExtra } from "../utils/schema";
 
 export const chatMessagesTester = rankWith(
   12,
@@ -67,6 +70,20 @@ interface MessageFields {
 export const ChatMessagesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageFields> = props.data ?? [];
+
+    useStreamCallback("onSuccess", (ctx) => {
+      if (!isJsonSchemaExtra(props.schema)) return;
+      const widget = props.schema.extra.widget;
+      if (!("input" in widget) || !("output" in widget)) return;
+
+      const human = traverseNaiveJsonPath(ctx.input, widget.input);
+      const ai = traverseNaiveJsonPath(ctx.output, widget.output);
+      props.handleChange(props.path, [
+        ...data,
+        { content: human, type: "human" },
+        { content: ai, type: "ai" },
+      ]);
+    });
 
     return (
       <div className="control">

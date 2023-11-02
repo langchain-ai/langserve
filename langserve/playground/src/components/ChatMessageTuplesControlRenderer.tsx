@@ -10,6 +10,8 @@ import {
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { isJsonSchemaExtra } from "../utils/schema";
+import { useStreamCallback } from "../useStreamCallback";
+import { traverseNaiveJsonPath } from "../utils/path";
 
 type MessageTuple = [string, string];
 
@@ -45,6 +47,16 @@ export const chatMessagesTupleTester = rankWith(
 export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageTuple> = props.data ?? [];
+
+    useStreamCallback("onSuccess", (ctx) => {
+      if (!isJsonSchemaExtra(props.schema)) return;
+      const widget = props.schema.extra.widget;
+      if (!("input" in widget) || !("output" in widget)) return;
+
+      const human = traverseNaiveJsonPath(ctx.input, widget.input);
+      const ai = traverseNaiveJsonPath(ctx.output, widget.output);
+      props.handleChange(props.path, [...data, ["human", human], ["ai", ai]]);
+    });
 
     return (
       <div className="control">

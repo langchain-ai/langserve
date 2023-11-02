@@ -4,6 +4,7 @@ type JsonSchemaExtra = JsonSchema & {
   extra: {
     widget: {
       type: string;
+      [key: string]: string | number | Array<string | number>;
     };
   };
 };
