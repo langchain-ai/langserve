@@ -1477,7 +1477,7 @@ async def test_batch_returns_run_id(app: FastAPI) -> None:
 
 @pytest.mark.asyncio
 async def test_feedback_succeeds_when_langsmith_enabled() -> None:
-    """Test the server directly via HTTP requests."""
+    """Tests that the feedback endpoint can accept feedback to langsmith."""
 
     with patch("langserve.server.ls_client") as mocked_ls_client_package:
         mocked_client = MagicMock(return_value=None)
@@ -1530,7 +1530,7 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
 
 @pytest.mark.asyncio
 async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
-    """Test the server directly via HTTP requests."""
+    """Tests that feedback is not sent to langsmith if langsmith is disabled."""
     with MonkeyPatch.context() as mp:
         mp.setenv("LANGCHAIN_TRACING_V2", "false")
         async with get_async_test_client(
@@ -1545,3 +1545,31 @@ async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
                 },
             )
             assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_feedback_unavailable_when_endpoint_disabled() -> None:
+    """
+    Tests that the feedback endpoint disappears if the user explicitly
+    turns it off.
+    """
+    local_app = FastAPI()
+    add_routes(
+        local_app,
+        RunnableLambda(lambda foo: "hello"),
+        enable_feedback_endpoint=False,
+    )
+
+    async with get_async_test_client(
+        local_app,
+        raise_app_exceptions=True,
+    ) as async_client:
+        response = await async_client.post(
+            "/feedback",
+            json={
+                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "key": "silliness",
+                "score": 1000,
+            },
+        )
+        assert response.status_code == 404
