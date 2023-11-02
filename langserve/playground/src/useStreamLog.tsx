@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { applyPatch, Operation } from "fast-json-patch";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { resolveApiUrl } from "./utils/url";
@@ -46,7 +46,7 @@ function reducer(state: RunState | null, action: Operation[]) {
 }
 
 export function useStreamLog(callbacks: StreamCallback = {}) {
-  const [latest, updateLatest] = useReducer(reducer, null);
+  const [latest, setLatest] = useState<RunState | null>(null);
   const [controller, setController] = useState<AbortController | null>(null);
 
   const startRef = useRef(callbacks.onStart);
@@ -73,7 +73,7 @@ export function useStreamLog(callbacks: StreamCallback = {}) {
       onmessage(msg) {
         if (msg.event === "data") {
           innerLatest = reducer(innerLatest, JSON.parse(msg.data)?.ops);
-          updateLatest(JSON.parse(msg.data)?.ops);
+          setLatest(innerLatest);
         }
       },
       onclose() {
