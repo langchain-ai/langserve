@@ -7,8 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
-from langchain.schema.runnable import RunnableLambda
 from langchain.schema.messages import BaseMessage, ChatMessage
+from langchain.schema.runnable import RunnableLambda
 from pydantic import BaseModel, Field
 
 from langserve.server import add_routes
