@@ -67,6 +67,35 @@ interface MessageFields {
   role?: string;
 }
 
+function isMessageFields(x: unknown): x is MessageFields {
+  if (typeof x !== "object" || x == null) return false;
+  if (!("content" in x) || typeof x.content !== "string") return false;
+  if (
+    "additional_kwargs" in x &&
+    typeof x.additional_kwargs !== "object" &&
+    x.additional_kwargs != null
+  )
+    return false;
+  if ("name" in x && typeof x.name !== "string" && x.name != null) return false;
+  if ("type" in x && typeof x.type !== "string" && x.type != null) return false;
+  if ("role" in x && typeof x.role !== "string" && x.role != null) return false;
+  return true;
+}
+
+function constructMessage(
+  x: unknown,
+  assumedRole: string
+): MessageFields | null {
+  if (typeof x === "string") {
+    return { content: x, type: assumedRole };
+  }
+
+  if (isMessageFields(x)) {
+    return x;
+  }
+  return null;
+}
+
 export const ChatMessagesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageFields> = props.data ?? [];
@@ -78,11 +107,13 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
 
       const human = traverseNaiveJsonPath(ctx.input, widget.input);
       const ai = traverseNaiveJsonPath(ctx.output, widget.output);
-      props.handleChange(props.path, [
-        ...data,
-        { content: human, type: "human" },
-        { content: ai, type: "ai" },
-      ]);
+
+      const humanMsg = constructMessage(human, "human");
+      const aiMsg = constructMessage(ai, "ai");
+
+      if (humanMsg != null && aiMsg != null) {
+        props.handleChange(props.path, [...data, humanMsg, aiMsg]);
+      }
     });
 
     return (

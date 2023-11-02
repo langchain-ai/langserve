@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.schema.runnable import RunnableLambda
+from langchain.schema.messages import BaseMessage, ChatMessage
 from pydantic import BaseModel, Field
 
 from langserve.server import add_routes
@@ -39,6 +40,14 @@ class ChatHistory(BaseModel):
     question: str
 
 
+class ChatHistoryMessage(BaseModel):
+    chat_history: List[BaseMessage] = Field(
+        ...,
+        extra={"widget": {"type": "chat", "input": "question", "output": ""}},
+    )
+    question: str
+
+
 class FileProcessingRequest(BaseModel):
     file: bytes = Field(..., extra={"widget": {"type": "base64file"}})
     num_chars: int = 100
@@ -50,6 +59,11 @@ def chat_with_bot(input: Dict[str, Any]) -> Dict[str, Any]:
         "answer": input["question"] * 2,
         "woof": "its so bad to woof, meow is better",
     }
+
+
+def chat_message_bot(input: Dict[str, Any]) -> BaseMessage:
+    """Bot that repeats the question twice."""
+    return ChatMessage(content=f"Hello: {input['question']}", role="example")
 
 
 def process_file(input: Dict[str, Any]) -> str:
@@ -73,6 +87,13 @@ add_routes(
     RunnableLambda(process_file).with_types(input_type=FileProcessingRequest),
     config_keys=["configurable"],
     path="/pdf",
+)
+
+add_routes(
+    app,
+    RunnableLambda(chat_message_bot).with_types(input_type=ChatHistoryMessage),
+    config_keys=["configurable"],
+    path="/chat_message",
 )
 
 

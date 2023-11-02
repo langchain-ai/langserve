@@ -10,6 +10,7 @@ export function traverseNaiveJsonPath(
   let tmp: unknown = x;
   while (queue.length > 0) {
     const first = queue.shift()!;
+    if (first === "") break;
     if (Array.isArray(tmp)) {
       tmp = tmp[+first];
     } else if (isAccessibleObject(tmp)) {
