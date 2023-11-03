@@ -1,6 +1,8 @@
 from typing import List, Optional
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import Request
 from langchain.prompts import PromptTemplate
 from langchain.schema.runnable.utils import ConfigurableField
 
@@ -157,6 +159,8 @@ def test_invoke_request_with_runnables() -> None:
             ).config,
             keys=[],
             model=config,
+            request=MagicMock(Request),
+            per_req_config_modifier=lambda x, y: x,
         )
         == {}
     )
@@ -179,7 +183,11 @@ def test_invoke_request_with_runnables() -> None:
     }
 
     assert _unpack_request_config(
-        request.config, keys=["configurable"], model=config
+        request.config,
+        keys=["configurable"],
+        model=config,
+        request=MagicMock(Request),
+        per_req_config_modifier=lambda x, y: x,
     ) == {
         "configurable": {"template": "goodbye {name}"},
     }

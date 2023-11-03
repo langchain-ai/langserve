@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLogPatch
@@ -1620,3 +1620,37 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
             },
         )
         assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_per_request_config_modifier(
+    event_loop: AbstractEventLoop, mocker: MockerFixture
+) -> None:
+    """Test updating the config based on the raw request object."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+
+    def header_passthru_modifier(
+        config: Dict[str, Any], request: Request
+    ) -> Dict[str, Any]:
+        """Update the config"""
+        config = config.copy()
+        if "metadata" in config:
+            config["metadata"] = config["metadata"].copy()
+        else:
+            config["metadata"] = {}
+        config["metadata"]["headers"] = request.headers
+        return config
+
+    server_runnable = RunnableLambda(add_one)
+
+    add_routes(
+        app,
+        server_runnable,
+        path="/add_one",
+        per_req_config_modifier=header_passthru_modifier,
+    )
