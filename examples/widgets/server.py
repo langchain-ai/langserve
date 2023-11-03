@@ -43,7 +43,7 @@ class ChatHistory(BaseModel):
 class ChatHistoryMessage(BaseModel):
     chat_history: List[BaseMessage] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "question", "output": ""}},
+        extra={"widget": {"type": "chat", "input": "question"}},
     )
     question: str
 

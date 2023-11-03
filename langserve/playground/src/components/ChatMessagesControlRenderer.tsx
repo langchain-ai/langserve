@@ -103,10 +103,10 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
     useStreamCallback("onSuccess", (ctx) => {
       if (!isJsonSchemaExtra(props.schema)) return;
       const widget = props.schema.extra.widget;
-      if (!("input" in widget) || !("output" in widget)) return;
+      if (!("input" in widget) && !("output" in widget)) return;
 
-      const human = traverseNaiveJsonPath(ctx.input, widget.input);
-      const ai = traverseNaiveJsonPath(ctx.output, widget.output);
+      const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
+      const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
 
       const humanMsg = constructMessage(human, "human");
       const aiMsg = constructMessage(ai, "ai");
