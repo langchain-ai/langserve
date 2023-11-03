@@ -77,7 +77,7 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
             const msgPath = Paths.compose(props.path, `${index}`);
             return (
               <div className="control group relative" key={index}>
-                <div className="grid gap-3 md:grid-cols-[1fr,auto,1fr]">
+                <div className="grid gap-3">
                   <div className="flex-grow">
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-xs uppercase font-semibold text-ls-gray-100 mb-1 ">
@@ -91,7 +91,7 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
                       }}
                     />
                   </div>
-                  <div className="flex-shrink-0 h-px md:w-px md:h-auto bg-divider-700" />
+                  <div className="flex-shrink-0 h-px bg-divider-700" />
                   <div className="flex-grow">
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-xs uppercase font-semibold text-ls-gray-100 mb-1 ">
