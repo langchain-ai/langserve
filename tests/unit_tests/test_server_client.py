@@ -6,7 +6,7 @@ import os
 import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -1269,8 +1269,14 @@ async def test_input_schema_typed_dict() -> None:
         }
 
 
-class ErroringRunnable(Runnable):
-    """A custom runnable for testing errors are raised server side."""
+class StreamingRunnable(Runnable):
+    """A custom runnable used for testing purposes"""
+
+    iterable: Iterable[Any]
+
+    def __init__(self, iterable: Iterable[Any]) -> None:
+        """Initialize the runnable."""
+        self.iterable = iterable
 
     def invoke(self, input: Input, config: Optional[RunnableConfig] = None) -> Output:
         """Invoke the runnable."""
@@ -1282,9 +1288,7 @@ class ErroringRunnable(Runnable):
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
     ) -> Iterator[Output]:
-        yield 1
-        yield 2
-        raise ValueError("An exception occurred")
+        raise NotImplementedError()
 
     async def astream(
         self,
@@ -1292,9 +1296,46 @@ class ErroringRunnable(Runnable):
         config: Optional[RunnableConfig] = None,
         **kwargs: Optional[Any],
     ) -> Iterator[Output]:
-        yield 1
-        yield 2
-        raise ValueError("An exception occurred")
+        for element in self.iterable:
+            if isinstance(element, BaseException):
+                raise element
+            yield element
+
+
+# Have not figured out how to test sync stream yet
+# def test_streaming_dict_sync() -> None:
+#     """Test streaming different types of items."""
+#     app = FastAPI()
+#
+#     stream_dict = StreamingRunnable(iterable=[{"a": "1"}, {"a": "2"}])
+#
+#     add_routes(app, stream_dict)
+#
+#     # Invoke request
+#     with get_sync_remote_runnable(app) as runnable:
+#         chunks = []
+#         for chunk in runnable.stream("input ignored"):
+#             chunks.append(chunk)
+#
+#     assert chunks == [{"a": "1"}, {"a": "2"}]
+
+
+@pytest.mark.asyncio
+async def test_streaming_dict_async() -> None:
+    """Test streaming different types of items."""
+    app = FastAPI()
+
+    stream_dict = StreamingRunnable(iterable=[{"a": "1"}, {"a": "2"}])
+
+    add_routes(app, stream_dict)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
+        chunks = []
+        async for chunk in runnable.astream("input ignored"):
+            chunks.append(chunk)
+
+        assert chunks == [{"a": "1"}, {"a": "2"}]
 
 
 @pytest.mark.asyncio
@@ -1302,7 +1343,9 @@ async def test_server_side_error() -> None:
     """Test server side error handling."""
 
     app = FastAPI()
-    add_routes(app, ErroringRunnable())
+
+    erroring_stream = StreamingRunnable(iterable=[1, 2, ValueError("An error")])
+    add_routes(app, erroring_stream)
 
     # Invoke request
     async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
@@ -1352,11 +1395,12 @@ async def test_server_side_error() -> None:
         #     assert e.response.text == "Internal Server Error"
 
 
-def test_server_side_error_sync() -> None:
+def test_server_side_error_sync(event_loop: AbstractEventLoop) -> None:
     """Test server side error handling."""
 
     app = FastAPI()
-    add_routes(app, ErroringRunnable())
+    erroring_stream = StreamingRunnable(iterable=[1, 2, ValueError("An error")])
+    add_routes(app, erroring_stream)
 
     # Invoke request
     with get_sync_remote_runnable(app, raise_server_exceptions=False) as runnable:

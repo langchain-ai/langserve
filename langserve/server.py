@@ -631,12 +631,8 @@ def add_routes(
             ),
         )
 
-    @app.post(
-        namespace + "/c/{config_hash}/stream",
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream"),
-    )
-    @app.post(f"{namespace}/stream", tags=route_tags, name=_route_name("stream"))
+    @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
+    @app.post(f"{namespace}/stream", include_in_schema=False)
     async def stream(
         request: Request,
         config_hash: str = "",
@@ -706,11 +702,11 @@ def add_routes(
 
     @app.post(
         namespace + "/c/{config_hash}/stream_log",
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream_log"),
+        include_in_schema=False,
     )
     @app.post(
-        f"{namespace}/stream_log", tags=route_tags, name=_route_name("stream_log")
+        f"{namespace}/stream_log",
+        include_in_schema=False,
     )
     async def stream_log(
         request: Request,
