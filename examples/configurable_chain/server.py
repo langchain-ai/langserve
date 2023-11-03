@@ -6,7 +6,9 @@ This example shows how to use two options for configuration of runnables:
 1) Configurable Fields: Use this to specify values for a given initialization parameter
 2) Configurable Alternatives: Use this to specify complete alternative runnables
 """
-from fastapi import FastAPI
+from typing import Any, Dict
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
@@ -15,6 +17,25 @@ from langchain.schema.runnable import ConfigurableField
 
 from langserve import add_routes
 
+app = FastAPI(
+    title="LangChain Server",
+    version="1.0",
+    description="Spin up a simple api server using Langchain's Runnable interfaces",
+)
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+###############################################################################
+#                EXAMPLE 1: Configure fields based on RunnableConfig          #
+###############################################################################
 model = ChatOpenAI(temperature=0.5).configurable_alternatives(
     ConfigurableField(
         id="llm",
@@ -38,26 +59,46 @@ prompt = PromptTemplate.from_template(
 )
 chain = prompt | model | StrOutputParser()
 
-app = FastAPI(
-    title="LangChain Server",
-    version="1.0",
-    description="Spin up a simple api server using Langchain's Runnable interfaces",
-)
-
-# Set all CORS enabled origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
-
 # Add routes requires you to specify which config keys are accepted
 # specifically, you must accept `configurable` as a config key.
-add_routes(app, chain, config_keys=["configurable"])
+add_routes(app, chain, path="/config_from_rc", config_keys=["configurable"])
+
+
+###############################################################################
+#             EXAMPLE 2: Configure fields based on Request metadata           #
+###############################################################################
+
+
+# Add another example route where you can configure the model based
+# on properties of the request. This is useful for passing in API
+# keys from request headers (WITH CAUTION) or using other properties
+# of the request to configure the model.
+def fetch_api_key_from_header(config: Dict[str, Any], req: Request) -> Dict[str, Any]:
+    if "x-api-key" in req.headers:
+        config["configurable"]["openai_api_key"] = req.headers["x-api-key"]
+    else:
+        raise HTTPException(401, "No API key provided")
+
+    return config
+
+
+dynamic_auth_model = ChatOpenAI(openai_api_key="placeholder").configurable_fields(
+    openai_api_key=ConfigurableField(
+        id="openai_api_key",
+        name="OpenAI API Key",
+        description=("API Key for OpenAI interactions"),
+    ),
+)
+
+dynamic_auth_chain = dynamic_auth_model | StrOutputParser()
+
+add_routes(
+    app,
+    dynamic_auth_chain,
+    path="/auth_from_header",
+    config_keys=["configurable"],
+    per_req_config_modifier=fetch_api_key_from_header,
+)
 
 if __name__ == "__main__":
     import uvicorn
