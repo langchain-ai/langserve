@@ -40,9 +40,7 @@ import {
   InputControl,
 } from "@jsonforms/vanilla-renderers";
 import { useSchemas } from "./useSchemas";
-import {
-  useStreamLog,
-} from "./useStreamLog";
+import { useStreamLog } from "./useStreamLog";
 import { StreamCallback } from "./types";
 import { AppCallbackContext } from "./useStreamCallback";
 import {
@@ -362,7 +360,7 @@ function App() {
               {latest && (
                 <div className="flex flex-col gap-3">
                   <h2 className="text-xl font-semibold">Output</h2>
-                  <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg">
+                  <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg whitespace-pre-wrap break-words">
                     <StreamOutput streamed={latest.streamed_output} />
                   </div>
                   <IntermediateSteps latest={latest} />
