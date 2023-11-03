@@ -35,7 +35,7 @@ from langchain.schema.runnable.config import (
     get_async_callback_manager_for_config,
     get_callback_manager_for_config,
 )
-from langchain.schema.runnable.utils import Input, Output
+from langchain.schema.runnable.utils import AddableDict, Input, Output
 
 from langserve.callbacks import CallbackEventDict, ahandle_callbacks, handle_callbacks
 from langserve.serialization import (
@@ -453,6 +453,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         callback_manager = get_callback_manager_for_config(config)
 
         final_output: Optional[Output] = None
+        final_output_supported = True
 
         run_manager = callback_manager.on_chain_start(
             dumpd(self),
@@ -481,12 +482,31 @@ class RemoteRunnable(Runnable[Input, Output]):
                 for sse in event_source.iter_sse():
                     if sse.event == "data":
                         chunk = self._lc_serializer.loads(sse.data)
+                        if isinstance(chunk, dict):
+                            # Any dict returned from streaming end point
+                            # is assumed to follow additive semantics
+                            # and will be converted to an AddableDict
+                            # automatically
+                            chunk = AddableDict(chunk)
                         yield chunk
 
-                        if final_output:
-                            final_output += chunk
-                        else:
-                            final_output = chunk
+                        if final_output_supported:
+                            # here we attempt to aggregate the final output
+                            # from the stream.
+                            # the final output is used for the final callback
+                            # event (`on_chain_end`)
+                            # Aggregating the final output is only supported
+                            # if the output is additive (e.g., string or
+                            # AddableDict, etc.)
+                            # We attempt to aggregate it on best effort basis.
+                            if final_output is None:
+                                final_output = chunk
+                            else:
+                                try:
+                                    final_output = final_output + chunk
+                                except TypeError:
+                                    final_output = None
+                                    final_output_supported = False
                     elif sse.event == "error":
                         # This can only be a server side error
                         _raise_exception_from_data(
@@ -516,6 +536,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         callback_manager = get_async_callback_manager_for_config(config)
 
         final_output: Optional[Output] = None
+        final_output_supported = True
 
         run_manager = await callback_manager.on_chain_start(
             dumpd(self),
@@ -541,12 +562,31 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         chunk = self._lc_serializer.loads(sse.data)
+                        if isinstance(chunk, dict):
+                            # Any dict returned from streaming end point
+                            # is assumed to follow additive semantics
+                            # and will be converted to an AddableDict
+                            # automatically
+                            chunk = AddableDict(chunk)
                         yield chunk
 
-                        if final_output:
-                            final_output += chunk
-                        else:
-                            final_output = chunk
+                        if final_output_supported:
+                            # here we attempt to aggregate the final output
+                            # from the stream.
+                            # the final output is used for the final callback
+                            # event (`on_chain_end`)
+                            # Aggregating the final output is only supported
+                            # if the output is additive (e.g., string or
+                            # AddableDict, etc.)
+                            # We attempt to aggregate it on best effort basis.
+                            if final_output is None:
+                                final_output = chunk
+                            else:
+                                try:
+                                    final_output = final_output + chunk
+                                except TypeError:
+                                    final_output = None
+                                    final_output_supported = False
 
                     elif sse.event == "error":
                         # This can only be a server side error
