@@ -1496,6 +1496,7 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
         add_routes(
             local_app,
             RunnableLambda(lambda foo: "hello"),
+            enable_feedback_endpoint=True,
         )
 
         async with get_async_test_client(
@@ -1532,9 +1533,19 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
 async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
     """Tests that feedback is not sent to langsmith if langsmith is disabled."""
     with MonkeyPatch.context() as mp:
+        # Explicitly disable langsmith
         mp.setenv("LANGCHAIN_TRACING_V2", "false")
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+            # Explicitly enable feedback so that we know failures are from
+            # langsmith being disabled
+            enable_feedback_endpoint=True,
+        )
+
         async with get_async_test_client(
-            app, raise_app_exceptions=True
+            local_app, raise_app_exceptions=True
         ) as async_client:
             response = await async_client.post(
                 "/feedback",
@@ -1548,20 +1559,12 @@ async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
 
 
 @pytest.mark.asyncio
-async def test_feedback_unavailable_when_endpoint_disabled() -> None:
+async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
     """
-    Tests that the feedback endpoint disappears if the user explicitly
-    turns it off.
+    Tests that the feedback endpoint returns 400s if the user turns it off.
     """
-    local_app = FastAPI()
-    add_routes(
-        local_app,
-        RunnableLambda(lambda foo: "hello"),
-        enable_feedback_endpoint=False,
-    )
-
     async with get_async_test_client(
-        local_app,
+        app,
         raise_app_exceptions=True,
     ) as async_client:
         response = await async_client.post(
@@ -1572,4 +1575,4 @@ async def test_feedback_unavailable_when_endpoint_disabled() -> None:
                 "score": 1000,
             },
         )
-        assert response.status_code == 404
+        assert response.status_code == 400
