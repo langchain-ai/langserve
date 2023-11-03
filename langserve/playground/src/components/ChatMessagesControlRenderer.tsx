@@ -85,14 +85,19 @@ function isMessageFields(x: unknown): x is MessageFields {
 function constructMessage(
   x: unknown,
   assumedRole: string
-): MessageFields | null {
+): Array<MessageFields> | null {
   if (typeof x === "string") {
-    return { content: x, type: assumedRole };
+    return [{ content: x, type: assumedRole }];
   }
 
   if (isMessageFields(x)) {
+    return [x];
+  }
+
+  if (Array.isArray(x) && x.every(isMessageFields)) {
     return x;
   }
+
   return null;
 }
 
@@ -111,8 +116,18 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
       const humanMsg = constructMessage(human, "human");
       const aiMsg = constructMessage(ai, "ai");
 
-      if (humanMsg != null && aiMsg != null) {
-        props.handleChange(props.path, [...data, humanMsg, aiMsg]);
+      let newMessages = undefined;
+      if (humanMsg != null) {
+        newMessages ??= [...data];
+        newMessages.push(...humanMsg);
+      }
+      if (aiMsg != null) {
+        newMessages ??= [...data];
+        newMessages.push(...aiMsg);
+      }
+
+      if (newMessages != null) {
+        props.handleChange(props.path, newMessages);
       }
     });
 
