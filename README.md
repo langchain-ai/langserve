@@ -5,7 +5,7 @@
 [![Release Notes](https://img.shields.io/github/release/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/releases)
 [![Downloads](https://static.pepy.tech/badge/langserve/month)](https://pepy.tech/project/langserve)
 [![Open Issues](https://img.shields.io/github/issues-raw/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/issues)
-[![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)]([https://discord.gg/6adMQxSpJS](https://discord.com/channels/1038097195422978059/1170024642245832774))
+[![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
 ## Overview
 
