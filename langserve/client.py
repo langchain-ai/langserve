@@ -483,10 +483,22 @@ class RemoteRunnable(Runnable[Input, Output]):
                     if sse.event == "data":
                         chunk = self._lc_serializer.loads(sse.data)
                         if isinstance(chunk, dict):
+                            # Any dict returned from streaming end point
+                            # is assumed to follow additive semantics
+                            # and will be converted to an AddableDict
+                            # automatically
                             chunk = AddableDict(chunk)
                         yield chunk
 
                         if final_output_supported:
+                            # here we attempt to aggregate the final output
+                            # from the stream.
+                            # the final output is used for the final callback
+                            # event (`on_chain_end`)
+                            # Aggregating the final output is only supported
+                            # if the output is additive (e.g., string or
+                            # AddableDict, etc.)
+                            # We attempt to aggregate it on best effort basis.
                             if final_output is None:
                                 final_output = chunk
                             else:
@@ -551,10 +563,22 @@ class RemoteRunnable(Runnable[Input, Output]):
                     if sse.event == "data":
                         chunk = self._lc_serializer.loads(sse.data)
                         if isinstance(chunk, dict):
+                            # Any dict returned from streaming end point
+                            # is assumed to follow additive semantics
+                            # and will be converted to an AddableDict
+                            # automatically
                             chunk = AddableDict(chunk)
                         yield chunk
 
                         if final_output_supported:
+                            # here we attempt to aggregate the final output
+                            # from the stream.
+                            # the final output is used for the final callback
+                            # event (`on_chain_end`)
+                            # Aggregating the final output is only supported
+                            # if the output is additive (e.g., string or
+                            # AddableDict, etc.)
+                            # We attempt to aggregate it on best effort basis.
                             if final_output is None:
                                 final_output = chunk
                             else:
