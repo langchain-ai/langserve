@@ -1,7 +1,8 @@
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { applyPatch, Operation } from "fast-json-patch";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { resolveApiUrl } from "./utils/url";
+import { StreamCallback } from "./types";
 
 export interface LogEntry {
   // ID of the sub-run.
@@ -44,13 +45,26 @@ function reducer(state: RunState | null, action: Operation[]) {
   return applyPatch(state, action, true, false).newDocument;
 }
 
-export function useStreamLog() {
-  const [latest, updateLatest] = useReducer(reducer, null);
+export function useStreamLog(callbacks: StreamCallback = {}) {
+  const [latest, setLatest] = useState<RunState | null>(null);
   const [controller, setController] = useState<AbortController | null>(null);
+
+  const startRef = useRef(callbacks.onStart);
+  startRef.current = callbacks.onStart;
+
+  const successRef = useRef(callbacks.onSuccess);
+  successRef.current = callbacks.onSuccess;
+
+  const errorRef = useRef(callbacks.onError);
+  errorRef.current = callbacks.onError;
 
   const startStream = useCallback(async (input: unknown, config: unknown) => {
     const controller = new AbortController();
     setController(controller);
+    startRef.current?.({ input });
+
+    let innerLatest: RunState | null = null;
+
     await fetchEventSource(resolveApiUrl("/stream_log").toString(), {
       signal: controller.signal,
       method: "POST",
@@ -58,14 +72,17 @@ export function useStreamLog() {
       body: JSON.stringify({ input, config }),
       onmessage(msg) {
         if (msg.event === "data") {
-          updateLatest(JSON.parse(msg.data)?.ops);
+          innerLatest = reducer(innerLatest, JSON.parse(msg.data)?.ops);
+          setLatest(innerLatest);
         }
       },
       onclose() {
         setController(null);
+        successRef.current?.({ input, output: innerLatest?.final_output });
       },
       onerror(error) {
         setController(null);
+        errorRef.current?.();
         throw error;
       },
     });

@@ -9,6 +9,9 @@ import {
   isControl,
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
+import { useStreamCallback } from "../useStreamCallback";
+import { traverseNaiveJsonPath } from "../utils/path";
+import { isJsonSchemaExtra } from "../utils/schema";
 
 export const chatMessagesTester = rankWith(
   12,
@@ -64,9 +67,69 @@ interface MessageFields {
   role?: string;
 }
 
+function isMessageFields(x: unknown): x is MessageFields {
+  if (typeof x !== "object" || x == null) return false;
+  if (!("content" in x) || typeof x.content !== "string") return false;
+  if (
+    "additional_kwargs" in x &&
+    typeof x.additional_kwargs !== "object" &&
+    x.additional_kwargs != null
+  )
+    return false;
+  if ("name" in x && typeof x.name !== "string" && x.name != null) return false;
+  if ("type" in x && typeof x.type !== "string" && x.type != null) return false;
+  if ("role" in x && typeof x.role !== "string" && x.role != null) return false;
+  return true;
+}
+
+function constructMessage(
+  x: unknown,
+  assumedRole: string
+): Array<MessageFields> | null {
+  if (typeof x === "string") {
+    return [{ content: x, type: assumedRole }];
+  }
+
+  if (isMessageFields(x)) {
+    return [x];
+  }
+
+  if (Array.isArray(x) && x.every(isMessageFields)) {
+    return x;
+  }
+
+  return null;
+}
+
 export const ChatMessagesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageFields> = props.data ?? [];
+
+    useStreamCallback("onSuccess", (ctx) => {
+      if (!isJsonSchemaExtra(props.schema)) return;
+      const widget = props.schema.extra.widget;
+      if (!("input" in widget) && !("output" in widget)) return;
+
+      const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
+      const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
+
+      const humanMsg = constructMessage(human, "human");
+      const aiMsg = constructMessage(ai, "ai");
+
+      let newMessages = undefined;
+      if (humanMsg != null) {
+        newMessages ??= [...data];
+        newMessages.push(...humanMsg);
+      }
+      if (aiMsg != null) {
+        newMessages ??= [...data];
+        newMessages.push(...aiMsg);
+      }
+
+      if (newMessages != null) {
+        props.handleChange(props.path, newMessages);
+      }
+    });
 
     return (
       <div className="control">
