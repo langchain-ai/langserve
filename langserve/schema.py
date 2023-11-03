@@ -1,4 +1,6 @@
-from typing import List
+from datetime import datetime
+from typing import Dict, List, Optional, Union
+from uuid import UUID
 
 try:
     from pydantic.v1 import BaseModel
@@ -47,7 +49,7 @@ class SingletonResponseMetadata(SharedResponseMetadata):
     """
 
     # Represents the parent run id for a given request
-    run_id: str
+    run_id: UUID
 
 
 class BatchResponseMetadata(SharedResponseMetadata):
@@ -58,4 +60,48 @@ class BatchResponseMetadata(SharedResponseMetadata):
 
     # Represents each parent run id for a given request, in
     # the same order in which they were received
-    run_ids: List[str]
+    run_ids: List[UUID]
+
+
+class BaseFeedback(BaseModel):
+    """
+    Shared information between create requests of feedback and feedback objects
+    """
+
+    run_id: UUID
+    """The associated run ID this feedback is logged for."""
+
+    key: str
+    """The metric name, tag, or aspect to provide feedback on."""
+
+    score: Optional[Union[float, int, bool]] = None
+    """Value or score to assign the run."""
+
+    value: Optional[Union[float, int, bool, str, Dict]] = None
+    """The display value for the feedback if not a metric."""
+
+    comment: Optional[str] = None
+    """Comment or explanation for the feedback."""
+
+
+class FeedbackCreateRequest(BaseFeedback):
+    """
+    Represents a request that creates feedback for an individual run
+    """
+
+    pass
+
+
+class Feedback(BaseFeedback):
+    """
+    Represents feedback given on an individual run
+    """
+
+    created_at: datetime
+    """The time the feedback was created."""
+
+    modified_at: datetime
+    """The time the feedback was last modified."""
+
+    correction: Optional[Dict] = None
+    """Correction for the run."""
