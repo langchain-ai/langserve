@@ -24,6 +24,7 @@ from typing import (
     Union,
 )
 
+import aiosqlite
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from langchain.callbacks.tracers.log_stream import RunLogPatch
@@ -49,6 +50,7 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, ValidationError, create_model
 
+import langserve.storage
 from langserve.playground import serve_playground
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
@@ -87,13 +89,15 @@ def _config_from_hash(config_hash: str) -> Dict[str, Any]:
 
 
 def _unpack_request_config(
-    *configs: Union[BaseModel, Mapping, str],
+    *configs: Union[BaseModel, Mapping, str, None],
     keys: Sequence[str],
     model: Type[BaseModel],
 ) -> Dict[str, Any]:
     """Merge configs, and project the given keys from the merged dict."""
     config_dicts = []
     for config in configs:
+        if config is None:
+            continue
         if isinstance(config, str):
             config_dicts.append(model(**_config_from_hash(config)).dict())
         elif isinstance(config, BaseModel):
@@ -330,6 +334,7 @@ def add_routes(
     config_keys: Sequence[str] = (),
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
+    storage: Optional[aiosqlite.Connection] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -442,6 +447,27 @@ def add_routes(
     if with_types:
         runnable = runnable.with_types(**with_types)
 
+    if storage:
+
+        @app.get(f"{namespace}/s/")
+        async def list_stored_configs() -> Any:
+            """Return a list of stored configs."""
+            return await langserve.storage.list_configs(storage)
+
+        @app.put(f"{namespace}/s/")
+        async def store_config(config: dict) -> Any:
+            """Store a config."""
+            return await langserve.storage.set_config(
+                storage, config["key"], config["config"]
+            )
+
+        @app.on_event("shutdown")
+        async def shutdown_event():
+            try:
+                await storage.close()
+            except Exception:
+                pass
+
     input_type_ = _resolve_model(runnable.get_input_schema(), "Input", model_namespace)
 
     output_type_ = _resolve_model(
@@ -471,7 +497,7 @@ def add_routes(
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
     async def _get_config_and_input(
-        request: Request, config_hash: str
+        request: Request, config_hash: str, config_id: str
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -484,6 +510,7 @@ def add_routes(
             # Merge the config from the path with the config from the body.
             config = _unpack_request_config(
                 config_hash,
+                await langserve.storage.get_config(storage, config_id),
                 body.config,
                 keys=config_keys,
                 model=ConfigPayload,
@@ -508,11 +535,12 @@ def add_routes(
     async def invoke(
         request: Request,
         config_hash: str = "",
+        config_id: str = "",
     ) -> InvokeResponse:
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        config, input_ = await _get_config_and_input(request, config_hash)
+        config, input_ = await _get_config_and_input(request, config_hash, config_id)
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_tracing_info_to_metadata(config, request)
@@ -537,6 +565,13 @@ def add_routes(
             ),
         )
 
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/invoke",
+            response_model=InvokeResponse,
+            include_in_schema=False,
+        )(invoke)
+
     @app.post(
         namespace + "/c/{config_hash}/batch",
         response_model=BatchResponse,
@@ -548,12 +583,15 @@ def add_routes(
     async def batch(
         request: Request,
         config_hash: str = "",
+        config_id: str = "",
     ) -> BatchResponse:
         """Invoke the runnable with the given inputs and config."""
         try:
             body = await request.json()
         except json.JSONDecodeError:
             raise RequestValidationError(errors=["Invalid JSON body"])
+
+        config_from_id = await langserve.storage.get_config(storage, config_id)
 
         with _with_validation_error_translation():
             body = BatchRequestShallowValidator.validate(body)
@@ -570,13 +608,18 @@ def add_routes(
 
                 configs = [
                     _unpack_request_config(
-                        config_hash, config, keys=config_keys, model=ConfigPayload
+                        config_hash,
+                        config_from_id,
+                        config,
+                        keys=config_keys,
+                        model=ConfigPayload,
                     )
                     for config in config
                 ]
             elif isinstance(config, dict):
                 configs = _unpack_request_config(
                     config_hash,
+                    config_from_id,
                     config,
                     keys=config_keys,
                     model=ConfigPayload,
@@ -631,11 +674,19 @@ def add_routes(
             ),
         )
 
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/batch",
+            response_model=BatchResponse,
+            include_in_schema=False,
+        )(batch)
+
     @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
     @app.post(f"{namespace}/stream", include_in_schema=False)
     async def stream(
         request: Request,
         config_hash: str = "",
+        config_id: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
 
@@ -645,7 +696,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(
+                request, config_hash, config_id
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -700,6 +753,12 @@ def add_routes(
 
         return EventSourceResponse(_stream())
 
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/stream",
+            include_in_schema=False,
+        )(stream)
+
     @app.post(
         namespace + "/c/{config_hash}/stream_log",
         include_in_schema=False,
@@ -711,6 +770,7 @@ def add_routes(
     async def stream_log(
         request: Request,
         config_hash: str = "",
+        config_id: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
 
@@ -720,7 +780,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(
+                request, config_hash, config_id
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -811,6 +873,12 @@ def add_routes(
 
         return EventSourceResponse(_stream_log())
 
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/stream_log",
+            include_in_schema=False,
+        )(stream_log)
+
     @app.get(
         namespace + "/c/{config_hash}/input_schema",
         tags=route_tags_with_config,
@@ -819,14 +887,24 @@ def add_routes(
     @app.get(
         f"{namespace}/input_schema", tags=route_tags, name=_route_name("input_schema")
     )
-    async def input_schema(config_hash: str = "") -> Any:
+    async def input_schema(config_hash: str = "", config_id: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                await langserve.storage.get_config(storage, config_id),
+                keys=config_keys,
+                model=ConfigPayload,
             )
 
         return runnable.get_input_schema(config).schema()
+
+    if storage:
+        app.get(
+            namespace + "/s/{config_id}/input_schema",
+            tags=route_tags_with_config,
+            name=_route_name_with_config("input_schema"),
+        )(input_schema)
 
     @app.get(
         namespace + "/c/{config_hash}/output_schema",
@@ -836,13 +914,23 @@ def add_routes(
     @app.get(
         f"{namespace}/output_schema", tags=route_tags, name=_route_name("output_schema")
     )
-    async def output_schema(config_hash: str = "") -> Any:
+    async def output_schema(config_hash: str = "", config_id: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                await langserve.storage.get_config(storage, config_id),
+                keys=config_keys,
+                model=ConfigPayload,
             )
         return runnable.get_output_schema(config).schema()
+
+    if storage:
+        app.get(
+            namespace + "/s/{config_id}/output_schema",
+            tags=route_tags_with_config,
+            name=_route_name_with_config("output_schema"),
+        )(output_schema)
 
     @app.get(
         namespace + "/c/{config_hash}/config_schema",
@@ -852,24 +940,39 @@ def add_routes(
     @app.get(
         f"{namespace}/config_schema", tags=route_tags, name=_route_name("config_schema")
     )
-    async def config_schema(config_hash: str = "") -> Any:
+    async def config_schema(config_hash: str = "", config_id: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                await langserve.storage.get_config(storage, config_id),
+                keys=config_keys,
+                model=ConfigPayload,
             )
         return runnable.with_config(config).config_schema(include=config_keys).schema()
+
+    if storage:
+        app.get(
+            namespace + "/s/{config_id}/config_schema",
+            tags=route_tags_with_config,
+            name=_route_name_with_config("config_schema"),
+        )(config_schema)
 
     @app.get(
         namespace + "/c/{config_hash}/playground/{file_path:path}",
         include_in_schema=False,
     )
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
-    async def playground(file_path: str, config_hash: str = "") -> Any:
+    async def playground(
+        file_path: str, config_hash: str = "", config_id: str = ""
+    ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                await langserve.storage.get_config(storage, config_id),
+                keys=config_keys,
+                model=ConfigPayload,
             )
         return await serve_playground(
             runnable.with_config(config),
@@ -878,6 +981,12 @@ def add_routes(
             f"{namespace}/playground",
             file_path,
         )
+
+    if storage:
+        app.get(
+            namespace + "/s/{config_id}/playground/{file_path:path}",
+            include_in_schema=False,
+        )(playground)
 
     @app.post(namespace + "/feedback")
     async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
@@ -935,9 +1044,18 @@ def add_routes(
     async def _invoke_docs(
         invoke_request: Annotated[InvokeRequest, InvokeRequest],
         config_hash: str = "",
+        config_id: str = "",
     ) -> InvokeResponse:
         """Invoke the runnable with the given input and config."""
         raise AssertionError("This endpoint should not be reachable.")
+
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/invoke",
+            response_model=InvokeResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("invoke"),
+        )(_invoke_docs)
 
     @app.post(
         namespace + "/c/{config_hash}/batch",
@@ -954,9 +1072,18 @@ def add_routes(
     async def _batch_docs(
         batch_request: Annotated[BatchRequest, BatchRequest],
         config_hash: str = "",
+        config_id: str = "",
     ) -> BatchResponse:
         """Batch invoke the runnable with the given inputs and config."""
         raise AssertionError("This endpoint should not be reachable.")
+
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/batch",
+            response_model=BatchResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("batch"),
+        )(_batch_docs)
 
     @app.post(
         namespace + "/c/{config_hash}/stream",
@@ -973,6 +1100,7 @@ def add_routes(
     async def _stream_docs(
         stream_request: Annotated[StreamRequest, StreamRequest],
         config_hash: str = "",
+        config_id: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
 
@@ -1017,6 +1145,14 @@ def add_routes(
         """
         raise AssertionError("This endpoint should not be reachable.")
 
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/stream",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream"),
+        )(_stream_docs)
+
     @app.post(
         namespace + "/c/{config_hash}/stream_log",
         include_in_schema=True,
@@ -1032,6 +1168,7 @@ def add_routes(
     async def _stream_log_docs(
         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
         config_hash: str = "",
+        config_id: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
 
@@ -1076,3 +1213,11 @@ def add_routes(
             }
         """
         raise AssertionError("This endpoint should not be reachable.")
+
+    if storage:
+        app.post(
+            namespace + "/s/{config_id}/stream_log",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream_log"),
+        )(_stream_log_docs)
