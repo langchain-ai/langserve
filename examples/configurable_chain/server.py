@@ -6,6 +6,7 @@ This example shows how to use two options for configuration of runnables:
 1) Configurable Fields: Use this to specify values for a given initialization parameter
 2) Configurable Alternatives: Use this to specify complete alternative runnables
 """
+import aiosqlite
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
@@ -57,9 +58,11 @@ app.add_middleware(
 
 # Add routes requires you to specify which config keys are accepted
 # specifically, you must accept `configurable` as a config key.
-add_routes(app, chain, config_keys=["configurable"])
+add_routes(
+    app, chain, config_keys=["configurable"], storage=aiosqlite.connect(":memory:")
+)
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="localhost", port=8100)
