@@ -92,7 +92,7 @@ const generateCells = (
   enabled: boolean,
   cells?: JsonFormsCellRendererRegistryEntry[]
 ) => {
-  if (schema.type === "object") {
+  if (schema?.type === "object") {
     return getValidColumnProps(schema).map((prop) => {
       const cellPath = Paths.compose(rowPath, prop);
       const props = {
@@ -381,7 +381,7 @@ interface TableRowsProp {
 const TableRows = ({
   data,
   path,
-  schema,
+  schema = {},
   openDeleteDialog,
   moveUp,
   moveDown,
@@ -444,7 +444,7 @@ export class MaterialTableControl extends React.Component<
     const {
       label,
       path,
-      schema,
+      schema = {},
       rootSchema,
       uischema,
       errors,
@@ -456,7 +456,7 @@ export class MaterialTableControl extends React.Component<
     } = this.props;
 
     const controlElement = uischema as ControlElement;
-    const isObjectSchema = schema.type === "object";
+    const isObjectSchema = schema?.type === "object";
     const headerCells: any = isObjectSchema
       ? generateCells(TableHeaderCell as any, schema, path, enabled, cells)
       : undefined;
