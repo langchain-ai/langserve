@@ -124,7 +124,10 @@ def _unpack_input(validated_model: BaseModel) -> Any:
         # it was created by the server as part of validation and isn't expected
         # to be accepted by the runnables as input as a pydantic model,
         # instead we need to convert it into a corresponding python dict.
-        return model.dict()
+        return {
+            fieldname: _unpack_input(getattr(model, fieldname))
+            for fieldname in model.__fields__.keys()
+        }
 
     return model
 
@@ -699,6 +702,7 @@ def add_routes(
             config, input_ = await _get_config_and_input(
                 request, config_hash, config_id
             )
+            print(input_)
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
