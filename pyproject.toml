@@ -27,8 +27,7 @@ httpx-sse = ">=0.3.1"
 [tool.poetry.group.typing.dependencies]
 
 [tool.poetry.group.lint.dependencies]
-black = { version="^23.1.0", extras=["jupyter"] }
-ruff = "^0.0.255"
+ruff = "^0.1.4"
 codespell = "^2.2.0"
 
 [tool.poetry.group.test.dependencies]
