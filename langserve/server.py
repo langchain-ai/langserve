@@ -702,7 +702,6 @@ def add_routes(
             config, input_ = await _get_config_and_input(
                 request, config_hash, config_id
             )
-            print(input_)
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
