@@ -12,6 +12,7 @@ async def init(db: aiosqlite.Connection):
 
     SEEN.add(db)
     await db
+    db.row_factory = aiosqlite.Row
     await db.execute(
         "CREATE TABLE IF NOT EXISTS configs (key TEXT PRIMARY KEY, config TEXT)"
     )
@@ -39,3 +40,4 @@ async def set_config(db: aiosqlite.Connection, key: str, config: dict):
         "INSERT OR REPLACE INTO configs VALUES (?, ?)", (key, json.dumps(config))
     )
     await db.commit()
+    return {"key": key, "config": config}
