@@ -131,7 +131,7 @@ const result = await chain.invoke({ ... });
               <div className="flex flex-col gap-2 p-3 rounded-2xl dark:bg-[#2C2C2E] bg-gray-100">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 flex items-center justify-center text-center text-sm bg-background rounded-xl">
-                    <CodeIcon />
+                    <CodeIcon className="w-4 h-4" />
                   </div>
                   <span className="font-semibold">Get the code</span>
                 </div>
