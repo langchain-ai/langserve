@@ -7,7 +7,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
-from langchain.schema.messages import BaseMessage, ChatMessage
+from langchain.schema.messages import (
+    AIMessage,
+    BaseMessage,
+    ChatMessage,
+    FunctionMessage,
+)
 from langchain.schema.runnable import RunnableLambda
 from pydantic import BaseModel, Field
 
@@ -43,9 +48,9 @@ class ChatHistory(BaseModel):
 class ChatHistoryMessage(BaseModel):
     chat_history: List[BaseMessage] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "question"}},
+        extra={"widget": {"type": "chat", "input": "question", "output": "output"}},
     )
-    question: str
+    location: str
 
 
 class FileProcessingRequest(BaseModel):
@@ -61,9 +66,21 @@ def chat_with_bot(input: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def chat_message_bot(input: Dict[str, Any]) -> BaseMessage:
+def chat_message_bot(input: Dict[str, Any]) -> List[BaseMessage]:
     """Bot that repeats the question twice."""
-    return ChatMessage(content=f"Hello: {input['question']}", role="example")
+    return [
+        AIMessage(
+            content="",
+            additional_kwargs={
+                "function_call": {
+                    "name": "get_weather",
+                    "arguments": f'{{"location": "{input["location"]}"}}',
+                }
+            },
+        ),
+        FunctionMessage(name="get_weather", content='{"value": 32}'),
+        AIMessage(content=f"Weather in {input['location']}: 32"),
+    ]
 
 
 def process_file(input: Dict[str, Any]) -> str:
