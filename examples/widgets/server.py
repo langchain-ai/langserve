@@ -10,7 +10,6 @@ from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.schema.messages import (
     AIMessage,
     BaseMessage,
-    ChatMessage,
     FunctionMessage,
 )
 from langchain.schema.runnable import RunnableLambda
