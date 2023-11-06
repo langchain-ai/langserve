@@ -191,7 +191,7 @@ const defaults = (schema: any, definitions: Record<string, any>): unknown => {
       return [];
     } else {
       const values = [];
-      for (let i = 0; i < Math.max(1, ct); i++) {
+      for (let i = 0; i < Math.max(0, ct); i++) {
         values.push(cloneJSON(value));
       }
       return values;
