@@ -120,6 +120,7 @@ def _unpack_input(validated_model: BaseModel) -> Any:
         # it was created by the server as part of validation and isn't expected
         # to be accepted by the runnables as input as a pydantic model,
         # instead we need to convert it into a corresponding python dict.
+        # This logic should be applied recursively to nested models.
         return {
             fieldname: _unpack_input(getattr(model, fieldname))
             for fieldname in model.__fields__.keys()
