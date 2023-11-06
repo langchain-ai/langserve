@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Endpoint shows off available playground widgets."""
 import base64
+from json import dumps
 from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
@@ -47,7 +48,7 @@ class ChatHistory(BaseModel):
 class ChatHistoryMessage(BaseModel):
     chat_history: List[BaseMessage] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "question", "output": "output"}},
+        extra={"widget": {"type": "chat", "input": "location", "output": "output"}},
     )
     location: str
 
@@ -73,7 +74,7 @@ def chat_message_bot(input: Dict[str, Any]) -> List[BaseMessage]:
             additional_kwargs={
                 "function_call": {
                     "name": "get_weather",
-                    "arguments": f'{{"location": "{input["location"]}"}}',
+                    "arguments": dumps({"location": input["location"]}),
                 }
             },
         ),
