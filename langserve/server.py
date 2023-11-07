@@ -967,6 +967,7 @@ def add_routes(
             source_info={
                 "from_langserve": True,
             },
+            eager=True
         )
 
         # We purposefully select out fields from langsmith so that we don't
