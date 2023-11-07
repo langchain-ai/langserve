@@ -55,7 +55,9 @@ from langserve.schema import (
 )
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
+    BatchBaseResponse,
     BatchRequestShallowValidator,
+    InvokeBaseResponse,
     InvokeRequestShallowValidator,
     StreamLogParameters,
     create_batch_request_model,
@@ -335,12 +337,33 @@ def _get_base_run_id_as_str(
         raise AssertionError("No run_id found for the given run")
 
 
-def _json_encode_response(obj: BaseModel, *, is_batch: bool = False) -> JSONResponse:
-    """Return a JSONResponse with the given content."""
-    obj = jsonable_encoder(obj)
+def _json_encode_response(model: BaseModel) -> JSONResponse:
+    """Return a JSONResponse with the given content.
 
-    if is_batch:
-        # Handle Batch Response
+    We're doing the encoding manually here as a workaround to fastapi
+    not supporting pydantic v1.
+
+    Args:
+        obj: The object to encode; either an invoke response or a batch response.
+
+    Returns:
+        A JSONResponse with the given content.
+    """
+    obj = jsonable_encoder(model)
+
+    if isinstance(model, InvokeBaseResponse):
+        # Invoke Response
+        # Collapse '__root__' from output field if it exists. This is done
+        # automatically by fastapi when annotating request and response with
+        # We need to do this manually since we're using vanilla JSONResponse
+        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
+            obj["output"] = obj["output"]["__root__"]
+
+        if "callback_events" in obj:
+            for idx, callback_event in enumerate(obj["callback_events"]):
+                if isinstance(callback_event, dict) and "__root__" in callback_event:
+                    obj["callback_events"][idx] = callback_event["__root__"]
+    elif isinstance(model, BatchBaseResponse):
         if not isinstance(obj["output"], list):
             raise AssertionError("Expected output to be a list")
 
@@ -363,20 +386,10 @@ def _json_encode_response(obj: BaseModel, *, is_batch: bool = False) -> JSONResp
                         and "__root__" in callback_event
                     ):
                         callback_events[idx] = callback_event["__root__"]
-
-        return JSONResponse(content=obj)
     else:
-        # Invoke Response
-        # Collapse '__root__' from output field if it exists. This is done
-        # automatically by fastapi when annotating request and response with
-        # We need to do this manually since we're using vanilla JSONResponse
-        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
-            obj["output"] = obj["output"]["__root__"]
-
-        if "callback_events" in obj:
-            for idx, callback_event in enumerate(obj["callback_events"]):
-                if isinstance(callback_event, dict) and "__root__" in callback_event:
-                    obj["callback_events"][idx] = callback_event["__root__"]
+        raise AssertionError(
+            f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"
+        )
 
     return JSONResponse(content=obj)
 
@@ -606,7 +619,6 @@ def add_routes(
                     run_id=_get_base_run_id_as_str(event_aggregator)
                 ),
             ),
-            is_batch=False,
         )
 
     @app.post(
@@ -699,16 +711,14 @@ def add_routes(
         else:
             callback_events = []
 
-        obj = jsonable_encoder(
-            BatchResponse(
-                output=well_known_lc_serializer.dumpd(output),
-                callback_events=callback_events,
-                metadata=BatchResponseMetadata(
-                    run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
-                ),
-            )
+        obj = BatchResponse(
+            output=well_known_lc_serializer.dumpd(output),
+            callback_events=callback_events,
+            metadata=BatchResponseMetadata(
+                run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
+            ),
         )
-        return _json_encode_response(obj, is_batch=True)
+        return _json_encode_response(obj)
 
     @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
     @app.post(f"{namespace}/stream", include_in_schema=False)

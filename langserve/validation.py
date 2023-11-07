@@ -195,6 +195,14 @@ def create_stream_log_request_model(
     return stream_log_request
 
 
+class InvokeBaseResponse(BaseModel):
+    """Base class for invoke request."""
+
+
+class BatchBaseResponse(BaseModel):
+    """Base class for batch response."""
+
+
 def create_invoke_response_model(
     namespace: str,
     output_type: Validator,
@@ -219,6 +227,7 @@ def create_invoke_response_model(
                 ),
             ),
         ),
+        __base__=InvokeBaseResponse,
     )
     invoke_response_type.update_forward_refs()
     return invoke_response_type
@@ -262,6 +271,7 @@ def create_batch_response_model(
                 ),
             ),
         ),
+        __base__=BatchBaseResponse,
     )
     batch_response_type.update_forward_refs()
     return batch_response_type
