@@ -13,6 +13,7 @@ from inspect import isclass
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Dict,
     Generator,
     Literal,
@@ -70,6 +71,10 @@ except ImportError:
     # [server] extra not installed
     APIRouter = FastAPI = Any
 
+# A function that that takes a config and a raw request
+# and updates the config based on the request.
+PerRequestConfigModifier = Callable[[Dict[str, Any], Request], Dict[str, Any]]
+
 
 def _config_from_hash(config_hash: str) -> Dict[str, Any]:
     try:
@@ -90,6 +95,8 @@ def _unpack_request_config(
     *configs: Union[BaseModel, Mapping, str],
     keys: Sequence[str],
     model: Type[BaseModel],
+    request: Request,
+    per_req_config_modifier: Optional[PerRequestConfigModifier],
 ) -> Dict[str, Any]:
     """Merge configs, and project the given keys from the merged dict."""
     config_dicts = []
@@ -103,7 +110,12 @@ def _unpack_request_config(
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
-    return {k: config[k] for k in keys if k in config}
+    projected_config = {k: config[k] for k in keys if k in config}
+    return (
+        per_req_config_modifier(projected_config, request)
+        if per_req_config_modifier
+        else projected_config
+    )
 
 
 def _unpack_input(validated_model: BaseModel) -> Any:
@@ -334,6 +346,7 @@ def add_routes(
     config_keys: Sequence[str] = (),
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
+    per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -372,6 +385,11 @@ def add_routes(
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
             when accessing the feedback endpoint
+        per_req_config_modifier: optional function that can be used to update the
+            RunnableConfig for a given run based on the raw request. This is useful,
+            for example, if the user wants to pass in a header containing credentials
+            to a runnable. The RunnableConfig is presented in its dictionary form.
+            Note that only keys in `config_keys` will be modifiable by this function.
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -491,6 +509,8 @@ def add_routes(
                 body.config,
                 keys=config_keys,
                 model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -574,7 +594,12 @@ def add_routes(
 
                 configs = [
                     _unpack_request_config(
-                        config_hash, config, keys=config_keys, model=ConfigPayload
+                        config_hash,
+                        config,
+                        keys=config_keys,
+                        model=ConfigPayload,
+                        request=request,
+                        per_req_config_modifier=per_req_config_modifier,
                     )
                     for config in config
                 ]
@@ -584,6 +609,8 @@ def add_routes(
                     config,
                     keys=config_keys,
                     model=ConfigPayload,
+                    request=request,
+                    per_req_config_modifier=per_req_config_modifier,
                 )
             else:
                 raise HTTPException(
@@ -823,11 +850,15 @@ def add_routes(
     @app.get(
         f"{namespace}/input_schema", tags=route_tags, name=_route_name("input_schema")
     )
-    async def input_schema(config_hash: str = "") -> Any:
+    async def input_schema(request: Request, config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
 
         return runnable.get_input_schema(config).schema()
@@ -838,13 +869,19 @@ def add_routes(
         name=_route_name_with_config("output_schema"),
     )
     @app.get(
-        f"{namespace}/output_schema", tags=route_tags, name=_route_name("output_schema")
+        f"{namespace}/output_schema",
+        tags=route_tags,
+        name=_route_name("output_schema"),
     )
-    async def output_schema(config_hash: str = "") -> Any:
+    async def output_schema(request: Request, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return runnable.get_output_schema(config).schema()
 
@@ -856,11 +893,15 @@ def add_routes(
     @app.get(
         f"{namespace}/config_schema", tags=route_tags, name=_route_name("config_schema")
     )
-    async def config_schema(config_hash: str = "") -> Any:
+    async def config_schema(request: Request, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
@@ -869,11 +910,17 @@ def add_routes(
         include_in_schema=False,
     )
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
-    async def playground(file_path: str, config_hash: str = "") -> Any:
+    async def playground(
+        file_path: str, request: Request, config_hash: str = ""
+    ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return await serve_playground(
             runnable.with_config(config),
