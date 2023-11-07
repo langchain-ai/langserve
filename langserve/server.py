@@ -32,7 +32,7 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
-from langsmith.utils import tracing_is_enabled, LangSmithNotFoundError
+from langsmith.utils import LangSmithNotFoundError, tracing_is_enabled
 from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
@@ -958,7 +958,7 @@ def add_routes(
                 + "enabled on your LangServe server.",
             )
 
-        try: 
+        try:
             feedback_from_langsmith = langsmith_client.create_feedback(
                 feedback_create_req.run_id,
                 feedback_create_req.key,
@@ -979,10 +979,7 @@ def add_routes(
                 stop_after_attempt=3,
             )
         except LangSmithNotFoundError:
-            raise HTTPException(
-                404,
-                "No run with the given run_id exists"
-            )
+            raise HTTPException(404, "No run with the given run_id exists")
 
         # We purposefully select out fields from langsmith so that we don't
         # fail validation if langsmith adds extra fields. We prefer this over
