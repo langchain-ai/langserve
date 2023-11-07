@@ -61,7 +61,7 @@ chain = prompt | model | StrOutputParser()
 
 # Add routes requires you to specify which config keys are accepted
 # specifically, you must accept `configurable` as a config key.
-add_routes(app, chain, path="/config_from_rc", config_keys=["configurable"])
+add_routes(app, chain, path="/configurable_temp", config_keys=["configurable"])
 
 
 ###############################################################################
