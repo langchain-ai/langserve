@@ -708,10 +708,25 @@ def add_routes(
                     ) from validation_exception
 
             try:
+                config_w_callbacks = config.copy()
+                event_aggregator = AsyncEventAggregatorCallback()
+                config_w_callbacks["callbacks"] = [event_aggregator]
+                has_sent_metadata = False
                 async for chunk in runnable.astream(
                     input_,
-                    config=config,
+                    config=config_w_callbacks,
                 ):
+                    if not has_sent_metadata and event_aggregator.callback_events:
+                        yield {
+                            "event": "metadata",
+                            "data": json.dumps(
+                                {
+                                    "run_id": _get_base_run_id_as_str(event_aggregator),
+                                }
+                            ),
+                        }
+                        has_sent_metadata = True
+
                     yield {
                         "data": well_known_lc_serializer.dumps(chunk),
                         "event": "data",
