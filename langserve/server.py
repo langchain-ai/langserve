@@ -349,7 +349,7 @@ def _json_encode_response(obj: BaseModel, *, is_batch: bool = False) -> JSONResp
         # We need to do this manually since we're using vanilla JSONResponse
         outputs = obj["output"]
         for idx, output in enumerate(outputs):
-            if output and "__root__" in output:
+            if isinstance(output, dict) and "__root__" in output:
                 outputs[idx] = output["__root__"]
 
         if "callback_events" in obj:
@@ -358,7 +358,10 @@ def _json_encode_response(obj: BaseModel, *, is_batch: bool = False) -> JSONResp
 
             for callback_events in obj["callback_events"]:
                 for idx, callback_event in enumerate(callback_events):
-                    if "__root__" in callback_event:
+                    if (
+                        isinstance(callback_event, dict)
+                        and "__root__" in callback_event
+                    ):
                         callback_events[idx] = callback_event["__root__"]
 
         return JSONResponse(content=obj)
@@ -367,12 +370,12 @@ def _json_encode_response(obj: BaseModel, *, is_batch: bool = False) -> JSONResp
         # Collapse '__root__' from output field if it exists. This is done
         # automatically by fastapi when annotating request and response with
         # We need to do this manually since we're using vanilla JSONResponse
-        if obj["output"] and "__root__" in obj["output"]:
+        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
             obj["output"] = obj["output"]["__root__"]
 
         if "callback_events" in obj:
             for idx, callback_event in enumerate(obj["callback_events"]):
-                if "__root__" in callback_event:
+                if isinstance(callback_event, dict) and "__root__" in callback_event:
                     obj["callback_events"][idx] = callback_event["__root__"]
 
     return JSONResponse(content=obj)
