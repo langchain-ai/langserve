@@ -32,7 +32,7 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
-from langsmith.utils import tracing_is_enabled
+from langsmith.utils import tracing_is_enabled, LangSmithNotFoundError
 from typing_extensions import Annotated
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
@@ -958,17 +958,31 @@ def add_routes(
                 + "enabled on your LangServe server.",
             )
 
-        feedback_from_langsmith = langsmith_client.create_feedback(
-            feedback_create_req.run_id,
-            feedback_create_req.key,
-            score=feedback_create_req.score,
-            value=feedback_create_req.value,
-            comment=feedback_create_req.comment,
-            source_info={
-                "from_langserve": True,
-            },
-            eager=True,
-        )
+        try: 
+            feedback_from_langsmith = langsmith_client.create_feedback(
+                feedback_create_req.run_id,
+                feedback_create_req.key,
+                score=feedback_create_req.score,
+                value=feedback_create_req.value,
+                comment=feedback_create_req.comment,
+                source_info={
+                    "from_langserve": True,
+                },
+                # We execute eagerly, meaning we confirm the run exists in
+                # LangSmith before returning a response to the user. This ensures
+                # that clients of the UI know that the feedback was successfully
+                # recorded before they receive a 200 response
+                eager=True,
+                # We lower the number of attempts to 3 to ensure we have time
+                # to wait for a run to show up, but do not take forever in cases
+                # of bad input
+                stop_after_attempt=3,
+            )
+        except LangSmithNotFoundError:
+            raise HTTPException(
+                404,
+                "No run with the given run_id exists"
+            )
 
         # We purposefully select out fields from langsmith so that we don't
         # fail validation if langsmith adds extra fields. We prefer this over
