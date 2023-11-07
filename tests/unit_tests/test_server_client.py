@@ -70,20 +70,21 @@ def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
 
     return events
 
+
 def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
     """
     Replace the run_id in the streamed response's metadata with a placeholder.
 
     Assumes run_id only appears once in the text. This is hacky :)
     """
-    metadata_expected_str = "event: metadata\r\ndata: {'run_id': '"
+    metadata_expected_str = "event: metadata\r\ndata: {\"run_id\": \""
     run_id_idx = streamed_resp.find(metadata_expected_str)
     assert run_id_idx != -1
 
     uuid_start_pos = run_id_idx + len(metadata_expected_str)
     uuid_len = 36
 
-    uuid = streamed_resp[uuid_start_pos: uuid_start_pos + uuid_len]
+    uuid = streamed_resp[uuid_start_pos : uuid_start_pos + uuid_len]
     return streamed_resp.replace(uuid, "<REPLACED>")
 
 
@@ -297,12 +298,11 @@ async def test_server_async(app: FastAPI) -> None:
             response.text
         )
         expected_response_with_run_id_replaced = (
-            "event: metadata\r\ndata: {'run_id': '<REPLACED>'}\r\n\r\n" +
-            "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+            "event: metadata\r\ndata: {\"run_id\": \"<REPLACED>\"}\r\n\r\n"
+            + "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
         )
         assert (
-            response_text_with_run_id_replaced 
-            == expected_response_with_run_id_replaced
+            response_text_with_run_id_replaced == expected_response_with_run_id_replaced
         )
 
         response = await async_client.post("/stream_log", json={"input": 1})
@@ -416,7 +416,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     response_with_run_id_replaced = _replace_run_id_in_stream_resp(response.text)
     assert (
         response_with_run_id_replaced
-        == """event: metadata\r\ndata: {\'run_id\': \'<REPLACED>\'}\r\n\r\nevent: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 

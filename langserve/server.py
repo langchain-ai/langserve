@@ -692,12 +692,14 @@ def add_routes(
                     if not has_sent_metadata and event_aggregator.callback_events:
                         yield {
                             "event": "metadata",
-                            "data": {
-                                "run_id": _get_base_run_id_as_str(event_aggregator),
-                            },
+                            "data": json.dumps(
+                                {
+                                    "run_id": _get_base_run_id_as_str(event_aggregator),
+                                }
+                            ),
                         }
                         has_sent_metadata = True
-                        
+
                     yield {
                         "data": well_known_lc_serializer.dumps(chunk),
                         "event": "data",
