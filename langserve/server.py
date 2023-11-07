@@ -35,8 +35,12 @@ from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
-from pydantic.v1 import BaseModel, Field, ValidationError, create_model
 from typing_extensions import Annotated
+
+try:
+    from pydantic.v1 import BaseModel, Field, ValidationError, create_model
+except ImportError:
+    from pydantic import BaseModel, Field, ValidationError, create_model
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
