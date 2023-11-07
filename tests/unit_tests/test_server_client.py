@@ -77,7 +77,7 @@ def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
 
     Assumes run_id only appears once in the text. This is hacky :)
     """
-    metadata_expected_str = "event: metadata\r\ndata: {\"run_id\": \""
+    metadata_expected_str = 'event: metadata\r\ndata: {"run_id": "'
     run_id_idx = streamed_resp.find(metadata_expected_str)
     assert run_id_idx != -1
 
@@ -298,7 +298,7 @@ async def test_server_async(app: FastAPI) -> None:
             response.text
         )
         expected_response_with_run_id_replaced = (
-            "event: metadata\r\ndata: {\"run_id\": \"<REPLACED>\"}\r\n\r\n"
+            'event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\n'
             + "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
         )
         assert (
