@@ -2,13 +2,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
-try:
-    from pydantic.v1 import BaseModel
-except ImportError:
-    from pydantic import BaseModel
+from langserve.pydantic import PYDANTIC_MAJOR_VERSION
+
+if PYDANTIC_MAJOR_VERSION == 2:
+    from pydantic.v1 import BaseModel as BaseModelV1
+else:
+    from pydantic import BaseModel as BaseModelV1
+from pydantic import BaseModel
 
 
-class CustomUserType(BaseModel):
+class CustomUserType(BaseModelV1):
     """Inherit from this class to create a custom user type.
 
     Use a custom user type if you want the data to de-serialize
@@ -27,7 +30,7 @@ class CustomUserType(BaseModel):
     """
 
 
-class SharedResponseMetadata(BaseModel):
+class SharedResponseMetadata(BaseModelV1):
     """
     Any response metadata should inherit from this class. Response metadata
     represents non-output data that may be useful to some clients, but
