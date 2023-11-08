@@ -1682,3 +1682,47 @@ async def test_per_request_config_modifier(
         path="/add_one",
         per_req_config_modifier=header_passthru_modifier,
     )
+
+
+@pytest.mark.asyncio
+async def test_per_request_config_modifier(
+    event_loop: AbstractEventLoop, mocker: MockerFixture
+) -> None:
+    """Test updating the config based on the raw request object."""
+    import datetime
+
+    async def add_one(x: uuid.UUID) -> datetime.datetime:
+        """Add one to simulate a valid function"""
+        return uuid.UUID(x.int + 1)
+
+    # app = FastAPI()
+    #
+    server_runnable = RunnableLambda(add_one)
+
+    # add_routes(
+    #     app,
+    #     server_runnable,
+    # )
+    #
+    # Get openapi specs
+    from datamodel_code_generator import generate
+    from datamodel_code_generator.parser.jsonschema import JsonSchemaParser
+
+    parser = JsonSchemaParser(server_runnable.input_schema.schema_json())
+    parser.parse_raw()
+    # from datamodel_code_generator.model.pydantic.custom_root_type import
+
+    #
+    #
+    #
+    #
+    # raise ValueError(
+    #     server_runnable.output_schema().schema_json(),
+    # )
+    #
+    # async with get_async_remote_runnable(
+    #     app,
+    #     raise_app_exceptions=True,
+    # ) as runnable:
+    #     output = runnable.invoke(uuid.UUID(int=1))
+    #     assert output == uuid.UUID(int=2)
