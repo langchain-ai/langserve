@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.pydantic_v1 import BaseModel, Field
 from langchain.vectorstores import FAISS
-from pydantic import BaseModel, Field
 
 from langserve import add_routes
 
