@@ -9,7 +9,7 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools.render import format_tool_to_openai_function
 from langchain.vectorstores import FAISS
-from pydantic import BaseModel
+from langchain.pydantic_v1 import BaseModel
 
 from langserve import add_routes
 

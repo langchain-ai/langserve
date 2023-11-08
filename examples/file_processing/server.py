@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.schema.runnable import RunnableLambda
-from pydantic import Field
+from langchain.pydantic_v1 import Field
 
 from langserve import CustomUserType, add_routes
 

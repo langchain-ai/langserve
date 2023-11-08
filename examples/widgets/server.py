@@ -14,7 +14,7 @@ from langchain.schema.messages import (
     FunctionMessage,
 )
 from langchain.schema.runnable import RunnableLambda
-from pydantic import BaseModel, Field
+from langchain.pydantic_v1 import BaseModel, Field
 
 from langserve.server import add_routes
 
