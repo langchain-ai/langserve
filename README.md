@@ -1,5 +1,10 @@
 # LangServe 🦜️🏓
 
+[![Release Notes](https://img.shields.io/github/release/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/releases)
+[![Downloads](https://static.pepy.tech/badge/langserve/month)](https://pepy.tech/project/langserve)
+[![Open Issues](https://img.shields.io/github/issues-raw/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/issues)
+[![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
+
 🚩 We will be releasing a hosted version of LangServe for one-click deployments of LangChain applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2) to get on the waitlist.
 
 ## Overview
@@ -26,7 +31,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 ### Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
-- Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
+- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360). See section below for more details.
 
 ## Hosted LangServe
 
@@ -41,7 +46,7 @@ We will be releasing a hosted version of LangServe for one-click deployments of 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
 To use the langchain CLI make sure that you have a recent version of `langchain-cli` 
-installed. You can install it with `pip install -U "langchain-cli[serve]"`.
+installed. You can install it with `pip install -U langchain-cli`.
 
 ```sh
 langchain app new ../path/to/directory
@@ -257,6 +262,15 @@ You can deploy to GCP Cloud Run using the following command:
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
 
+## Pydantic
+
+LangServe provides support for Pydantic 2 with some limitations.
+
+1. OpenAPI docs will not be generated for invoke/batch/stream/stream_log when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces].
+2. LangChain uses the v1 namespace in Pydantic v2. Please read the [following guidelines to ensure compatibility with LangChain](https://github.com/langchain-ai/langchain/discussions/9337)
+
+Except for these limitations, we expect the API endpoints, the playground and any other features to work as expected. 
+
 ## Advanced
 
 ### Files
@@ -381,7 +395,10 @@ that are uploaded as base64 encoded strings. Here's the full [example](https://g
 Snippet:
 
 ```python
-from pydantic import Field
+try:
+    from pydantic.v1 import Field
+except ImportError:
+    from pydantic import Field
 
 from langserve import CustomUserType
 

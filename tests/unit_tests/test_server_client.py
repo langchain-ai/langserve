@@ -1,15 +1,18 @@
 """Test the server and client together."""
 import asyncio
+import datetime
 import json
+import os
 import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLogPatch
@@ -19,6 +22,8 @@ from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
+from langsmith import schemas as ls_schemas
+from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
@@ -66,6 +71,23 @@ def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
     return events
 
 
+def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
+    """
+    Replace the run_id in the streamed response's metadata with a placeholder.
+
+    Assumes run_id only appears once in the text. This is hacky :)
+    """
+    metadata_expected_str = 'event: metadata\r\ndata: {"run_id": "'
+    run_id_idx = streamed_resp.find(metadata_expected_str)
+    assert run_id_idx != -1
+
+    uuid_start_pos = run_id_idx + len(metadata_expected_str)
+    uuid_len = 36
+
+    uuid = streamed_resp[uuid_start_pos : uuid_start_pos + uuid_len]
+    return streamed_resp.replace(uuid, "<REPLACED>")
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
@@ -89,6 +111,7 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
         else:
             return x
 
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
@@ -271,7 +294,16 @@ async def test_server_async(app: FastAPI) -> None:
 
         # Test stream
         response = await async_client.post("/stream", json={"input": 1})
-        assert response.text == "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+        response_text_with_run_id_replaced = _replace_run_id_in_stream_resp(
+            response.text
+        )
+        expected_response_with_run_id_replaced = (
+            'event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\n'
+            + "event: data\r\ndata: 2\r\n\r\nevent: end\r\n\r\n"
+        )
+        assert (
+            response_text_with_run_id_replaced == expected_response_with_run_id_replaced
+        )
 
         response = await async_client.post("/stream_log", json={"input": 1})
         assert response.text.startswith("event: data\r\n")
@@ -380,9 +412,11 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
         json={"input": 1, "config": {"tags": ["another-one"]}},
     )
     assert response.status_code == 200
+
+    response_with_run_id_replaced = _replace_run_id_in_stream_resp(response.text)
     assert (
-        response.text
-        == """event: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        response_with_run_id_replaced
+        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 
@@ -1511,3 +1545,140 @@ async def test_batch_returns_run_id(app: FastAPI) -> None:
         assert len(run_ids) == 2
         for run_id in run_ids:
             assert _is_valid_uuid(run_id)
+
+
+@pytest.mark.asyncio
+async def test_feedback_succeeds_when_langsmith_enabled() -> None:
+    """Tests that the feedback endpoint can accept feedback to langsmith."""
+
+    with patch("langserve.server.ls_client") as mocked_ls_client_package:
+        mocked_client = MagicMock(return_value=None)
+        mocked_ls_client_package.Client.return_value = mocked_client
+
+        mocked_client.create_feedback.return_value = ls_schemas.Feedback(
+            id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
+            created_at=datetime.datetime(1994, 9, 19, 9, 19),
+            modified_at=datetime.datetime(1994, 9, 19, 9, 19),
+            run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
+            key="silliness",
+            score=1000,
+        )
+
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+            enable_feedback_endpoint=True,
+        )
+
+        async with get_async_test_client(
+            local_app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/feedback",
+                json={
+                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "key": "silliness",
+                    "score": 1000,
+                },
+            )
+
+            expected_response_json = {
+                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "key": "silliness",
+                "score": 1000,
+                "created_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
+                    "%Y-%m-%dT%H:%M:%S"
+                ),
+                "modified_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
+                    "%Y-%m-%dT%H:%M:%S"
+                ),
+                "comment": None,
+                "correction": None,
+                "value": None,
+            }
+
+            assert response.json() == expected_response_json
+
+
+@pytest.mark.asyncio
+async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
+    """Tests that feedback is not sent to langsmith if langsmith is disabled."""
+    with MonkeyPatch.context() as mp:
+        # Explicitly disable langsmith
+        mp.setenv("LANGCHAIN_TRACING_V2", "false")
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+            # Explicitly enable feedback so that we know failures are from
+            # langsmith being disabled
+            enable_feedback_endpoint=True,
+        )
+
+        async with get_async_test_client(
+            local_app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/feedback",
+                json={
+                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "key": "silliness",
+                    "score": 1000,
+                },
+            )
+            assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
+    """
+    Tests that the feedback endpoint returns 400s if the user turns it off.
+    """
+    async with get_async_test_client(
+        app,
+        raise_app_exceptions=True,
+    ) as async_client:
+        response = await async_client.post(
+            "/feedback",
+            json={
+                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                "key": "silliness",
+                "score": 1000,
+            },
+        )
+        assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_per_request_config_modifier(
+    event_loop: AbstractEventLoop, mocker: MockerFixture
+) -> None:
+    """Test updating the config based on the raw request object."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+
+    def header_passthru_modifier(
+        config: Dict[str, Any], request: Request
+    ) -> Dict[str, Any]:
+        """Update the config"""
+        config = config.copy()
+        if "metadata" in config:
+            config["metadata"] = config["metadata"].copy()
+        else:
+            config["metadata"] = {}
+        config["metadata"]["headers"] = request.headers
+        return config
+
+    server_runnable = RunnableLambda(add_one)
+
+    add_routes(
+        app,
+        server_runnable,
+        path="/add_one",
+        per_req_config_modifier=header_passthru_modifier,
+    )

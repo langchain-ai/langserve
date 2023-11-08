@@ -13,6 +13,7 @@ from inspect import isclass
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Dict,
     Generator,
     Literal,
@@ -24,31 +25,39 @@ from typing import (
     Union,
 )
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
+from langsmith import client as ls_client
+from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
 
-from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
-from langserve.lzstring import LZString
-from langserve.schema import (
-    BatchResponseMetadata,
-    CustomUserType,
-    SingletonResponseMetadata,
-)
-
 try:
-    from pydantic.v1 import BaseModel, create_model
+    from pydantic.v1 import BaseModel, Field, ValidationError, create_model
 except ImportError:
     from pydantic import BaseModel, Field, ValidationError, create_model
 
+from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
+from langserve.lzstring import LZString
 from langserve.playground import serve_playground
+from langserve.pydantic import PYDANTIC_MAJOR_VERSION
+from langserve.schema import (
+    BatchResponseMetadata,
+    CustomUserType,
+    Feedback,
+    FeedbackCreateRequest,
+    SingletonResponseMetadata,
+)
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
+    BatchBaseResponse,
     BatchRequestShallowValidator,
+    InvokeBaseResponse,
     InvokeRequestShallowValidator,
     StreamLogParameters,
     create_batch_request_model,
@@ -65,6 +74,10 @@ try:
 except ImportError:
     # [server] extra not installed
     APIRouter = FastAPI = Any
+
+# A function that that takes a config and a raw request
+# and updates the config based on the request.
+PerRequestConfigModifier = Callable[[Dict[str, Any], Request], Dict[str, Any]]
 
 
 def _config_from_hash(config_hash: str) -> Dict[str, Any]:
@@ -86,6 +99,8 @@ def _unpack_request_config(
     *configs: Union[BaseModel, Mapping, str],
     keys: Sequence[str],
     model: Type[BaseModel],
+    request: Request,
+    per_req_config_modifier: Optional[PerRequestConfigModifier],
 ) -> Dict[str, Any]:
     """Merge configs, and project the given keys from the merged dict."""
     config_dicts = []
@@ -99,7 +114,12 @@ def _unpack_request_config(
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
-    return {k: config[k] for k in keys if k in config}
+    projected_config = {k: config[k] for k in keys if k in config}
+    return (
+        per_req_config_modifier(projected_config, request)
+        if per_req_config_modifier
+        else projected_config
+    )
 
 
 def _unpack_input(validated_model: BaseModel) -> Any:
@@ -116,7 +136,11 @@ def _unpack_input(validated_model: BaseModel) -> Any:
         # it was created by the server as part of validation and isn't expected
         # to be accepted by the runnables as input as a pydantic model,
         # instead we need to convert it into a corresponding python dict.
-        return model.dict()
+        # This logic should be applied recursively to nested models.
+        return {
+            fieldname: _unpack_input(getattr(model, fieldname))
+            for fieldname in model.__fields__.keys()
+        }
 
     return model
 
@@ -260,12 +284,12 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
         print(LANGSERVE)
         for path in paths:
             print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or "/"}" is live at:'
+                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is live at:'
             )
             print(f'{green("LANGSERVE:")}  │')
-            print(f'{green("LANGSERVE:")}  └──> {path}/playground')
+            print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
             print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}')
+        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
         print()
 
 
@@ -313,6 +337,64 @@ def _get_base_run_id_as_str(
         raise AssertionError("No run_id found for the given run")
 
 
+def _json_encode_response(model: BaseModel) -> JSONResponse:
+    """Return a JSONResponse with the given content.
+
+    We're doing the encoding manually here as a workaround to fastapi
+    not supporting models from pydantic v1 when pydantic
+    v2 is imported.
+
+    Args:
+        obj: The object to encode; either an invoke response or a batch response.
+
+    Returns:
+        A JSONResponse with the given content.
+    """
+    obj = jsonable_encoder(model)
+
+    if isinstance(model, InvokeBaseResponse):
+        # Invoke Response
+        # Collapse '__root__' from output field if it exists. This is done
+        # automatically by fastapi when annotating request and response with
+        # We need to do this manually since we're using vanilla JSONResponse
+        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
+            obj["output"] = obj["output"]["__root__"]
+
+        if "callback_events" in obj:
+            for idx, callback_event in enumerate(obj["callback_events"]):
+                if isinstance(callback_event, dict) and "__root__" in callback_event:
+                    obj["callback_events"][idx] = callback_event["__root__"]
+    elif isinstance(model, BatchBaseResponse):
+        if not isinstance(obj["output"], list):
+            raise AssertionError("Expected output to be a list")
+
+        # Collapse '__root__' from output field if it exists. This is done
+        # automatically by fastapi when annotating request and response with
+        # We need to do this manually since we're using vanilla JSONResponse
+        outputs = obj["output"]
+        for idx, output in enumerate(outputs):
+            if isinstance(output, dict) and "__root__" in output:
+                outputs[idx] = output["__root__"]
+
+        if "callback_events" in obj:
+            if not isinstance(obj["callback_events"], list):
+                raise AssertionError("Expected callback_events to be a list")
+
+            for callback_events in obj["callback_events"]:
+                for idx, callback_event in enumerate(callback_events):
+                    if (
+                        isinstance(callback_event, dict)
+                        and "__root__" in callback_event
+                    ):
+                        callback_events[idx] = callback_event["__root__"]
+    else:
+        raise AssertionError(
+            f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"
+        )
+
+    return JSONResponse(content=obj)
+
+
 # PUBLIC API
 
 
@@ -325,6 +407,8 @@ def add_routes(
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     config_keys: Sequence[str] = (),
     include_callback_events: bool = False,
+    enable_feedback_endpoint: bool = False,
+    per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -359,6 +443,15 @@ def add_routes(
             If true, the client will be able to show trace information
             including events that occurred on the server side.
             Be sure not to include any sensitive information in the callback events.
+        enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
+            to LangSmith. Enabled by default. If this flag is disabled or LangSmith
+            tracing is not enabled for the runnable, then 400 errors will be thrown
+            when accessing the feedback endpoint
+        per_req_config_modifier: optional function that can be used to update the
+            RunnableConfig for a given run based on the raw request. This is useful,
+            for example, if the user wants to pass in a header containing credentials
+            to a runnable. The RunnableConfig is presented in its dictionary form.
+            Note that only keys in `config_keys` will be modifiable by this function.
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -387,6 +480,14 @@ def add_routes(
 
     route_tags = [path.strip("/")] if path else None
     route_tags_with_config = [f"{path.strip('/')}/config"] if path else ["config"]
+
+    # Please do not change the naming on ls_client. It is used with mocking
+    # in our unit tests for langsmith integrations.
+    langsmith_client = (
+        ls_client.Client()
+        if tracing_is_enabled() and enable_feedback_endpoint
+        else None
+    )
 
     def _route_name(name: str) -> str:
         """Return the route name with the given name."""
@@ -470,6 +571,8 @@ def add_routes(
                 body.config,
                 keys=config_keys,
                 model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -482,16 +585,13 @@ def add_routes(
 
     @app.post(
         namespace + "/c/{config_hash}/invoke",
-        response_model=InvokeResponse,
         include_in_schema=False,
     )
-    @app.post(
-        f"{namespace}/invoke", response_model=InvokeResponse, include_in_schema=False
-    )
+    @app.post(f"{namespace}/invoke", include_in_schema=False)
     async def invoke(
         request: Request,
         config_hash: str = "",
-    ) -> InvokeResponse:
+    ) -> Response:
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
@@ -510,28 +610,27 @@ def add_routes(
         else:
             callback_events = []
 
-        return InvokeResponse(
-            output=well_known_lc_serializer.dumpd(output),
-            # Callbacks are scrubbed and exceptions are converted to serializable format
-            # before returned in the response.
-            callback_events=callback_events,
-            metadata=SingletonResponseMetadata(
-                run_id=_get_base_run_id_as_str(event_aggregator)
+        return _json_encode_response(
+            InvokeResponse(
+                output=well_known_lc_serializer.dumpd(output),
+                # Callbacks are scrubbed and exceptions are converted to serializable format
+                # before returned in the response.
+                callback_events=callback_events,
+                metadata=SingletonResponseMetadata(
+                    run_id=_get_base_run_id_as_str(event_aggregator)
+                ),
             ),
         )
 
     @app.post(
         namespace + "/c/{config_hash}/batch",
-        response_model=BatchResponse,
         include_in_schema=False,
     )
-    @app.post(
-        f"{namespace}/batch", response_model=BatchResponse, include_in_schema=False
-    )
+    @app.post(f"{namespace}/batch", include_in_schema=False)
     async def batch(
         request: Request,
         config_hash: str = "",
-    ) -> BatchResponse:
+    ) -> Response:
         """Invoke the runnable with the given inputs and config."""
         try:
             body = await request.json()
@@ -553,7 +652,12 @@ def add_routes(
 
                 configs = [
                     _unpack_request_config(
-                        config_hash, config, keys=config_keys, model=ConfigPayload
+                        config_hash,
+                        config,
+                        keys=config_keys,
+                        model=ConfigPayload,
+                        request=request,
+                        per_req_config_modifier=per_req_config_modifier,
                     )
                     for config in config
                 ]
@@ -563,6 +667,8 @@ def add_routes(
                     config,
                     keys=config_keys,
                     model=ConfigPayload,
+                    request=request,
+                    per_req_config_modifier=per_req_config_modifier,
                 )
             else:
                 raise HTTPException(
@@ -606,13 +712,14 @@ def add_routes(
         else:
             callback_events = []
 
-        return BatchResponse(
+        obj = BatchResponse(
             output=well_known_lc_serializer.dumpd(output),
             callback_events=callback_events,
             metadata=BatchResponseMetadata(
                 run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
             ),
         )
+        return _json_encode_response(obj)
 
     @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
     @app.post(f"{namespace}/stream", include_in_schema=False)
@@ -660,10 +767,25 @@ def add_routes(
                     ) from validation_exception
 
             try:
+                config_w_callbacks = config.copy()
+                event_aggregator = AsyncEventAggregatorCallback()
+                config_w_callbacks["callbacks"] = [event_aggregator]
+                has_sent_metadata = False
                 async for chunk in runnable.astream(
                     input_,
-                    config=config,
+                    config=config_w_callbacks,
                 ):
+                    if not has_sent_metadata and event_aggregator.callback_events:
+                        yield {
+                            "event": "metadata",
+                            "data": json.dumps(
+                                {
+                                    "run_id": _get_base_run_id_as_str(event_aggregator),
+                                }
+                            ),
+                        }
+                        has_sent_metadata = True
+
                     yield {
                         "data": well_known_lc_serializer.dumps(chunk),
                         "event": "data",
@@ -802,11 +924,15 @@ def add_routes(
     @app.get(
         f"{namespace}/input_schema", tags=route_tags, name=_route_name("input_schema")
     )
-    async def input_schema(config_hash: str = "") -> Any:
+    async def input_schema(request: Request, config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
 
         return runnable.get_input_schema(config).schema()
@@ -817,13 +943,19 @@ def add_routes(
         name=_route_name_with_config("output_schema"),
     )
     @app.get(
-        f"{namespace}/output_schema", tags=route_tags, name=_route_name("output_schema")
+        f"{namespace}/output_schema",
+        tags=route_tags,
+        name=_route_name("output_schema"),
     )
-    async def output_schema(config_hash: str = "") -> Any:
+    async def output_schema(request: Request, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return runnable.get_output_schema(config).schema()
 
@@ -835,11 +967,15 @@ def add_routes(
     @app.get(
         f"{namespace}/config_schema", tags=route_tags, name=_route_name("config_schema")
     )
-    async def config_schema(config_hash: str = "") -> Any:
+    async def config_schema(request: Request, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
@@ -848,11 +984,17 @@ def add_routes(
         include_in_schema=False,
     )
     @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
-    async def playground(file_path: str, config_hash: str = "") -> Any:
+    async def playground(
+        file_path: str, request: Request, config_hash: str = ""
+    ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
             config = _unpack_request_config(
-                config_hash, keys=config_keys, model=ConfigPayload
+                config_hash,
+                keys=config_keys,
+                model=ConfigPayload,
+                request=request,
+                per_req_config_modifier=per_req_config_modifier,
             )
         return await serve_playground(
             runnable.with_config(config),
@@ -862,162 +1004,203 @@ def add_routes(
             file_path,
         )
 
+    @app.post(namespace + "/feedback")
+    async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
+        """
+        Send feedback on an individual run to langsmith
+        """
+
+        if not tracing_is_enabled() or not enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
+        feedback_from_langsmith = langsmith_client.create_feedback(
+            feedback_create_req.run_id,
+            feedback_create_req.key,
+            score=feedback_create_req.score,
+            value=feedback_create_req.value,
+            comment=feedback_create_req.comment,
+            source_info={
+                "from_langserve": True,
+            },
+        )
+
+        # We purposefully select out fields from langsmith so that we don't
+        # fail validation if langsmith adds extra fields. We prefer this over
+        # using "Extra.allow" in pydantic since syntax changes between pydantic
+        # 1.x and 2.x for this functionality
+        return Feedback(
+            run_id=str(feedback_from_langsmith.run_id),
+            created_at=str(feedback_from_langsmith.created_at),
+            modified_at=str(feedback_from_langsmith.modified_at),
+            key=str(feedback_from_langsmith.key),
+            score=feedback_from_langsmith.score,
+            value=feedback_from_langsmith.value,
+            comment=feedback_from_langsmith.comment,
+        )
+
     #######################################
     # Documentation variants of end points.
     #######################################
-    @app.post(
-        namespace + "/c/{config_hash}/invoke",
-        response_model=InvokeResponse,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("invoke"),
-    )
-    @app.post(
-        f"{namespace}/invoke",
-        response_model=InvokeResponse,
-        tags=route_tags,
-        name=_route_name("invoke"),
-    )
-    async def _invoke_docs(
-        invoke_request: Annotated[InvokeRequest, InvokeRequest],
-        config_hash: str = "",
-    ) -> InvokeResponse:
-        """Invoke the runnable with the given input and config."""
-        raise AssertionError("This endpoint should not be reachable.")
+    # At the moment, we only support pydantic 1.x
+    if PYDANTIC_MAJOR_VERSION == 1:
 
-    @app.post(
-        namespace + "/c/{config_hash}/batch",
-        response_model=BatchResponse,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("batch"),
-    )
-    @app.post(
-        f"{namespace}/batch",
-        response_model=BatchResponse,
-        tags=route_tags,
-        name=_route_name("batch"),
-    )
-    async def _batch_docs(
-        batch_request: Annotated[BatchRequest, BatchRequest],
-        config_hash: str = "",
-    ) -> BatchResponse:
-        """Batch invoke the runnable with the given inputs and config."""
-        raise AssertionError("This endpoint should not be reachable.")
+        @app.post(
+            namespace + "/c/{config_hash}/invoke",
+            response_model=InvokeResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("invoke"),
+        )
+        @app.post(
+            f"{namespace}/invoke",
+            response_model=InvokeResponse,
+            tags=route_tags,
+            name=_route_name("invoke"),
+        )
+        async def _invoke_docs(
+            invoke_request: Annotated[InvokeRequest, InvokeRequest],
+            config_hash: str = "",
+        ) -> InvokeResponse:
+            """Invoke the runnable with the given input and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-    @app.post(
-        namespace + "/c/{config_hash}/stream",
-        include_in_schema=True,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream"),
-    )
-    @app.post(
-        f"{namespace}/stream",
-        include_in_schema=True,
-        tags=route_tags,
-        name=_route_name("stream"),
-    )
-    async def _stream_docs(
-        stream_request: Annotated[StreamRequest, StreamRequest],
-        config_hash: str = "",
-    ) -> EventSourceResponse:
-        """Invoke the runnable stream the output.
+        @app.post(
+            namespace + "/c/{config_hash}/batch",
+            response_model=BatchResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("batch"),
+        )
+        @app.post(
+            f"{namespace}/batch",
+            response_model=BatchResponse,
+            tags=route_tags,
+            name=_route_name("batch"),
+        )
+        async def _batch_docs(
+            batch_request: Annotated[BatchRequest, BatchRequest],
+            config_hash: str = "",
+        ) -> BatchResponse:
+            """Batch invoke the runnable with the given inputs and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-        This endpoint allows to stream the output of the runnable.
+        @app.post(
+            namespace + "/c/{config_hash}/stream",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream"),
+        )
+        @app.post(
+            f"{namespace}/stream",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream"),
+        )
+        async def _stream_docs(
+            stream_request: Annotated[StreamRequest, StreamRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream the output.
 
-        The endpoint uses a server sent event stream to stream the output.
+            This endpoint allows to stream the output of the runnable.
 
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+            The endpoint uses a server sent event stream to stream the output.
 
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
-        This endpoint uses two different types of events:
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
 
-        * data - for streaming the output of the runnable
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
 
             {
-                "event": "data",
+                "event": "error",
                 "data": {
-                ...
+                    "status_code": 500,
+                    "message": "Internal Server Error"
                 }
             }
 
-        * error - for signaling an error in the stream, also ends the stream.
+            * end - for signaling the end of the stream.
 
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
 
-        * end - for signaling the end of the stream.
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
 
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
+        @app.post(
+            namespace + "/c/{config_hash}/stream_log",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream_log"),
+        )
+        @app.post(
+            f"{namespace}/stream_log",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream_log"),
+        )
+        async def _stream_log_docs(
+            stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream_log the output.
+
+            This endpoint allows to stream the output of the runnable, including
+            the output of all intermediate steps.
+
+            The endpoint uses a server sent event stream to stream the output.
+
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
+
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
 
             {
-                "event": "end",
-            }
-        """
-        raise AssertionError("This endpoint should not be reachable.")
-
-    @app.post(
-        namespace + "/c/{config_hash}/stream_log",
-        include_in_schema=True,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream_log"),
-    )
-    @app.post(
-        f"{namespace}/stream_log",
-        include_in_schema=True,
-        tags=route_tags,
-        name=_route_name("stream_log"),
-    )
-    async def _stream_log_docs(
-        stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
-        config_hash: str = "",
-    ) -> EventSourceResponse:
-        """Invoke the runnable stream_log the output.
-
-        This endpoint allows to stream the output of the runnable, including
-        the output of all intermediate steps.
-
-        The endpoint uses a server sent event stream to stream the output.
-
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
-
-        This endpoint uses two different types of events:
-
-        * data - for streaming the output of the runnable
-
-            {
-                "event": "data",
+                "event": "error",
                 "data": {
-                ...
+                    "status_code": 500,
+                    "message": "Internal Server Error"
                 }
             }
 
-        * error - for signaling an error in the stream, also ends the stream.
+            * end - for signaling the end of the stream.
 
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
 
-        * end - for signaling the end of the stream.
-
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
-
-            {
-                "event": "end",
-            }
-        """
-        raise AssertionError("This endpoint should not be reachable.")
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")

@@ -7,9 +7,9 @@ from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.pydantic_v1 import BaseModel
 from langchain.tools.render import format_tool_to_openai_function
 from langchain.vectorstores import FAISS
-from pydantic import BaseModel
 
 from langserve import add_routes
 

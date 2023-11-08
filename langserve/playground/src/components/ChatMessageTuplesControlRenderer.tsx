@@ -10,6 +10,8 @@ import {
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { isJsonSchemaExtra } from "../utils/schema";
+import { useStreamCallback } from "../useStreamCallback";
+import { traverseNaiveJsonPath } from "../utils/path";
 
 type MessageTuple = [string, string];
 
@@ -46,6 +48,16 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageTuple> = props.data ?? [];
 
+    useStreamCallback("onSuccess", (ctx) => {
+      if (!isJsonSchemaExtra(props.schema)) return;
+      const widget = props.schema.extra.widget;
+      if (!("input" in widget) && !("output" in widget)) return;
+
+      const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
+      const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
+      props.handleChange(props.path, [...data, [human, ai]]);
+    });
+
     return (
       <div className="control">
         <div className="flex items-center justify-between">
@@ -54,57 +66,59 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
           </label>
           <button
             className="p-1 rounded-full"
-            onClick={() => {
-              const lastRole = data.length ? data[data.length - 1][0] : "ai";
-              props.handleChange(props.path, [
-                ...data,
-                [lastRole === "ai" ? "human" : "ai", ""],
-              ]);
-            }}
+            onClick={() => props.handleChange(props.path, [...data, ["", ""]])}
           >
             <PlusIcon className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex flex-col gap-3 mt-1 empty:hidden">
-          {data.map(([type, content], index) => {
+          {data.map(([human, ai], index) => {
             const msgPath = Paths.compose(props.path, `${index}`);
             return (
-              <div className="control group" key={index}>
-                <div className="flex items-start justify-between gap-2">
-                  <select
-                    className="-ml-1 min-w-[100px]"
-                    value={type}
-                    onChange={(e) => {
-                      props.handleChange(
-                        Paths.compose(msgPath, "0"),
-                        e.target.value
-                      );
-                    }}
-                  >
-                    <option value="human">Human</option>
-                    <option value="ai">AI</option>
-                    <option value="system">System</option>
-                  </select>
-                  <button
-                    className="p-1 border rounded opacity-0 transition-opacity border-divider-700 group-focus-within:opacity-100 group-hover:opacity-100"
-                    onClick={() => {
-                      props.handleChange(
-                        props.path,
-                        data.filter((_, i) => i !== index)
-                      );
-                    }}
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
+              <div className="control group relative" key={index}>
+                <div className="grid gap-3">
+                  <div className="flex-grow">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs uppercase font-semibold text-ls-gray-100 mb-1 ">
+                        Human
+                      </div>
+                    </div>
+                    <AutosizeTextarea
+                      value={human}
+                      onChange={(human) => {
+                        props.handleChange(Paths.compose(msgPath, "0"), human);
+                      }}
+                    />
+                  </div>
+                  <div className="flex-shrink-0 h-px bg-divider-700" />
+                  <div className="flex-grow">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs uppercase font-semibold text-ls-gray-100 mb-1 ">
+                        AI
+                      </div>
+                    </div>
+
+                    <AutosizeTextarea
+                      value={ai}
+                      onChange={(ai) => {
+                        props.handleChange(Paths.compose(msgPath, "1"), ai);
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <AutosizeTextarea
-                  value={content}
-                  onChange={(content) => {
-                    props.handleChange(Paths.compose(msgPath, "1"), content);
+                <button
+                  className="absolute right-3 top-3 p-1 border rounded opacity-0 transition-opacity border-divider-700 group-focus-within:opacity-100 group-hover:opacity-100"
+                  onClick={() => {
+                    props.handleChange(
+                      props.path,
+                      data.filter((_, i) => i !== index)
+                    );
                   }}
-                />
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
               </div>
             );
           })}

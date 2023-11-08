@@ -41,7 +41,7 @@ async def serve_playground(
         return Response("Not Found", status_code=404)
 
     try:
-        with open(local_file_path) as f:
+        with open(local_file_path, encoding="utf-8") as f:
             mime_type = mimetypes.guess_type(local_file_path)[0]
             if mime_type in ("text/html", "text/css", "application/javascript"):
                 response = PlaygroundTemplate(f.read()).substitute(
