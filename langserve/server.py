@@ -45,7 +45,7 @@ except ImportError:
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic import PYDANTIC_MAJOR_VERSION
+from langserve.pydantic_v1 import _PYDANTIC_MAJOR_VERSION
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -1045,8 +1045,8 @@ def add_routes(
     #######################################
     # Documentation variants of end points.
     #######################################
-    # At the moment, we only support pydantic 1.x
-    if PYDANTIC_MAJOR_VERSION == 1:
+    # At the moment, we only support pydantic 1.x for documentation
+    if _PYDANTIC_MAJOR_VERSION == 1:
 
         @app.post(
             namespace + "/c/{config_hash}/invoke",
