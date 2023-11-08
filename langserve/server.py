@@ -110,7 +110,7 @@ def _unpack_request_config(
         elif isinstance(config, BaseModel):
             config_dicts.append(config.dict())
         elif isinstance(config, Mapping):
-            config_dicts.append(model(**config).dict())
+            config_dicts.append(config)
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
