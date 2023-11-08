@@ -46,6 +46,7 @@ jobs:
       working-directory: .
     secrets: inherit
   test:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -77,6 +78,7 @@ jobs:
 
       - name: Run tests
         run: make test
+
 
       - name: Ensure the tests did not create any additional files
         shell: bash
