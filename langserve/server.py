@@ -280,12 +280,12 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
         print(LANGSERVE)
         for path in paths:
             print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or "/"}" is live at:'
+                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is live at:'
             )
             print(f'{green("LANGSERVE:")}  │')
-            print(f'{green("LANGSERVE:")}  └──> {path}/playground')
+            print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
             print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}')
+        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
         print()
 
 
