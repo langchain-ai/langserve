@@ -79,7 +79,6 @@ jobs:
       - name: Run tests
         run: make test
 
-
       - name: Ensure the tests did not create any additional files
         shell: bash
         run: |
