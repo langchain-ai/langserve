@@ -31,7 +31,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 ### Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
-- Does not work with [pydantic v2 yet](https://github.com/tiangolo/fastapi/issues/10360)
+- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360). However, API endpoints are expected to 
 
 ## Hosted LangServe
 
@@ -386,7 +386,10 @@ that are uploaded as base64 encoded strings. Here's the full [example](https://g
 Snippet:
 
 ```python
-from pydantic import Field
+try:
+    from pydantic.v1 import Field
+except ImportError:
+    from pydantic import Field
 
 from langserve import CustomUserType
 
