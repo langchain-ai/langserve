@@ -25,8 +25,10 @@ from typing import (
     Union,
 )
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
@@ -35,8 +37,15 @@ from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
 
+try:
+    from pydantic.v1 import BaseModel, Field, ValidationError, create_model
+except ImportError:
+    from pydantic import BaseModel, Field, ValidationError, create_model
+
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
+from langserve.playground import serve_playground
+from langserve.pydantic import PYDANTIC_MAJOR_VERSION
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -44,16 +53,11 @@ from langserve.schema import (
     FeedbackCreateRequest,
     SingletonResponseMetadata,
 )
-
-try:
-    from pydantic.v1 import BaseModel, create_model
-except ImportError:
-    from pydantic import BaseModel, Field, ValidationError, create_model
-
-from langserve.playground import serve_playground
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
+    BatchBaseResponse,
     BatchRequestShallowValidator,
+    InvokeBaseResponse,
     InvokeRequestShallowValidator,
     StreamLogParameters,
     create_batch_request_model,
@@ -333,6 +337,64 @@ def _get_base_run_id_as_str(
         raise AssertionError("No run_id found for the given run")
 
 
+def _json_encode_response(model: BaseModel) -> JSONResponse:
+    """Return a JSONResponse with the given content.
+
+    We're doing the encoding manually here as a workaround to fastapi
+    not supporting models from pydantic v1 when pydantic
+    v2 is imported.
+
+    Args:
+        obj: The object to encode; either an invoke response or a batch response.
+
+    Returns:
+        A JSONResponse with the given content.
+    """
+    obj = jsonable_encoder(model)
+
+    if isinstance(model, InvokeBaseResponse):
+        # Invoke Response
+        # Collapse '__root__' from output field if it exists. This is done
+        # automatically by fastapi when annotating request and response with
+        # We need to do this manually since we're using vanilla JSONResponse
+        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
+            obj["output"] = obj["output"]["__root__"]
+
+        if "callback_events" in obj:
+            for idx, callback_event in enumerate(obj["callback_events"]):
+                if isinstance(callback_event, dict) and "__root__" in callback_event:
+                    obj["callback_events"][idx] = callback_event["__root__"]
+    elif isinstance(model, BatchBaseResponse):
+        if not isinstance(obj["output"], list):
+            raise AssertionError("Expected output to be a list")
+
+        # Collapse '__root__' from output field if it exists. This is done
+        # automatically by fastapi when annotating request and response with
+        # We need to do this manually since we're using vanilla JSONResponse
+        outputs = obj["output"]
+        for idx, output in enumerate(outputs):
+            if isinstance(output, dict) and "__root__" in output:
+                outputs[idx] = output["__root__"]
+
+        if "callback_events" in obj:
+            if not isinstance(obj["callback_events"], list):
+                raise AssertionError("Expected callback_events to be a list")
+
+            for callback_events in obj["callback_events"]:
+                for idx, callback_event in enumerate(callback_events):
+                    if (
+                        isinstance(callback_event, dict)
+                        and "__root__" in callback_event
+                    ):
+                        callback_events[idx] = callback_event["__root__"]
+    else:
+        raise AssertionError(
+            f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"
+        )
+
+    return JSONResponse(content=obj)
+
+
 # PUBLIC API
 
 
@@ -523,16 +585,13 @@ def add_routes(
 
     @app.post(
         namespace + "/c/{config_hash}/invoke",
-        response_model=InvokeResponse,
         include_in_schema=False,
     )
-    @app.post(
-        f"{namespace}/invoke", response_model=InvokeResponse, include_in_schema=False
-    )
+    @app.post(f"{namespace}/invoke", include_in_schema=False)
     async def invoke(
         request: Request,
         config_hash: str = "",
-    ) -> InvokeResponse:
+    ) -> Response:
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
@@ -551,28 +610,27 @@ def add_routes(
         else:
             callback_events = []
 
-        return InvokeResponse(
-            output=well_known_lc_serializer.dumpd(output),
-            # Callbacks are scrubbed and exceptions are converted to serializable format
-            # before returned in the response.
-            callback_events=callback_events,
-            metadata=SingletonResponseMetadata(
-                run_id=_get_base_run_id_as_str(event_aggregator)
+        return _json_encode_response(
+            InvokeResponse(
+                output=well_known_lc_serializer.dumpd(output),
+                # Callbacks are scrubbed and exceptions are converted to serializable format
+                # before returned in the response.
+                callback_events=callback_events,
+                metadata=SingletonResponseMetadata(
+                    run_id=_get_base_run_id_as_str(event_aggregator)
+                ),
             ),
         )
 
     @app.post(
         namespace + "/c/{config_hash}/batch",
-        response_model=BatchResponse,
         include_in_schema=False,
     )
-    @app.post(
-        f"{namespace}/batch", response_model=BatchResponse, include_in_schema=False
-    )
+    @app.post(f"{namespace}/batch", include_in_schema=False)
     async def batch(
         request: Request,
         config_hash: str = "",
-    ) -> BatchResponse:
+    ) -> Response:
         """Invoke the runnable with the given inputs and config."""
         try:
             body = await request.json()
@@ -654,13 +712,14 @@ def add_routes(
         else:
             callback_events = []
 
-        return BatchResponse(
+        obj = BatchResponse(
             output=well_known_lc_serializer.dumpd(output),
             callback_events=callback_events,
             metadata=BatchResponseMetadata(
                 run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
             ),
         )
+        return _json_encode_response(obj)
 
     @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
     @app.post(f"{namespace}/stream", include_in_schema=False)
@@ -986,159 +1045,162 @@ def add_routes(
     #######################################
     # Documentation variants of end points.
     #######################################
-    @app.post(
-        namespace + "/c/{config_hash}/invoke",
-        response_model=InvokeResponse,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("invoke"),
-    )
-    @app.post(
-        f"{namespace}/invoke",
-        response_model=InvokeResponse,
-        tags=route_tags,
-        name=_route_name("invoke"),
-    )
-    async def _invoke_docs(
-        invoke_request: Annotated[InvokeRequest, InvokeRequest],
-        config_hash: str = "",
-    ) -> InvokeResponse:
-        """Invoke the runnable with the given input and config."""
-        raise AssertionError("This endpoint should not be reachable.")
+    # At the moment, we only support pydantic 1.x
+    if PYDANTIC_MAJOR_VERSION == 1:
 
-    @app.post(
-        namespace + "/c/{config_hash}/batch",
-        response_model=BatchResponse,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("batch"),
-    )
-    @app.post(
-        f"{namespace}/batch",
-        response_model=BatchResponse,
-        tags=route_tags,
-        name=_route_name("batch"),
-    )
-    async def _batch_docs(
-        batch_request: Annotated[BatchRequest, BatchRequest],
-        config_hash: str = "",
-    ) -> BatchResponse:
-        """Batch invoke the runnable with the given inputs and config."""
-        raise AssertionError("This endpoint should not be reachable.")
+        @app.post(
+            namespace + "/c/{config_hash}/invoke",
+            response_model=InvokeResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("invoke"),
+        )
+        @app.post(
+            f"{namespace}/invoke",
+            response_model=InvokeResponse,
+            tags=route_tags,
+            name=_route_name("invoke"),
+        )
+        async def _invoke_docs(
+            invoke_request: Annotated[InvokeRequest, InvokeRequest],
+            config_hash: str = "",
+        ) -> InvokeResponse:
+            """Invoke the runnable with the given input and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-    @app.post(
-        namespace + "/c/{config_hash}/stream",
-        include_in_schema=True,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream"),
-    )
-    @app.post(
-        f"{namespace}/stream",
-        include_in_schema=True,
-        tags=route_tags,
-        name=_route_name("stream"),
-    )
-    async def _stream_docs(
-        stream_request: Annotated[StreamRequest, StreamRequest],
-        config_hash: str = "",
-    ) -> EventSourceResponse:
-        """Invoke the runnable stream the output.
+        @app.post(
+            namespace + "/c/{config_hash}/batch",
+            response_model=BatchResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("batch"),
+        )
+        @app.post(
+            f"{namespace}/batch",
+            response_model=BatchResponse,
+            tags=route_tags,
+            name=_route_name("batch"),
+        )
+        async def _batch_docs(
+            batch_request: Annotated[BatchRequest, BatchRequest],
+            config_hash: str = "",
+        ) -> BatchResponse:
+            """Batch invoke the runnable with the given inputs and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-        This endpoint allows to stream the output of the runnable.
+        @app.post(
+            namespace + "/c/{config_hash}/stream",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream"),
+        )
+        @app.post(
+            f"{namespace}/stream",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream"),
+        )
+        async def _stream_docs(
+            stream_request: Annotated[StreamRequest, StreamRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream the output.
 
-        The endpoint uses a server sent event stream to stream the output.
+            This endpoint allows to stream the output of the runnable.
 
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+            The endpoint uses a server sent event stream to stream the output.
 
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
-        This endpoint uses two different types of events:
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
 
-        * data - for streaming the output of the runnable
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
 
             {
-                "event": "data",
+                "event": "error",
                 "data": {
-                ...
+                    "status_code": 500,
+                    "message": "Internal Server Error"
                 }
             }
 
-        * error - for signaling an error in the stream, also ends the stream.
+            * end - for signaling the end of the stream.
 
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
 
-        * end - for signaling the end of the stream.
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
 
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
+        @app.post(
+            namespace + "/c/{config_hash}/stream_log",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream_log"),
+        )
+        @app.post(
+            f"{namespace}/stream_log",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream_log"),
+        )
+        async def _stream_log_docs(
+            stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream_log the output.
+
+            This endpoint allows to stream the output of the runnable, including
+            the output of all intermediate steps.
+
+            The endpoint uses a server sent event stream to stream the output.
+
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
+
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
 
             {
-                "event": "end",
-            }
-        """
-        raise AssertionError("This endpoint should not be reachable.")
-
-    @app.post(
-        namespace + "/c/{config_hash}/stream_log",
-        include_in_schema=True,
-        tags=route_tags_with_config,
-        name=_route_name_with_config("stream_log"),
-    )
-    @app.post(
-        f"{namespace}/stream_log",
-        include_in_schema=True,
-        tags=route_tags,
-        name=_route_name("stream_log"),
-    )
-    async def _stream_log_docs(
-        stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
-        config_hash: str = "",
-    ) -> EventSourceResponse:
-        """Invoke the runnable stream_log the output.
-
-        This endpoint allows to stream the output of the runnable, including
-        the output of all intermediate steps.
-
-        The endpoint uses a server sent event stream to stream the output.
-
-        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-
-        Important: Set the "text/event-stream" media type for request headers if
-                   not using an existing SDK.
-
-        This endpoint uses two different types of events:
-
-        * data - for streaming the output of the runnable
-
-            {
-                "event": "data",
+                "event": "error",
                 "data": {
-                ...
+                    "status_code": 500,
+                    "message": "Internal Server Error"
                 }
             }
 
-        * error - for signaling an error in the stream, also ends the stream.
+            * end - for signaling the end of the stream.
 
-        {
-            "event": "error",
-            "data": {
-                "status_code": 500,
-                "message": "Internal Server Error"
-            }
-        }
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
 
-        * end - for signaling the end of the stream.
-
-            This helps the client to know when to stop listening for events and
-            know that the streaming has ended successfully.
-
-            {
-                "event": "end",
-            }
-        """
-        raise AssertionError("This endpoint should not be reachable.")
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
