@@ -31,7 +31,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 ### Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
-- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360). However, API endpoints are expected to 
+- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360). See section below for more details.
 
 ## Hosted LangServe
 
@@ -261,6 +261,15 @@ You can deploy to GCP Cloud Run using the following command:
 ```
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
+
+## Pydantic
+
+LangServe provides support for Pydantic 2 with some limitations.
+
+1. OpenAPI docs will not be generated for invoke/batch/stream/stream_log when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces].
+2. LangChain uses the v1 namespace in Pydantic v2. Please read the [following guidelines to ensure compatibility with LangChain](https://github.com/langchain-ai/langchain/discussions/9337)
+
+Except for these limitations, we expect the API endpoints, the playground and any other features to work as expected. 
 
 ## Advanced
 
