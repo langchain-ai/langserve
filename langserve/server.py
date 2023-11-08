@@ -341,7 +341,8 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
     """Return a JSONResponse with the given content.
 
     We're doing the encoding manually here as a workaround to fastapi
-    not supporting pydantic v1.
+    not supporting models from pydantic v1 when pydantic 
+    v2 is imported.
 
     Args:
         obj: The object to encode; either an invoke response or a batch response.
