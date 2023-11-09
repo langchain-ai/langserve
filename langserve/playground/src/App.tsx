@@ -137,7 +137,9 @@ export const cells = [
 ];
 
 function App() {
-  const [isIframe] = useState(() => window.self !== window.top);
+  const [isEmbedded] = useState(() =>
+    window.location.search.includes("embeded=true")
+  );
 
   // it is possible that defaults are being applied _after_
   // the initial update message has been sent from the parent window
@@ -280,7 +282,7 @@ function App() {
 
           {Object.keys(schemas.config).length > 0 && (
             <div className="flex flex-col gap-3 [&:has(.content>.vertical-layout:first-child:last-child:empty)]:hidden">
-              {!isIframe && (
+              {!isEmbedded && (
                 <h2 className="text-xl font-semibold">Configure</h2>
               )}
 
@@ -313,7 +315,7 @@ function App() {
             </div>
           )}
 
-          {!isIframe && (
+          {!isEmbedded && (
             <div className="flex flex-col gap-3">
               <h2 className="text-xl font-semibold">Try it</h2>
 
@@ -374,7 +376,7 @@ function App() {
           <div className="gap-4 grid grid-cols-2 sticky -mx-4 px-4 py-4 bottom-0 bg-background md:static md:bg-transparent">
             <div className="md:hidden absolute inset-x-0 bottom-full h-5 bg-gradient-to-t from-black/5 to-black/0" />
 
-            {isIframe ? (
+            {isEmbedded ? (
               <>
                 <button
                   type="button"
