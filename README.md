@@ -1,4 +1,4 @@
-# LangServe 🦜️🏓
+# 🦜️🏓 LangServe
 
 [![Release Notes](https://img.shields.io/github/release/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/releases)
 [![Downloads](https://static.pepy.tech/badge/langserve/month)](https://pepy.tech/project/langserve)
