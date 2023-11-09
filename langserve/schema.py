@@ -2,13 +2,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
-from langserve.pydantic import PYDANTIC_MAJOR_VERSION
+from pydantic import BaseModel  # Floats between v1 and v2
 
-if PYDANTIC_MAJOR_VERSION == 2:
-    from pydantic.v1 import BaseModel as BaseModelV1
-else:
-    from pydantic import BaseModel as BaseModelV1
-from pydantic import BaseModel
+from langserve.pydantic_v1 import BaseModel as BaseModelV1
 
 
 class CustomUserType(BaseModelV1):

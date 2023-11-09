@@ -39,13 +39,8 @@ from langchain.schema.output import (
     LLMResult,
 )
 
+from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
-
-try:
-    from pydantic.v1 import BaseModel, ValidationError
-except ImportError:
-    from pydantic import BaseModel, ValidationError
-
 
 logger = logging.getLogger(__name__)
 
