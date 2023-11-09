@@ -59,7 +59,7 @@ Get your LangServe instance started quickly with
 
 For more examples, see the templates 
 [index](https://github.com/langchain-ai/langchain/blob/master/templates/docs/INDEX.md) 
-or the [examples](./examples) directory.
+or the [examples](https://github.com/langchain-ai/langserve/tree/main/examples) directory.
 
 ### Server
 
