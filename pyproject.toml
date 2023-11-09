@@ -37,6 +37,7 @@ pytest-asyncio = "^0.21.1"
 pytest-mock = "^3.11.1"
 pytest-socket = "^0.6.0"
 pytest-watch = "^4.2.0"
+pytest-timeout = "^2.2.0"
 
 [tool.poetry.group.examples.dependencies]
 openai = "^0.28.0"
@@ -83,3 +84,14 @@ omit = [
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+# --strict-markers will raise errors on unknown marks.
+# https://docs.pytest.org/en/7.1.x/how-to/mark.html#raising-errors-on-unknown-marks
+#
+# https://docs.pytest.org/en/7.1.x/reference/reference.html
+# --strict-config       any warnings encountered while parsing the `pytest`
+#                       section of the configuration file raise errors.
+addopts = "--strict-markers --strict-config --durations=5 -vv"
+# Global timeout for all tests. There shuold be a good reason for a test to
+# take more than 1 second
+timeout = 1
