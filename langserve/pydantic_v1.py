@@ -22,4 +22,4 @@ except ImportError:
 try:
     _PYDANTIC_MAJOR_VERSION: int = int(metadata.version("pydantic").split(".")[0])
 except metadata.PackageNotFoundError:
-    _PYDANTIC_MAJOR_VERSION = 0
+    _PYDANTIC_MAJOR_VERSION = -1
