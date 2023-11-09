@@ -11,10 +11,13 @@ any information about the exception. This is done to prevent leaking
 sensitive information from the server to the client.
 """
 import abc
+import datetime
 import json
 import logging
+from enum import Enum
 from functools import lru_cache
 from typing import Any, Dict, List, Union
+from uuid import UUID
 
 from langchain.prompts.base import StringPromptValue
 from langchain.prompts.chat import ChatPromptValueConcrete
@@ -95,6 +98,16 @@ class _LangChainEncoder(json.JSONEncoder):
     def default(self, obj) -> Any:
         if isinstance(obj, BaseModel):
             return obj.dict()
+        elif isinstance(obj, UUID):
+            return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        elif isinstance(obj, datetime.date):
+            return obj.isoformat()
+        elif isinstance(obj, Enum):
+            return obj.value
+        elif isinstance(obj, datetime.time):
+            return obj.isoformat()
         return super().default(obj)
 
 

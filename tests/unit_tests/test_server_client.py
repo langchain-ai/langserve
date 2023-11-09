@@ -3,11 +3,12 @@ import asyncio
 import datetime
 import json
 import os
-import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
+from enum import Enum
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 from unittest.mock import MagicMock, patch
+from uuid import UUID
 
 import httpx
 import pytest
@@ -1520,8 +1521,9 @@ async def test_using_router() -> None:
 
 
 def _is_valid_uuid(uuid_as_str: str) -> bool:
+    """Check if uuid_as_str is a valid UUID."""
     try:
-        uuid.UUID(str(uuid_as_str))
+        UUID(str(uuid_as_str))
         return True
     except ValueError:
         return False
@@ -1685,44 +1687,55 @@ async def test_per_request_config_modifier(
 
 
 @pytest.mark.asyncio
-async def test_per_request_config_modifier(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
     """Test updating the config based on the raw request object."""
     import datetime
 
-    async def add_one(x: uuid.UUID) -> datetime.datetime:
-        """Add one to simulate a valid function"""
-        return uuid.UUID(x.int + 1)
+    from typing_extensions import TypedDict
 
-    # app = FastAPI()
-    #
-    server_runnable = RunnableLambda(add_one)
+    class MySpecialEnum(str, Enum):
+        """An enum for testing"""
 
-    # add_routes(
-    #     app,
-    #     server_runnable,
-    # )
-    #
-    # Get openapi specs
-    from datamodel_code_generator import generate
-    from datamodel_code_generator.parser.jsonschema import JsonSchemaParser
+        A = "a"
+        B = "b"
 
-    parser = JsonSchemaParser(server_runnable.input_schema.schema_json())
-    parser.parse_raw()
-    # from datamodel_code_generator.model.pydantic.custom_root_type import
+    class VariousTypes(TypedDict):
+        """A class for testing various types"""
 
-    #
-    #
-    #
-    #
-    # raise ValueError(
-    #     server_runnable.output_schema().schema_json(),
-    # )
-    #
-    # async with get_async_remote_runnable(
-    #     app,
-    #     raise_app_exceptions=True,
-    # ) as runnable:
-    #     output = runnable.invoke(uuid.UUID(int=1))
-    #     assert output == uuid.UUID(int=2)
+        uuid: UUID
+        dt: datetime.datetime
+        date: datetime.date
+        time: datetime.time
+        enum: MySpecialEnum
+
+    async def check_types(inputs: VariousTypes) -> int:
+        """Add one to simulate a valid function."""
+        assert inputs == {
+            "date": datetime.date(2023, 1, 1),
+            "dt": datetime.datetime(2023, 1, 1, 5, 0),
+            "enum": MySpecialEnum.A,
+            "time": datetime.time(5, 30),
+            "uuid": UUID("00000000-0000-0000-0000-000000000001"),
+        }
+        return 1
+
+    app = FastAPI()
+    server_runnable = RunnableLambda(check_types)
+    add_routes(
+        app,
+        server_runnable,
+    )
+
+    async with get_async_remote_runnable(
+        app,
+        raise_app_exceptions=True,
+    ) as runnable:
+        await runnable.ainvoke(
+            {
+                "uuid": UUID(int=1),
+                "dt": datetime.datetime(2023, 1, 1, 5),
+                "date": datetime.date(2023, 1, 1),
+                "time": datetime.time(hour=5, minute=30),
+                "enum": MySpecialEnum.A,
+            }
+        )
