@@ -417,7 +417,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     response_with_run_id_replaced = _replace_run_id_in_stream_resp(response.text)
     assert (
         response_with_run_id_replaced
-        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags": ["another-one", "test"], "configurable": null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags":["another-one","test"],"configurable":null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 

@@ -51,7 +51,7 @@ def test_serialization(data: Any) -> None:
     # Test encoding
     lc_serializer = WellKnownLCSerializer()
 
-    assert isinstance(lc_serializer.dumps(data), str)
+    assert isinstance(lc_serializer.dumps(data), bytes)
     # Translate to python primitives and load back into object
     assert lc_serializer.loadd(lc_serializer.dumpd(data)) == data
     # Test simple equality (does not include pydantic class names)
