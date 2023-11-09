@@ -11,11 +11,11 @@ any information about the exception. This is done to prevent leaking
 sensitive information from the server to the client.
 """
 import abc
-import json
 import logging
 from functools import lru_cache
 from typing import Any, Dict, List, Union
 
+import orjson
 from langchain.prompts.base import StringPromptValue
 from langchain.prompts.chat import ChatPromptValueConcrete
 from langchain.schema.agent import AgentAction, AgentActionMessageLog, AgentFinish
@@ -83,14 +83,11 @@ class WellKnownLCObject(BaseModel):
     ]
 
 
-# Custom JSON Encoder
-class _LangChainEncoder(json.JSONEncoder):
-    """Custom JSON Encoder that can encode pydantic objects as well."""
-
-    def default(self, obj) -> Any:
-        if isinstance(obj, BaseModel):
-            return obj.dict()
-        return super().default(obj)
+def default(obj) -> Any:
+    """Default serialization for well known objects."""
+    if isinstance(obj, BaseModel):
+        return obj.dict()
+    return super().default(obj)
 
 
 def _decode_lc_objects(value: Any) -> Any:
@@ -149,11 +146,11 @@ class Serializer(abc.ABC):
         """Convert the given object to a JSON serializable object."""
 
     @abc.abstractmethod
-    def dumps(self, obj: Any) -> str:
+    def dumps(self, obj: Any) -> bytes:
         """Dump the given object as a JSON string."""
 
     @abc.abstractmethod
-    def loads(self, s: str) -> Any:
+    def loads(self, s: bytes) -> Any:
         """Load the given JSON string."""
 
     @abc.abstractmethod
@@ -164,18 +161,19 @@ class Serializer(abc.ABC):
 class WellKnownLCSerializer(Serializer):
     def dumpd(self, obj: Any) -> Any:
         """Convert the given object to a JSON serializable object."""
-        return json.loads(json.dumps(obj, cls=_LangChainEncoder))  # :*(
+        return orjson.loads(orjson.dumps(obj, default=default))
 
-    def dumps(self, obj: Any) -> str:
+    def dumps(self, obj: Any) -> bytes:
         """Dump the given object as a JSON string."""
-        return json.dumps(obj, cls=_LangChainEncoder)
+        return orjson.dumps(obj, default=default)
 
     def loadd(self, obj: Any) -> Any:
+        """Load the given object."""
         return _decode_lc_objects(obj)
 
-    def loads(self, s: str) -> Any:
+    def loads(self, s: bytes) -> Any:
         """Load the given JSON string."""
-        return self.loadd(json.loads(s))
+        return self.loadd(orjson.loads(s))
 
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:

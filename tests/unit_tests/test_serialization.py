@@ -1,4 +1,6 @@
+import datetime
 import uuid
+from enum import Enum
 from typing import Any
 
 import pytest
@@ -49,7 +51,7 @@ def test_serialization(data: Any) -> None:
     # Test encoding
     lc_serializer = WellKnownLCSerializer()
 
-    assert isinstance(lc_serializer.dumps(data), str)
+    assert isinstance(lc_serializer.dumps(data), bytes)
     # Translate to python primitives and load back into object
     assert lc_serializer.loadd(lc_serializer.dumpd(data)) == data
     # Test simple equality (does not include pydantic class names)
@@ -119,3 +121,65 @@ def _get_full_representation(data: Any) -> Any:
 def test_decode_events(data: Any, expected: Any) -> None:
     """Test decoding events."""
     assert load_events(data) == expected
+
+
+class TestEnum(Enum):
+    a = "a"
+    b = "b"
+
+
+class TestModel(BaseModel):
+    x: int
+    y: TestEnum
+    z: uuid.UUID
+    dt: datetime.datetime
+    d: datetime.date
+    t: datetime.time
+
+
+@pytest.mark.parametrize(
+    "obj, expected",
+    [
+        ({"key": "value"}, {"key": "value"}),
+        ([1, 2, 3], [1, 2, 3]),
+        (123, 123),
+        (uuid.UUID(int=1), "00000000-0000-0000-0000-000000000001"),
+        (datetime.datetime(2020, 1, 1), "2020-01-01T00:00:00"),
+        (datetime.date(2020, 1, 1), "2020-01-01"),
+        (datetime.time(0, 0, 0), "00:00:00"),
+        (datetime.time(0, 0, 0, 1), "00:00:00.000001"),
+        (TestEnum.a, "a"),
+        (
+            TestModel(
+                x=1,
+                y=TestEnum.a,
+                z=uuid.UUID(int=1),
+                dt=datetime.datetime(2020, 1, 1),
+                d=datetime.date(2020, 1, 1),
+                t=datetime.time(0, 0, 0),
+            ),
+            {
+                "x": 1,
+                "y": "a",
+                "z": "00000000-0000-0000-0000-000000000001",
+                "dt": "2020-01-01T00:00:00",
+                "d": "2020-01-01",
+                "t": "00:00:00",
+            },
+        ),
+        ("string", "string"),
+        (True, True),
+        (None, None),
+    ],
+)
+def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
+    """Test encoding of well known types.
+
+    This tests verifies that our custom serializer is able to encode some well
+    known types; e.g., uuid, datetime, date, time
+
+    It doesn't handle types like Decimal or frozenset etc just yet while we determine
+    how to roll out a more complete solution.
+    """
+    lc_serializer = WellKnownLCSerializer()
+    assert lc_serializer.dumpd(obj) == expected

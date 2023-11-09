@@ -787,7 +787,10 @@ def add_routes(
                         has_sent_metadata = True
 
                     yield {
-                        "data": well_known_lc_serializer.dumps(chunk),
+                        # EventSourceResponse expects a string for data
+                        # so after serializing into bytes, we decode into utf-8
+                        # to get a string.
+                        "data": well_known_lc_serializer.dumps(chunk).decode("utf-8"),
                         "event": "data",
                     }
                 yield {"event": "end"}
@@ -898,7 +901,10 @@ def add_routes(
 
                     # Temporary adapter
                     yield {
-                        "data": well_known_lc_serializer.dumps(data),
+                        # EventSourceResponse expects a string for data
+                        # so after serializing into bytes, we decode into utf-8
+                        # to get a string.
+                        "data": well_known_lc_serializer.dumps(data).decode("utf-8"),
                         "event": "data",
                     }
                 yield {"event": "end"}
