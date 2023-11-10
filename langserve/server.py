@@ -1010,6 +1010,7 @@ def add_routes(
             file_path,
         )
 
+    @app.post(namespace + "/c/{config_hash}/feedback")
     @app.post(namespace + "/feedback")
     async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
         """

@@ -88,7 +88,20 @@ class FeedbackCreateRequest(BaseFeedback):
     Represents a request that creates feedback for an individual run
     """
 
-    pass
+    run_id: UUID
+    """The associated run ID this feedback is logged for."""
+
+    key: str
+    """The metric name, tag, or aspect to provide feedback on."""
+
+    score: float | int | bool | None = None
+    """Value or score to assign the run."""
+
+    value: float | int | bool | str | dict | None = None
+    """The display value for the feedback if not a metric."""
+
+    comment: str | None = None
+    """Comment or explanation for the feedback."""
 
 
 class Feedback(BaseFeedback):

@@ -77,6 +77,7 @@ import {
   CustomAnyOfRenderer,
 } from "./components/CustomAnyOfRenderer";
 import { cn } from "./utils/cn";
+import { CorrectnessFeedback } from "./components/feedback/CorrectnessFeedback";
 
 dayjs.extend(relativeDate);
 dayjs.extend(utc);
@@ -362,8 +363,14 @@ function App() {
               {latest && (
                 <div className="flex flex-col gap-3">
                   <h2 className="text-xl font-semibold">Output</h2>
-                  <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg whitespace-pre-wrap break-words">
+                  <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg whitespace-pre-wrap break-words relative group">
                     <StreamOutput streamed={latest.streamed_output} />
+
+                    {latest.id ? (
+                      <div className="absolute right-4 top-4 flex items-center gap-2 transition-opacity opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                        <CorrectnessFeedback runId={latest.id} />
+                      </div>
+                    ) : null}
                   </div>
                   <IntermediateSteps latest={latest} />
                 </div>

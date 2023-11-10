@@ -45,7 +45,7 @@ app = FastAPI(
 # /invoke
 # /batch
 # /stream
-add_routes(app, chain)
+add_routes(app, chain, enable_feedback_endpoint=True)
 
 if __name__ == "__main__":
     import uvicorn

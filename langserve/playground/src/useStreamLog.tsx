@@ -74,6 +74,9 @@ export function useStreamLog(callbacks: StreamCallback = {}) {
         if (msg.event === "data") {
           innerLatest = reducer(innerLatest, JSON.parse(msg.data)?.ops);
           setLatest(innerLatest);
+          console.log(innerLatest);
+        } else if (msg.event === "metadata") {
+          console.log(JSON.parse(msg.data));
         }
       },
       onclose() {
