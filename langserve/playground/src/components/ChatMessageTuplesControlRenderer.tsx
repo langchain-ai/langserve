@@ -55,7 +55,10 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
 
       const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
       const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
-      props.handleChange(props.path, [...data, [human, ai]]);
+
+      if (typeof human === "string" && typeof ai === "string") {
+        props.handleChange(props.path, [...data, [human, ai]]);
+      }
     });
 
     return (
