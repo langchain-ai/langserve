@@ -24,6 +24,7 @@ from typing import (
     Type,
     Union,
 )
+from uuid import UUID
 
 from fastapi import HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
@@ -51,6 +52,7 @@ from langserve.schema import (
     CustomUserType,
     Feedback,
     FeedbackCreateRequest,
+    FeedbackUpdateRequest,
     SingletonResponseMetadata,
 )
 from langserve.serialization import WellKnownLCSerializer
@@ -1014,7 +1016,7 @@ def add_routes(
 
     @app.head(namespace + "/c/{config_hash}/feedback")
     @app.head(namespace + "/feedback")
-    async def feedback_enabled():
+    async def feedback_enabled(config_hash: str = ""):
         if not tracing_is_enabled() or not enable_feedback_endpoint:
             raise HTTPException(
                 400,
@@ -1024,7 +1026,9 @@ def add_routes(
 
     @app.post(namespace + "/c/{config_hash}/feedback")
     @app.post(namespace + "/feedback")
-    async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
+    async def create_feedback(
+        feedback_create_req: FeedbackCreateRequest, config_hash: str = ""
+    ) -> Feedback:
         """
         Send feedback on an individual run to langsmith
         """
@@ -1073,6 +1077,34 @@ def add_routes(
             value=feedback_from_langsmith.value,
             comment=feedback_from_langsmith.comment,
         )
+
+    @app.patch(namespace + "/c/{config_hash}/feedback/{feedback_id}")
+    @app.patch(namespace + "/feedback/{feedback_id}")
+    async def update_feedback(
+        feedback_id: UUID,
+        feedback_update_req: FeedbackUpdateRequest,
+        config_hash: str = "",
+    ) -> None:
+        """
+        Send feedback on an individual run to langsmith
+        """
+
+        if not tracing_is_enabled() or not enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
+        try:
+            langsmith_client.update_feedback(
+                feedback_id,
+                score=feedback_update_req.score,
+                value=feedback_update_req.value,
+                comment=feedback_update_req.comment,
+            )
+        except LangSmithNotFoundError:
+            raise HTTPException(404, "No feedback with the given feedback_id exists")
 
     #######################################
     # Documentation variants of end points.

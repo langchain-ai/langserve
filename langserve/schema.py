@@ -104,6 +104,21 @@ class FeedbackCreateRequest(BaseFeedback):
     """Comment or explanation for the feedback."""
 
 
+class FeedbackUpdateRequest(BaseFeedback):
+    """
+    Represents a request that updates an existing feedback
+    """
+
+    score: Optional[Union[float, int, bool]] = None
+    """Value or score to assign the run."""
+
+    value: Optional[Union[float, int, bool, str, dict]] = None
+    """The display value for the feedback if not a metric."""
+
+    comment: Optional[str] = None
+    """Comment or explanation for the feedback."""
+
+
 class Feedback(BaseFeedback):
     """
     Represents feedback given on an individual run

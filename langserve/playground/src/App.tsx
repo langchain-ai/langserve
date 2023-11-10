@@ -368,7 +368,7 @@ function App() {
 
                     {schemas.feedbackEnabled && latest.id ? (
                       <div className="absolute right-4 top-4 flex items-center gap-2 transition-opacity opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-                        <CorrectnessFeedback runId={latest.id} />
+                        <CorrectnessFeedback key={latest.id} runId={latest.id} />
                       </div>
                     ) : null}
                   </div>

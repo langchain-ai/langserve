@@ -51,7 +51,7 @@ export function IntermediateSteps(props: {
                 </pre>
                 {props.feedbackEnabled && log.id ? (
                   <div className="absolute right-3 top-3 flex items-center gap-2 transition-opacity opacity-0 focus-within:opacity-100 group-hover:opacity-100">
-                    <CorrectnessFeedback runId={log.id} />
+                    <CorrectnessFeedback key={log.id} runId={log.id} />
                   </div>
                 ) : null}
               </div>

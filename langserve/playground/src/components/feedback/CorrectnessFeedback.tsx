@@ -7,7 +7,9 @@ import { cn } from "../../utils/cn";
 
 export function CorrectnessFeedback(props: { runId?: string }) {
   const [loading, setLoading] = useState<number | null>(null);
-  const [state, setState] = useState<number | null>(null);
+  const [state, setState] = useState<{ id: string; score: number } | null>(
+    null
+  );
 
   const isMounted = useRef<boolean>(true);
   useEffect(() => {
@@ -25,20 +27,23 @@ export function CorrectnessFeedback(props: { runId?: string }) {
     if (isMounted.current) setLoading(payload.score);
 
     try {
-      const request = await fetch(resolveApiUrl("/feedback"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const request = await fetch(
+        resolveApiUrl(state?.id ? `/feedback/${state.id}` : "/feedback"),
+        {
+          method: state?.id ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!request.ok) throw new Error(`Failed request ${request.status}`);
       const json: {
+        id: string;
         score: number;
       } = await request.json();
 
-      if (isMounted.current) setState(json.score);
+      if (isMounted.current)
+        setState(json ?? { id: state?.id, score: payload.score });
     } finally {
       if (isMounted.current) setLoading(null);
     }
@@ -51,7 +56,7 @@ export function CorrectnessFeedback(props: { runId?: string }) {
         type="button"
         className={cn(
           "border focus-within:border-ls-blue focus-within:outline-none bg-background rounded p-1 border-divider-700 hover:bg-divider-500/50 active:bg-divider-500",
-          state === 1 && "text-teal-500"
+          state?.score === 1 && "text-teal-500"
         )}
         disabled={loading != null}
         onClick={() => {
@@ -75,7 +80,7 @@ export function CorrectnessFeedback(props: { runId?: string }) {
         type="button"
         className={cn(
           "border focus-within:border-ls-blue focus-within:outline-none bg-background rounded p-1 border-divider-700 hover:bg-divider-500/50 active:bg-divider-500",
-          state === -1 && "text-red-500"
+          state?.score === -1 && "text-red-500"
         )}
         disabled={loading != null}
         onClick={() => {
