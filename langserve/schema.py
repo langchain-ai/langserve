@@ -94,13 +94,13 @@ class FeedbackCreateRequest(BaseFeedback):
     key: str
     """The metric name, tag, or aspect to provide feedback on."""
 
-    score: float | int | bool | None = None
+    score: Optional[Union[float, int, bool]] = None
     """Value or score to assign the run."""
 
-    value: float | int | bool | str | dict | None = None
+    value: Optional[Union[float, int, bool, str, dict]] = None
     """The display value for the feedback if not a metric."""
 
-    comment: str | None = None
+    comment: Optional[str] = None
     """Comment or explanation for the feedback."""
 
 
