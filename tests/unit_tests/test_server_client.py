@@ -113,7 +113,6 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
         else:
             return x
 
-    os.environ["LANGCHAIN_TRACING_V2"] = "true"
     runnable_lambda = RunnableLambda(func=add_one_or_passthrough)
     app = FastAPI()
     try:
@@ -1630,7 +1629,6 @@ async def test_feedback_fails_when_run_doesnt_exist() -> None:
                     "score": 1000,
                 },
             )
-
             assert response.status_code == 404
 
 
