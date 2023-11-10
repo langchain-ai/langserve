@@ -468,7 +468,8 @@ def add_routes(
             This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
             will accept `configurable` key in the config. Will only be used
-            if the runnable is configurable.
+            if the runnable is configurable. Cannot configure run_name,
+            which is set by default to the path of the API.
         include_callback_events: Whether to include callback events in the response.
             If true, the client will be able to show trace information
             including events that occurred on the server side.
@@ -502,6 +503,12 @@ def add_routes(
         raise ValueError(
             f"Got an invalid path: {path}. "
             f"If specifying path please start it with a `/`"
+        )
+    
+    if "run_name" in config_keys:
+        raise ValueError(
+            f"Cannot configure run_name. "
+            f"Please remove it from config_keys."
         )
 
     namespace = path or ""
@@ -614,9 +621,14 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    def _get_default_base_config() -> RunnableConfig:
+    def _update_config_with_defaults(incomingConfig: RunnableConfig) -> RunnableConfig:
         """Set up some baseline configuration for the underlying runnable."""
+
+        # Currently all defaults are non-overridable
+        overridable_default_config = RunnableConfig()
+        
         metadata = {}
+        
         is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
         if is_hosted:
             hosted_metadata = {
@@ -626,9 +638,19 @@ def add_routes(
 
             }
             metadata.update(hosted_metadata)
-        return RunnableConfig(
+        
+        non_overridable_default_config = RunnableConfig(
             run_name=path,
             metadata=metadata,
+        )
+
+        # merge_configs is last-writer-wins, so we specifically pass in the
+        # overridable configs first, then the user provided configs, then
+        # finally the non-overridable configs
+        return merge_configs(
+            overridable_default_config,
+            incomingConfig,
+            non_overridable_default_config,
         )
 
     async def _get_config_and_input(
@@ -643,7 +665,7 @@ def add_routes(
             body = InvokeRequestShallowValidator.validate(body)
 
             # Merge the config from the path with the config from the body.
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 body.config,
                 config_keys=config_keys,
@@ -651,6 +673,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(user_provided_config)
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
             # using configuration.
@@ -672,9 +695,9 @@ def add_routes(
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        config, input_ = await _get_config_and_input(request, config_hash)
+        user_provided_config, input_ = await _get_config_and_input(request, config_hash)
 
-        config = merge_configs(_get_default_base_config(), config)
+        config = _update_config_with_defaults(user_provided_config)
         event_aggregator = AsyncEventAggregatorCallback()
         _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
@@ -736,8 +759,7 @@ def add_routes(
                         model=ConfigPayload,
                         request=request,
                         per_req_config_modifier=per_req_config_modifier,
-                    )
-                    for config in config
+                    ) for config in config
                 ]
             elif isinstance(config, dict):
                 configs = _unpack_request_config(
@@ -762,6 +784,7 @@ def add_routes(
             {k: v for k, v in config_.items() if k in config_keys}
             for config_ in get_config_list(configs, len(inputs_))
         ]
+        print(configs_)
 
         inputs = [
             _unpack_input(runnable.with_config(config_).input_schema.validate(input_))
@@ -771,11 +794,13 @@ def add_routes(
         # Update the configuration with callbacks
         aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
 
+        final_configs = []
         for config_, aggregator in zip(configs_, aggregators):
             _add_tracing_info_to_metadata(config_, request)
             config_["callbacks"] = [aggregator]
+            final_configs.append(_update_config_with_defaults(config_))
 
-        output = await runnable.abatch(inputs, config=configs_)
+        output = await runnable.abatch(inputs, config=final_configs)
 
         if include_callback_events:
             callback_events = [
@@ -1011,13 +1036,14 @@ def add_routes(
     async def input_schema(request: Request, config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(user_provided_config)
 
         return runnable.get_input_schema(config).schema()
 
@@ -1034,13 +1060,14 @@ def add_routes(
     async def output_schema(request: Request, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(user_provided_config)
         return runnable.get_output_schema(config).schema()
 
     @app.get(
@@ -1054,13 +1081,14 @@ def add_routes(
     async def config_schema(request: Request, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(user_provided_config)
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
@@ -1073,7 +1101,7 @@ def add_routes(
     ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 config_keys=config_keys,
                 model=ConfigPayload,
@@ -1085,6 +1113,8 @@ def add_routes(
             base_url = f"{namespace}/playground"
         else:
             base_url = f"{app.prefix}{namespace}/playground"
+        
+        config = _update_config_with_defaults(user_provided_config)
 
         return await serve_playground(
             runnable.with_config(config),
