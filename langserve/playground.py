@@ -20,6 +20,7 @@ async def serve_playground(
     config_keys: Sequence[str],
     base_url: str,
     file_path: str,
+    feedback_enabled: bool,
 ) -> Response:
     """Serve the playground."""
     local_file_path = os.path.abspath(
@@ -49,6 +50,9 @@ async def serve_playground(
                         runnable.config_schema(include=config_keys).schema()
                     ),
                     LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
+                    LANGSERVE_FEEDBACK_ENABLED=json.dumps(
+                        "1" if feedback_enabled else "0"
+                    ),
                 )
             else:
                 response = f.buffer.read()

@@ -1002,13 +1002,25 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+        feedback_enabled = tracing_is_enabled() and enable_feedback_endpoint
         return await serve_playground(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,
             config_keys,
             f"{namespace}/playground",
             file_path,
+            feedback_enabled,
         )
+
+    @app.head(namespace + "/c/{config_hash}/feedback")
+    @app.head(namespace + "/feedback")
+    async def feedback_enabled():
+        if not tracing_is_enabled() or not enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
 
     @app.post(namespace + "/c/{config_hash}/feedback")
     @app.post(namespace + "/feedback")
