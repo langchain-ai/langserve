@@ -7,6 +7,7 @@ FastAPI app or APIRouter.
 """
 import contextlib
 import json
+import os
 import re
 import weakref
 from inspect import isclass
@@ -613,6 +614,23 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
+    def _get_default_base_config() -> RunnableConfig:
+        """Set up some baseline configuration for the underlying runnable."""
+        metadata = {}
+        is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
+        if is_hosted:
+            hosted_metadata = {
+                "Commit SHA": os.environ.get("HOSTED_LANGSERVE_GIT_COMMIT", ""),
+                "Git Repo Subdirectory": os.environ.get("HOSTED_LANGSERVE_GIT_REPO_PATH", ""),
+                "Git Repo URL": os.environ.get("HOSTED_LANGSERVE_GIT_REPO", ""),
+
+            }
+            metadata.update(hosted_metadata)
+        return RunnableConfig(
+            run_name=path,
+            metadata=metadata,
+        )
+
     async def _get_config_and_input(
         request: Request, config_hash: str
     ) -> Tuple[RunnableConfig, Any]:
@@ -656,6 +674,7 @@ def add_routes(
         # have dynamic schema -- so the validation below is a bit more involved.
         config, input_ = await _get_config_and_input(request, config_hash)
 
+        config = merge_configs(_get_default_base_config(), config)
         event_aggregator = AsyncEventAggregatorCallback()
         _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
