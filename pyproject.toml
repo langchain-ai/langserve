@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "langserve"
-version = "0.0.25"
+version = "0.0.26"
 description = ""
 readme = "README.md"
 authors = ["LangChain"]
