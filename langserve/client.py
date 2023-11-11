@@ -512,10 +512,13 @@ class RemoteRunnable(Runnable[Input, Output]):
                         _raise_exception_from_data(
                             sse.data, httpx.Request(method="POST", url=endpoint)
                         )
+                    elif sse.event == "metadata":
+                        # Nothing to do for metadata for the regular remote client.
+                        continue
                     elif sse.event == "end":
                         break
                     else:
-                        logger.error(
+                        _log_error_message_once(
                             f"Encountered an unsupported event type: `{sse.event}`. "
                             f"Try upgrading the remote client to the latest version."
                             f"Ignoring events of type `{sse.event}`."
@@ -593,10 +596,13 @@ class RemoteRunnable(Runnable[Input, Output]):
                         _raise_exception_from_data(
                             sse.data, httpx.Request(method="POST", url=endpoint)
                         )
+                    elif sse.event == "metadata":
+                        # Nothing to do for metadata for the regular remote client.
+                        continue
                     elif sse.event == "end":
                         break
                     else:
-                        logger.error(
+                        _log_error_message_once(
                             f"Encountered an unsupported event type: `{sse.event}`. "
                             f"Try upgrading the remote client to the latest version."
                             f"Ignoring events of type `{sse.event}`."
