@@ -1046,6 +1046,11 @@ def add_routes(
     async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
         """
         Send feedback on an individual run to langsmith
+
+        Note that a successful response means that feedback was successfully
+        submitted. It does not guarantee that the feedback is recorded by
+        langsmith. Requests may be silently rejected if they are
+        unauthenticated or invalid by the server.
         """
 
         if not tracing_is_enabled() or not enable_feedback_endpoint:
@@ -1055,28 +1060,16 @@ def add_routes(
                 + "enabled on your LangServe server.",
             )
 
-        try:
-            feedback_from_langsmith = langsmith_client.create_feedback(
-                feedback_create_req.run_id,
-                feedback_create_req.key,
-                score=feedback_create_req.score,
-                value=feedback_create_req.value,
-                comment=feedback_create_req.comment,
-                source_info={
-                    "from_langserve": True,
-                },
-                # We execute eagerly, meaning we confirm the run exists in
-                # LangSmith before returning a response to the user. This ensures
-                # that clients of the UI know that the feedback was successfully
-                # recorded before they receive a 200 response
-                eager=True,
-                # We lower the number of attempts to 3 to ensure we have time
-                # to wait for a run to show up, but do not take forever in cases
-                # of bad input
-                stop_after_attempt=3,
-            )
-        except LangSmithNotFoundError:
-            raise HTTPException(404, "No run with the given run_id exists")
+        feedback_from_langsmith = langsmith_client.create_feedback(
+            feedback_create_req.run_id,
+            feedback_create_req.key,
+            score=feedback_create_req.score,
+            value=feedback_create_req.value,
+            comment=feedback_create_req.comment,
+            source_info={
+                "from_langserve": True,
+            },
+        )
 
         # We purposefully select out fields from langsmith so that we don't
         # fail validation if langsmith adds extra fields. We prefer this over
