@@ -114,6 +114,13 @@ def _unpack_request_config(
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
+    if "configurable" in config and config["configurable"]:
+        if "configurable" not in keys:
+            raise HTTPException(
+                422,
+                "Server code has modified the default accepted config keys to "
+                "not accept `configurable`. ",
+            )
     projected_config = {k: config[k] for k in keys if k in config}
     return (
         per_req_config_modifier(projected_config, request)
@@ -405,7 +412,7 @@ def add_routes(
     path: str = "",
     input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
-    config_keys: Sequence[str] = (),
+    config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
@@ -438,7 +445,8 @@ def add_routes(
             Favor using runnable.with_types(input_type=..., output_type=...) instead.
             This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
-                     no config keys are accepted.
+            will accept `configurable` key in the config. Will only be used
+            if the runnable is configurable.
         include_callback_events: Whether to include callback events in the response.
             If true, the client will be able to show trace information
             including events that occurred on the server side.

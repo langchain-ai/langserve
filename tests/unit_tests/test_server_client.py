@@ -1084,7 +1084,7 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
     assert chain.invoke({"name": "cat"}) == "say cat"
 
     app = FastAPI()
-    add_routes(app, chain, config_keys=["tags", "configurable"])
+    add_routes(app, chain)
 
     async with get_async_remote_runnable(app) as remote_runnable:
         # Test with hard-coded LLM
@@ -1094,7 +1094,7 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
         assert (
             await remote_runnable.ainvoke(
                 {"name": "foo"},
-                {"configurable": {"template": "hear {name}"}, "tags": ["h"]},
+                {"configurable": {"template": "hear {name}"}},
             )
             == "hear foo"
         )
@@ -1102,10 +1102,21 @@ async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
         assert (
             await remote_runnable.ainvoke(
                 {"name": "foo"},
-                {"configurable": {"llm": "hardcoded_llm"}, "tags": ["h"]},
+                {"configurable": {"llm": "hardcoded_llm"}},
             )
             == "hello Mr. Kitten!"
         )
+
+    add_routes(app, chain, path="/no_config", config_keys=["tags"])
+
+    async with get_async_remote_runnable(app, path="/no_config") as remote_runnable:
+        with pytest.raises(httpx.HTTPError) as cb:
+            await remote_runnable.ainvoke(
+                {"name": "foo"},
+                {"configurable": {"template": "hear {name}"}},
+            )
+
+        assert cb.value.response.status_code == 422
 
 
 # Test for utilities
