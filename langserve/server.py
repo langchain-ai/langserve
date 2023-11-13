@@ -118,8 +118,7 @@ def _unpack_request_config(
         if "configurable" not in keys:
             raise HTTPException(
                 422,
-                "Server code has modified the default accepted config keys to "
-                "not accept `configurable`. ",
+                "The config field `configurable` has been disallowed by the server.",
             )
     projected_config = {k: config[k] for k in keys if k in config}
     return (
