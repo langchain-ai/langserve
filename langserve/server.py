@@ -275,7 +275,6 @@ _APP_TO_PATHS = weakref.WeakKeyDictionary()
 def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
-        # ruff: noqa: E501
         LANGSERVE = """
  __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
@@ -283,7 +282,7 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
 |  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|  
 |  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____ 
 |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""
+"""  # noqa: E501
 
         def green(text):
             return "\x1b[1;32;40m" + text + "\x1b[0m"
@@ -292,7 +291,8 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
         print(LANGSERVE)
         for path in paths:
             print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is live at:'
+                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
+                f'live at:'
             )
             print(f'{green("LANGSERVE:")}  │')
             print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
@@ -622,8 +622,8 @@ def add_routes(
         return _json_encode_response(
             InvokeResponse(
                 output=well_known_lc_serializer.dumpd(output),
-                # Callbacks are scrubbed and exceptions are converted to serializable format
-                # before returned in the response.
+                # Callbacks are scrubbed and exceptions are converted to
+                # serializable format before returned in the response.
                 callback_events=callback_events,
                 metadata=SingletonResponseMetadata(
                     run_id=_get_base_run_id_as_str(event_aggregator)
