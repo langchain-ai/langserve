@@ -11,6 +11,7 @@ on:
       - '.github/workflows/_test.yml'
       - '.github/workflows/langserve_ci.yml'
       - 'langserve/**'
+      - 'tests/**'
       - 'examples/**'
       - 'pyproject.toml'
       - 'poetry.lock'
