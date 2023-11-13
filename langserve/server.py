@@ -275,7 +275,7 @@ _APP_TO_PATHS = weakref.WeakKeyDictionary()
 def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
-        LANGSERVE = """
+        LANGSERVE = r"""
  __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
 |  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__   
@@ -284,8 +284,13 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
 |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
 """  # noqa: E501
 
-        def green(text):
+        def green(text: str) -> str:
+            """Return the given text in green."""
             return "\x1b[1;32;40m" + text + "\x1b[0m"
+
+        def orange(text: str) -> str:
+            """Return the given text in orange."""
+            return "\x1b[1;31;40m" + text + "\x1b[0m"
 
         paths = _APP_TO_PATHS[app]
         print(LANGSERVE)
@@ -298,6 +303,15 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
             print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
             print(f'{green("LANGSERVE:")}')
         print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+
+        if _PYDANTIC_MAJOR_VERSION == 2:
+            print()
+            print(f'{orange("OpenAPI Docs:")}: ', end="")
+            print(
+                "Running with pydantic >= 2: OpenAPI docs for "
+                "invoke/batch/stream/stream_log` endpoints will not be "
+                "generated; but, API endpoints and playground will not be affected."
+            )
         print()
 
 
