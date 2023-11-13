@@ -1596,7 +1596,12 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
                     "value": None,
                 }
 
-                assert response.json() == expected_response_json
+                json_response = response.json()
+
+                assert "id" in json_response
+                del json_response["id"]
+
+                assert json_response == expected_response_json
 
 
 @pytest.mark.asyncio

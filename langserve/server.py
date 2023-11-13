@@ -1051,6 +1051,7 @@ def add_routes(
         # using "Extra.allow" in pydantic since syntax changes between pydantic
         # 1.x and 2.x for this functionality
         return Feedback(
+            id=str(feedback_from_langsmith.id),
             run_id=str(feedback_from_langsmith.run_id),
             created_at=str(feedback_from_langsmith.created_at),
             modified_at=str(feedback_from_langsmith.modified_at),

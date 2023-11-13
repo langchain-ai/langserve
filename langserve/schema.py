@@ -96,6 +96,9 @@ class Feedback(BaseFeedback):
     Represents feedback given on an individual run
     """
 
+    id: UUID
+    """The unique ID of the feedback that was created."""
+
     created_at: datetime
     """The time the feedback was created."""
 
