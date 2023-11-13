@@ -157,7 +157,7 @@ def test_invoke_request_with_runnables() -> None:
             Model(
                 input={"name": "bob"},
             ).config,
-            keys=[],
+            config_keys=[],
             model=config,
             request=MagicMock(Request),
             per_req_config_modifier=lambda x, y: x,
@@ -184,7 +184,7 @@ def test_invoke_request_with_runnables() -> None:
 
     assert _unpack_request_config(
         request.config,
-        keys=["configurable"],
+        config_keys=["configurable"],
         model=config,
         request=MagicMock(Request),
         per_req_config_modifier=lambda x, y: x,
