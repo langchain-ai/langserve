@@ -97,7 +97,7 @@ def _config_from_hash(config_hash: str) -> Dict[str, Any]:
 
 def _unpack_request_config(
     *configs: Union[BaseModel, Mapping, str],
-    keys: Sequence[str],
+    config_keys: Sequence[str],
     model: Type[BaseModel],
     request: Request,
     per_req_config_modifier: Optional[PerRequestConfigModifier],
@@ -114,7 +114,15 @@ def _unpack_request_config(
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
-    projected_config = {k: config[k] for k in keys if k in config}
+    if "configurable" in config and config["configurable"]:
+        if "configurable" not in config_keys:
+            raise HTTPException(
+                422,
+                "The config field `configurable` has been disallowed by the server. "
+                "This can be modified server side by adding `configurable` to the list "
+                "of `config_keys` argument in `add_routes`",
+            )
+    projected_config = {k: config[k] for k in config_keys if k in config}
     return (
         per_req_config_modifier(projected_config, request)
         if per_req_config_modifier
@@ -267,7 +275,6 @@ _APP_TO_PATHS = weakref.WeakKeyDictionary()
 def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
-        # ruff: noqa: E501
         LANGSERVE = r"""
  __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
@@ -275,7 +282,7 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
 |  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|  
 |  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____ 
 |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""
+"""  # noqa: E501
 
         def green(text: str) -> str:
             """Return the given text in green."""
@@ -289,7 +296,8 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
         print(LANGSERVE)
         for path in paths:
             print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is live at:'
+                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
+                f'live at:'
             )
             print(f'{green("LANGSERVE:")}  │')
             print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
@@ -419,7 +427,7 @@ def add_routes(
     path: str = "",
     input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
-    config_keys: Sequence[str] = (),
+    config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
@@ -452,7 +460,8 @@ def add_routes(
             Favor using runnable.with_types(input_type=..., output_type=...) instead.
             This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
-                     no config keys are accepted.
+            will accept `configurable` key in the config. Will only be used
+            if the runnable is configurable.
         include_callback_events: Whether to include callback events in the response.
             If true, the client will be able to show trace information
             including events that occurred on the server side.
@@ -583,7 +592,7 @@ def add_routes(
             config = _unpack_request_config(
                 config_hash,
                 body.config,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
@@ -627,8 +636,8 @@ def add_routes(
         return _json_encode_response(
             InvokeResponse(
                 output=well_known_lc_serializer.dumpd(output),
-                # Callbacks are scrubbed and exceptions are converted to serializable format
-                # before returned in the response.
+                # Callbacks are scrubbed and exceptions are converted to
+                # serializable format before returned in the response.
                 callback_events=callback_events,
                 metadata=SingletonResponseMetadata(
                     run_id=_get_base_run_id_as_str(event_aggregator)
@@ -668,7 +677,7 @@ def add_routes(
                     _unpack_request_config(
                         config_hash,
                         config,
-                        keys=config_keys,
+                        config_keys=config_keys,
                         model=ConfigPayload,
                         request=request,
                         per_req_config_modifier=per_req_config_modifier,
@@ -679,7 +688,7 @@ def add_routes(
                 configs = _unpack_request_config(
                     config_hash,
                     config,
-                    keys=config_keys,
+                    config_keys=config_keys,
                     model=ConfigPayload,
                     request=request,
                     per_req_config_modifier=per_req_config_modifier,
@@ -949,7 +958,7 @@ def add_routes(
         with _with_validation_error_translation():
             config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
@@ -972,7 +981,7 @@ def add_routes(
         with _with_validation_error_translation():
             config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
@@ -992,7 +1001,7 @@ def add_routes(
         with _with_validation_error_translation():
             config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
@@ -1011,7 +1020,7 @@ def add_routes(
         with _with_validation_error_translation():
             config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
