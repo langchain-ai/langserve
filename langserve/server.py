@@ -310,7 +310,7 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
             print(
                 "Running with pydantic >= 2: OpenAPI docs for "
                 "invoke/batch/stream/stream_log` endpoints will not be "
-                "generated; but, API endpoints and playground will not be affected."
+                "generated; but, API endpoints and playground will work as expected."
             )
         print()
 
