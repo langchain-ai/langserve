@@ -2,7 +2,6 @@
 import asyncio
 import datetime
 import json
-import os
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
@@ -1554,82 +1553,83 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
     """Tests that the feedback endpoint can accept feedback to langsmith."""
 
     with patch("langserve.server.ls_client") as mocked_ls_client_package:
-        mocked_client = MagicMock(return_value=None)
-        mocked_ls_client_package.Client.return_value = mocked_client
+        with patch("langserve.server.tracing_is_enabled") as tracing_is_enabled:
+            tracing_is_enabled.return_value = True
+            mocked_client = MagicMock(return_value=None)
+            mocked_ls_client_package.Client.return_value = mocked_client
+            mocked_client.create_feedback.return_value = ls_schemas.Feedback(
+                id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
+                created_at=datetime.datetime(1994, 9, 19, 9, 19),
+                modified_at=datetime.datetime(1994, 9, 19, 9, 19),
+                run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                key="silliness",
+                score=1000,
+            )
 
-        mocked_client.create_feedback.return_value = ls_schemas.Feedback(
-            id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
-            created_at=datetime.datetime(1994, 9, 19, 9, 19),
-            modified_at=datetime.datetime(1994, 9, 19, 9, 19),
-            run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
-            key="silliness",
-            score=1000,
-        )
+            local_app = FastAPI()
+            add_routes(
+                local_app,
+                RunnableLambda(lambda foo: "hello"),
+                enable_feedback_endpoint=True,
+            )
 
-        local_app = FastAPI()
-        add_routes(
-            local_app,
-            RunnableLambda(lambda foo: "hello"),
-            enable_feedback_endpoint=True,
-        )
+            async with get_async_test_client(
+                local_app, raise_app_exceptions=True
+            ) as async_client:
+                response = await async_client.post(
+                    "/feedback",
+                    json={
+                        "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                        "key": "silliness",
+                        "score": 1000,
+                    },
+                )
 
-        async with get_async_test_client(
-            local_app, raise_app_exceptions=True
-        ) as async_client:
-            response = await async_client.post(
-                "/feedback",
-                json={
+                expected_response_json = {
                     "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
                     "key": "silliness",
                     "score": 1000,
-                },
-            )
+                    "created_at": "1994-09-19T09:19:00",
+                    "modified_at": "1994-09-19T09:19:00",
+                    "comment": None,
+                    "correction": None,
+                    "value": None,
+                }
 
-            expected_response_json = {
-                "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                "key": "silliness",
-                "score": 1000,
-                "created_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
-                    "%Y-%m-%dT%H:%M:%S"
-                ),
-                "modified_at": datetime.datetime(1994, 9, 19, 9, 19).strftime(
-                    "%Y-%m-%dT%H:%M:%S"
-                ),
-                "comment": None,
-                "correction": None,
-                "value": None,
-            }
-
-            assert response.json() == expected_response_json
+                assert response.json() == expected_response_json
 
 
 @pytest.mark.asyncio
 async def test_feedback_fails_when_run_doesnt_exist() -> None:
-    """Tests that the feedback endpoint can't accept feedback for a non existent run."""
+    """Tests that the feedback endpoint can't accept feedback for a non-existent run."""
 
     with patch("langserve.server.ls_client") as mocked_ls_client_package:
-        mocked_client = MagicMock(return_value=None)
-        mocked_ls_client_package.Client.return_value = mocked_client
-        mocked_client.create_feedback.side_effect = LangSmithNotFoundError("no run :/")
-        local_app = FastAPI()
-        add_routes(
-            local_app,
-            RunnableLambda(lambda foo: "hello"),
-            enable_feedback_endpoint=True,
-        )
-
-        async with get_async_test_client(
-            local_app, raise_app_exceptions=True
-        ) as async_client:
-            response = await async_client.post(
-                "/feedback",
-                json={
-                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                    "key": "silliness",
-                    "score": 1000,
-                },
+        with patch("langserve.server.tracing_is_enabled") as tracing_is_enabled:
+            tracing_is_enabled.return_value = True
+            mocked_client = MagicMock(return_value=None)
+            mocked_ls_client_package.Client.return_value = mocked_client
+            mocked_client.create_feedback.side_effect = LangSmithNotFoundError(
+                "no run :/"
             )
-            assert response.status_code == 404
+            local_app = FastAPI()
+            add_routes(
+                local_app,
+                RunnableLambda(lambda foo: "hello"),
+                enable_feedback_endpoint=True,
+            )
+
+            async with get_async_test_client(
+                local_app, raise_app_exceptions=True
+            ) as async_client:
+                response = await async_client.post(
+                    "/feedback",
+                    json={
+                        "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                        "key": "silliness",
+                        "score": 1000,
+                    },
+                )
+                assert response.status_code == 404
 
 
 @pytest.mark.asyncio
