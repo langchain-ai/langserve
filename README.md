@@ -97,7 +97,7 @@ prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
 add_routes(
     app,
     prompt | model,
-    path="/chain",
+    path="/joke",
 )
 
 if __name__ == "__main__":
@@ -135,7 +135,7 @@ from langserve import RemoteRunnable
 
 openai = RemoteRunnable("http://localhost:8000/openai/")
 anthropic = RemoteRunnable("http://localhost:8000/anthropic/")
-joke_chain = RemoteRunnable("http://localhost:8000/chain/")
+joke_chain = RemoteRunnable("http://localhost:8000/joke/")
 
 joke_chain.invoke({"topic": "parrots"})
 
@@ -170,7 +170,7 @@ In TypeScript (requires LangChain.js version 0.0.166 or later):
 import { RemoteRunnable } from "langchain/runnables/remote";
 
 const chain = new RemoteRunnable({
-  url: `http://localhost:8000/chain/invoke/`,
+  url: `http://localhost:8000/joke/`,
 });
 const result = await chain.invoke({
   topic: "cats",
@@ -182,7 +182,7 @@ Python using `requests`:
 ```python
 import requests
 response = requests.post(
-    "http://localhost:8000/chain/invoke/",
+    "http://localhost:8000/joke/invoke/",
     json={'input': {'topic': 'cats'}}
 )
 response.json()
@@ -191,7 +191,7 @@ response.json()
 You can also use `curl`:
 
 ```sh
-curl --location --request POST 'http://localhost:8000/chain/invoke/' \
+curl --location --request POST 'http://localhost:8000/joke/invoke/' \
     --header 'Content-Type: application/json' \
     --data-raw '{
         "input": {
