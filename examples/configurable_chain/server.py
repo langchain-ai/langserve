@@ -59,7 +59,6 @@ prompt = PromptTemplate.from_template(
 )
 chain = prompt | model | StrOutputParser()
 
-# Add routes requires you to specify which config keys are accepted
 # specifically, you must accept `configurable` as a config key.
 add_routes(app, chain, path="/configurable_temp")
 
