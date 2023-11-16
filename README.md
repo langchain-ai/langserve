@@ -40,6 +40,17 @@ We will be releasing a hosted version of LangServe for one-click deployments of 
 ## Security
 
 * Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing arbitrary files on server. [Resolved in 0.0.16](https://github.com/langchain-ai/langserve/pull/98).
+ 
+## Installation
+
+For both client and server:
+
+```bash
+pip install "langserve[all]"
+```
+
+or `pip install "langserve[client]"` for client code, and `pip install "langserve[server]"` for server code.
+
 
 ## LangChain CLI 🛠️
 
@@ -110,17 +121,16 @@ if __name__ == "__main__":
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
 
+> ⚠️ If using pydantic v2, docs will not be generated for invoke/batch/stream/stream_log. See [Pydantic](#pydantic) section below for more details.
+
 ```sh
 curl localhost:8000/docs
 ```
 
 make sure to **add** the `/docs` suffix. 
 
-Below will return a 404 until you define a `@app.get("/")`
-
-```sh
-localhost:8000
-```
+> ⚠️ Index page `/` is not defined by **design**, so `curl localhost:8000` or visiting the URL
+> will return a 404. If you want content at `/` define an endpoint `@app.get("/")`.
 
 ### Client
 
@@ -245,28 +255,12 @@ In addition, for configurable runnables, the playground will allow you to config
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d" width="50%">
 </p>
 
-## Installation
-
-For both client and server:
-
-```bash
-pip install "langserve[all]"
-```
-
-or `pip install "langserve[client]"` for client code, and `pip install "langserve[server]"` for server code.
-
 ## Legacy Chains
 
 LangServe works with both Runnables (constructed via [LangChain Expression Language](https://python.langchain.com/docs/expression_language/)) and legacy chains (inheriting from `Chain`).
 However, some of the input schemas for legacy chains may be incomplete/incorrect, leading to errors.
 This can be fixed by updating the `input_schema` property of those chains in LangChain.
 If you encounter any errors, please open an issue on THIS repo, and we will work to address it.
-
-## Handling Authentication
-
-If you need to add authentication to your server,
-please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
-and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
 
 ## Deployment
 
@@ -288,6 +282,13 @@ LangServe provides support for Pydantic 2 with some limitations.
 Except for these limitations, we expect the API endpoints, the playground and any other features to work as expected. 
 
 ## Advanced
+
+## Handling Authentication
+
+If you need to add authentication to your server,
+please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
+and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
+
 
 ### Files
 
