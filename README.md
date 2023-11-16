@@ -402,7 +402,6 @@ type Widget = {
 };
 ```
 
-
 #### File Upload Widget
 
 Allows creation of a file upload input in the UI playground for files
