@@ -21,9 +21,9 @@ from langchain.schema import format_document
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableMap, RunnablePassthrough
 from langchain.vectorstores import FAISS
-from pydantic.v1 import BaseModel, Field
 
 from langserve import add_routes
+from langserve.pydantic_v1 import BaseModel, Field
 
 _TEMPLATE = """Given the following conversation and a follow up question, rephrase the 
 follow up question to be a standalone question, in its original language.

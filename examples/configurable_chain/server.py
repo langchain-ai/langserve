@@ -59,9 +59,7 @@ prompt = PromptTemplate.from_template(
 )
 chain = prompt | model | StrOutputParser()
 
-# Add routes requires you to specify which config keys are accepted
-# specifically, you must accept `configurable` as a config key.
-add_routes(app, chain, path="/configurable_temp", config_keys=["configurable"])
+add_routes(app, chain, path="/configurable_temp")
 
 
 ###############################################################################
@@ -96,7 +94,6 @@ add_routes(
     app,
     dynamic_auth_chain,
     path="/auth_from_header",
-    config_keys=["configurable"],
     per_req_config_modifier=fetch_api_key_from_header,
 )
 
