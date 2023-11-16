@@ -270,7 +270,7 @@ def test_serve_playground(app: FastAPI) -> None:
 
 
 @pytest.mark.asyncio
-async def test_serve_playground() -> None:
+async def test_serve_playground_with_api_router() -> None:
     """Test serving playground from an api router with a prefix."""
     app = FastAPI()
 
