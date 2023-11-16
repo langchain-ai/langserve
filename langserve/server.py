@@ -149,15 +149,13 @@ def _update_config_with_defaults(
     is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
     if is_hosted:
         hosted_metadata = {
-            "__langserve_hosted_git_commit": os.environ.get(
+            "__langserve_hosted_git_commit_sha": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_COMMIT", ""
             ),
-            "__langserve_hosted_git_repo_base_path": os.environ.get(
+            "__langserve_hosted_repo_subdirectory_path": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO_PATH", ""
             ),
-            "__langserve_hosted_git_repo_url": os.environ.get(
-                "HOSTED_LANGSERVE_GIT_REPO", ""
-            ),
+            "__langserve_hosted_repo_url": os.environ.get("HOSTED_LANGSERVE_GIT_REPO", ""),
         }
         metadata.update(hosted_metadata)
 
@@ -274,24 +272,6 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     model_with_unique_name = _rename_pydantic_model(model, namespace)
     model_with_unique_name.update_forward_refs()
     return model_with_unique_name
-
-
-def _add_tracing_info_to_metadata(config: Dict[str, Any], request: Request) -> None:
-    """Add information useful for tracing and debugging purposes.
-
-    Args:
-        config: The config to expand with tracing information.
-        request: The request to use for expanding the metadata.
-    """
-
-    metadata = config["metadata"] if "metadata" in config else {}
-
-    info = {
-        "__useragent": request.headers.get("user-agent"),
-        "__langserve_version": __version__,
-    }
-    metadata.update(info)
-    config["metadata"] = metadata
 
 
 def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
@@ -712,7 +692,6 @@ def add_routes(
         )
 
         event_aggregator = AsyncEventAggregatorCallback()
-        _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
         output = await runnable.ainvoke(input_, config=config)
 
@@ -809,7 +788,6 @@ def add_routes(
 
         final_configs = []
         for config_, aggregator in zip(configs_, aggregators):
-            _add_tracing_info_to_metadata(config_, request)
             config_["callbacks"] = [aggregator]
             final_configs.append(
                 _update_config_with_defaults(path, config_, endpoint="batch")
