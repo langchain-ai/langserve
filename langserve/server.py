@@ -1029,7 +1029,7 @@ def add_routes(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,
             config_keys,
-            f"{namespace}/playground",
+            f"{namespace}/playground" if isinstance(app, FastAPI) else f"{app.prefix}{namespace}/playground",
             file_path,
         )
 
