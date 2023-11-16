@@ -407,6 +407,10 @@ type Widget = {
 Allows creation of a file upload input in the UI playground for files
 that are uploaded as base64 encoded strings. Here's the full [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing).
 
+![image](https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f)
+
+
+
 Snippet:
 
 ```python
