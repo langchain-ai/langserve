@@ -223,11 +223,27 @@ adds of these endpoints to the server:
 - `GET /my_runnable/output_schema` - json schema for output of the runnable
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
 
+These endpoints match the [LangChain Expression Language interface](https://python.langchain.com/docs/expression_language/interface) -- please reference this documentation for more details.
+
 ## Playground
 
 You can find a playground page for your runnable at `/my_runnable/playground`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
 
-![image](https://github.com/langchain-ai/langserve/assets/3205522/5ca56e29-f1bb-40f4-84b5-15916384a276)
+<p align="center">
+<img src="https://github.com/langchain-ai/langserve/assets/3205522/5ca56e29-f1bb-40f4-84b5-15916384a276" width="50%">
+</p>
+
+### Widgets
+
+The playground supports [widgets](#playground-widgets) and can be used to test your runnable with different inputs.
+
+In addition, for configurable runnables, the playground will allow you to configure the runnable and share a link with the configuration:
+
+### Sharing
+
+<p align="center">
+<img src="https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d" width="50%">
+</p>
 
 ## Installation
 
@@ -386,11 +402,11 @@ type Widget = {
 };
 ```
 
-
 #### File Upload Widget
 
 Allows creation of a file upload input in the UI playground for files
 that are uploaded as base64 encoded strings. Here's the full [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing).
+
 
 Snippet:
 
@@ -413,3 +429,9 @@ class FileProcessingRequest(CustomUserType):
     num_chars: int = 100
 
 ```
+
+Example widget: 
+
+<p align="center">
+<img src="https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f" width="50%">
+</p>
