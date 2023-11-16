@@ -1025,11 +1025,17 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+
+        if isinstance(app, FastAPI):  # type: ignore
+            base_url = f"{namespace}/playground"
+        else:
+            base_url = f"{app.prefix}{namespace}/playground"
+
         return await serve_playground(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,
             config_keys,
-            f"{namespace}/playground",
+            base_url,
             file_path,
         )
 

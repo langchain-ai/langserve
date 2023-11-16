@@ -270,6 +270,27 @@ def test_serve_playground(app: FastAPI) -> None:
 
 
 @pytest.mark.asyncio
+async def test_serve_playground_with_api_router() -> None:
+    """Test serving playground from an api router with a prefix."""
+    app = FastAPI()
+
+    # Make sure that we can add routers
+    # to an API router
+    router = APIRouter(prefix="/langserve_runnables")
+
+    add_routes(
+        router,
+        RunnableLambda(lambda foo: "hello"),
+        path="/chat",
+    )
+
+    app.include_router(router)
+    async_client = AsyncClient(app=app, base_url="http://localhost:9999")
+    response = await async_client.get("/langserve_runnables/chat/playground/index.html")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_server_async(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
