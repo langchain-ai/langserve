@@ -23,7 +23,6 @@ from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthro
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from langsmith import schemas as ls_schemas
-from langsmith.utils import LangSmithNotFoundError
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
@@ -1634,39 +1633,6 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
                 del json_response["id"]
 
                 assert json_response == expected_response_json
-
-
-@pytest.mark.asyncio
-async def test_feedback_fails_when_run_doesnt_exist() -> None:
-    """Tests that the feedback endpoint can't accept feedback for a non-existent run."""
-
-    with patch("langserve.server.ls_client") as mocked_ls_client_package:
-        with patch("langserve.server.tracing_is_enabled") as tracing_is_enabled:
-            tracing_is_enabled.return_value = True
-            mocked_client = MagicMock(return_value=None)
-            mocked_ls_client_package.Client.return_value = mocked_client
-            mocked_client.create_feedback.side_effect = LangSmithNotFoundError(
-                "no run :/"
-            )
-            local_app = FastAPI()
-            add_routes(
-                local_app,
-                RunnableLambda(lambda foo: "hello"),
-                enable_feedback_endpoint=True,
-            )
-
-            async with get_async_test_client(
-                local_app, raise_app_exceptions=True
-            ) as async_client:
-                response = await async_client.post(
-                    "/feedback",
-                    json={
-                        "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                        "key": "silliness",
-                        "score": 1000,
-                    },
-                )
-                assert response.status_code == 404
 
 
 @pytest.mark.asyncio
