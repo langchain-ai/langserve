@@ -231,7 +231,7 @@ You can find a playground page for your runnable at `/my_runnable/playground`. T
 
 ### Sharing
 
-![image](https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d = 100x100)
+![image](https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d =100x100)
 
 ## Installation
 
