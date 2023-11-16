@@ -229,6 +229,13 @@ You can find a playground page for your runnable at `/my_runnable/playground`. T
 
 ![image](https://github.com/langchain-ai/langserve/assets/3205522/5ca56e29-f1bb-40f4-84b5-15916384a276)
 
+### Sharing
+
+![image](https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d)
+
+### Widgets
+
+
 ## Installation
 
 For both client and server:
