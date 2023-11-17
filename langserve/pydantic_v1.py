@@ -13,13 +13,21 @@ from importlib import metadata
 
 try:
     # F401: imported but unused
-    from pydantic.v1 import BaseModel, Field, ValidationError  # noqa: F401
+    from pydantic.v1 import (  # noqa: F401
+        BaseModel,
+        Field,
+        ValidationError,
+        create_model,
+    )
 except ImportError:
-    from pydantic import BaseModel, Field, ValidationError  # noqa: F401
+    from pydantic import BaseModel, Field, ValidationError, create_model  # noqa: F401
 
 
 # This is not a pydantic v1 thing, but it feels too small to create a new module for.
+
+PYDANTIC_VERSION = metadata.version("pydantic")
+
 try:
-    _PYDANTIC_MAJOR_VERSION: int = int(metadata.version("pydantic").split(".")[0])
+    _PYDANTIC_MAJOR_VERSION: int = int(PYDANTIC_VERSION.split(".")[0])
 except metadata.PackageNotFoundError:
     _PYDANTIC_MAJOR_VERSION = -1

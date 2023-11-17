@@ -37,15 +37,17 @@ from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
 
-try:
-    from pydantic.v1 import BaseModel, Field, ValidationError, create_model
-except ImportError:
-    from pydantic import BaseModel, Field, ValidationError, create_model
-
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic_v1 import _PYDANTIC_MAJOR_VERSION
+from langserve.pydantic_v1 import (
+    _PYDANTIC_MAJOR_VERSION,
+    PYDANTIC_VERSION,
+    BaseModel,
+    Field,
+    ValidationError,
+    create_model,
+)
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -306,11 +308,15 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
 
         if _PYDANTIC_MAJOR_VERSION == 2:
             print()
-            print(f'{orange("OpenAPI Docs:")} ', end="")
+            print(f'{orange("LANGSERVE:")} ', end="")
             print(
-                "Running with pydantic >= 2: OpenAPI docs for "
-                "invoke/batch/stream/stream_log` endpoints will not be "
-                "generated; but, API endpoints and playground will work as expected."
+                f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
+                f"OpenAPI docs for invoke, batch, stream, stream_log "
+                f"endpoints will not be generated. API endpoints and playground "
+                f"should work as expected. "
+                f"If you need to see the docs, you can downgrade to pydantic 1. "
+                "For example, `pip install pydantic==1.10.13`. "
+                f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
             )
         print()
 
@@ -525,11 +531,38 @@ def add_routes(
     if hasattr(app, "openapi_tags") and (path or (app not in _APP_SEEN)):
         if not path:
             _APP_SEEN.add(app)
+
+        if _PYDANTIC_MAJOR_VERSION == 1:
+            # Documentation for the default endpoints
+            default_endpoint_tags = {
+                "name": route_tags[0] if route_tags else "default",
+            }
+        elif _PYDANTIC_MAJOR_VERSION == 2:
+            # When using pydantic v2, we cannot generate openapi docs for
+            # the invoke/batch/stream/stream_log endpoints since the underlying
+            # models are from the pydantic.v1 namespace and cannot be supported
+            # by fastapi's.
+            # https://github.com/tiangolo/fastapi/issues/10360
+            default_endpoint_tags = {
+                "name": route_tags[0] if route_tags else "default",
+                "description": (
+                    f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
+                    f"OpenAPI docs for `invoke`, `batch`, `stream`, `stream_log` "
+                    f"endpoints will not be generated. API endpoints and playground "
+                    f"should work as expected. "
+                    f"If you need to see the docs, you can downgrade to pydantic 1. "
+                    "For example, `pip install pydantic==1.10.13`"
+                    f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
+                ),
+            }
+        else:
+            raise AssertionError(
+                f"Expected pydantic major version 1 or 2, got {_PYDANTIC_MAJOR_VERSION}"
+            )
+
         app.openapi_tags = [
             *(getattr(app, "openapi_tags", []) or []),
-            {
-                "name": route_tags[0] if route_tags else "default",
-            },
+            default_endpoint_tags,
             {
                 "name": route_tags_with_config[0],
                 "description": (
