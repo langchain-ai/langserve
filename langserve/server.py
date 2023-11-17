@@ -37,12 +37,17 @@ from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
 
-from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model
-
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic_v1 import _PYDANTIC_MAJOR_VERSION, PYDANTIC_VERSION
+from langserve.pydantic_v1 import (
+    _PYDANTIC_MAJOR_VERSION,
+    PYDANTIC_VERSION,
+    BaseModel,
+    Field,
+    ValidationError,
+    create_model,
+)
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,

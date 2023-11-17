@@ -13,7 +13,12 @@ from importlib import metadata
 
 try:
     # F401: imported but unused
-    from pydantic.v1 import BaseModel, Field, ValidationError, create_model  # noqa: F401
+    from pydantic.v1 import (  # noqa: F401
+        BaseModel,
+        Field,
+        ValidationError,
+        create_model,
+    )
 except ImportError:
     from pydantic import BaseModel, Field, ValidationError, create_model  # noqa: F401
 
