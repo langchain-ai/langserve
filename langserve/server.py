@@ -134,14 +134,21 @@ def _unpack_request_config(
 
 
 def _update_config_with_defaults(
-    path: str, incomingConfig: RunnableConfig, *, endpoint: Optional[str] = None
+    path: str,
+    incomingConfig: RunnableConfig,
+    request: Request,
+    *,
+    endpoint: Optional[str] = None,
 ) -> RunnableConfig:
     """Set up some baseline configuration for the underlying runnable."""
 
     # Currently all defaults are non-overridable
     overridable_default_config = RunnableConfig()
 
-    metadata = {}
+    metadata = {
+        "__useragent": request.headers.get("user-agent"),
+        "__langserve_version": __version__,
+    }
 
     if endpoint:
         metadata["__langserve_endpoint"] = endpoint
@@ -155,7 +162,9 @@ def _update_config_with_defaults(
             "__langserve_hosted_repo_subdirectory_path": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO_PATH", ""
             ),
-            "__langserve_hosted_repo_url": os.environ.get("HOSTED_LANGSERVE_GIT_REPO", ""),
+            "__langserve_hosted_repo_url": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REPO", ""
+            ),
         }
         metadata.update(hosted_metadata)
 
@@ -664,7 +673,7 @@ def add_routes(
                 per_req_config_modifier=per_req_config_modifier,
             )
             config = _update_config_with_defaults(
-                path, user_provided_config, endpoint=endpoint
+                path, user_provided_config, request, endpoint=endpoint
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -790,7 +799,7 @@ def add_routes(
         for config_, aggregator in zip(configs_, aggregators):
             config_["callbacks"] = [aggregator]
             final_configs.append(
-                _update_config_with_defaults(path, config_, endpoint="batch")
+                _update_config_with_defaults(path, config_, request, endpoint="batch")
             )
 
         output = await runnable.abatch(inputs, config=final_configs)
@@ -1038,7 +1047,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(path, user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config, request)
 
         return runnable.get_input_schema(config).schema()
 
@@ -1062,7 +1071,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(path, user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config, request)
         return runnable.get_output_schema(config).schema()
 
     @app.get(
@@ -1083,7 +1092,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(path, user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config, request)
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
@@ -1104,7 +1113,7 @@ def add_routes(
                 per_req_config_modifier=per_req_config_modifier,
             )
 
-            config = _update_config_with_defaults(path, user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config, request)
 
         if isinstance(app, FastAPI):  # type: ignore
             base_url = f"{namespace}/playground"

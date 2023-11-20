@@ -909,6 +909,7 @@ async def test_input_validation(
         # will still be added
         config_seen = server_runnable_spy.call_args[0][1]
         assert "metadata" in config_seen
+        assert "a" not in config_seen["metadata"]
         assert "__useragent" in config_seen["metadata"]
         assert "__langserve_version" in config_seen["metadata"]
         assert "__langserve_endpoint" in config_seen["metadata"]
