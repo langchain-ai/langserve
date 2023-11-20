@@ -135,7 +135,7 @@ def _unpack_request_config(
 
 def _update_config_with_defaults(
     path: str,
-    incomingConfig: RunnableConfig,
+    incoming_config: RunnableConfig,
     request: Request,
     *,
     endpoint: Optional[str] = None,
@@ -178,7 +178,7 @@ def _update_config_with_defaults(
     # finally the non-overridable configs
     return merge_configs(
         overridable_default_config,
-        incomingConfig,
+        incoming_config,
         non_overridable_default_config,
     )
 
@@ -935,7 +935,7 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(request, config_hash, endpoint="stream_log")
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
