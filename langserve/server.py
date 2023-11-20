@@ -653,7 +653,7 @@ def add_routes(
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
     async def _get_config_and_input(
-        request: Request, config_hash: str, endpoint: Optional[str] = None
+        request: Request, config_hash: str, *, endpoint: Optional[str] = None
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
