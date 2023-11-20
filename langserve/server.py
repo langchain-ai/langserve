@@ -935,7 +935,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash, endpoint="stream_log")
+            config, input_ = await _get_config_and_input(
+                request, config_hash, endpoint="stream_log"
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
