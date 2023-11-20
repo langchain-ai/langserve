@@ -268,7 +268,6 @@ def test_serve_playground(app: FastAPI) -> None:
     assert response.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_serve_playground_with_api_router() -> None:
     """Test serving playground from an api router with a prefix."""
     app = FastAPI()
@@ -289,7 +288,6 @@ async def test_serve_playground_with_api_router() -> None:
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_server_async(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
@@ -399,7 +397,6 @@ async def test_server_async(app: FastAPI) -> None:
         assert stream_events[0]["data"]["status_code"] == 422
 
 
-@pytest.mark.asyncio
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
@@ -509,7 +506,6 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     """Test async invoke."""
     assert await async_remote_runnable.ainvoke(1) == 2
@@ -530,7 +526,6 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
     """Test async batch."""
     assert await async_remote_runnable.abatch([]) == []
@@ -581,7 +576,6 @@ async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
     """Test astream log."""
 
@@ -628,7 +622,6 @@ async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
         assert outputs == [data]
 
 
-@pytest.mark.asyncio
 async def test_astream_log_diff_no_effect(
     async_remote_runnable: RemoteRunnable,
 ) -> None:
@@ -659,7 +652,6 @@ async def test_astream_log_diff_no_effect(
     ]
 
 
-@pytest.mark.asyncio
 async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
     """Test astream log."""
 
@@ -739,7 +731,6 @@ def test_invoke_as_part_of_sequence(sync_remote_runnable: RemoteRunnable) -> Non
     # assert list(runnable.stream([1, 2], config={"tags": ["test"]})) == [3, 4]
 
 
-@pytest.mark.asyncio
 async def test_invoke_as_part_of_sequence_async(
     async_remote_runnable: RemoteRunnable,
 ) -> None:
@@ -817,7 +808,6 @@ async def test_invoke_as_part_of_sequence_async(
     }
 
 
-@pytest.mark.asyncio
 async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
     """Test serving multiple runnables."""
 
@@ -867,7 +857,6 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         ) == StringPromptValue(text="What is your name? Bob")
 
 
-@pytest.mark.asyncio
 async def test_input_validation(
     event_loop: AbstractEventLoop, mocker: MockerFixture
 ) -> None:
@@ -936,7 +925,6 @@ async def test_input_validation(
         assert "__langserve_version" in config_seen["metadata"]
 
 
-@pytest.mark.asyncio
 async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:
     """Test client side and server side exceptions."""
 
@@ -1018,7 +1006,6 @@ def test_client_close() -> None:
     assert async_client.is_closed is True
 
 
-@pytest.mark.asyncio
 async def test_async_client_close() -> None:
     """Test that the client can be automatically."""
     runnable = RemoteRunnable(url="/dev/null", timeout=1)
@@ -1031,7 +1018,6 @@ async def test_async_client_close() -> None:
     assert async_client.is_closed is True
 
 
-@pytest.mark.asyncio
 async def test_openapi_docs_with_identical_runnables(
     event_loop: AbstractEventLoop, mocker: MockerFixture
 ) -> None:
@@ -1079,7 +1065,6 @@ async def test_openapi_docs_with_identical_runnables(
         assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
     """Add tests for using langchain's configurable runnables"""
 
@@ -1170,7 +1155,6 @@ def test_rename_pydantic_model() -> None:
     assert Model.__name__ == "BarFoo"
 
 
-@pytest.mark.asyncio
 async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
     """Test schemas returned for different configurations."""
     # TODO(Fix me): need to fix handling of global state -- we get problems
@@ -1292,7 +1276,6 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         }
 
 
-@pytest.mark.asyncio
 async def test_input_schema_typed_dict() -> None:
     class InputType(TypedDict):
         foo: str
@@ -1379,7 +1362,6 @@ class StreamingRunnable(Runnable):
 #     assert chunks == [{"a": "1"}, {"a": "2"}]
 
 
-@pytest.mark.asyncio
 async def test_streaming_dict_async() -> None:
     """Test streaming different types of items."""
     app = FastAPI()
@@ -1397,7 +1379,6 @@ async def test_streaming_dict_async() -> None:
         assert chunks == [{"a": "1"}, {"a": "2"}]
 
 
-@pytest.mark.asyncio
 async def test_server_side_error() -> None:
     """Test server side error handling."""
 
@@ -1501,7 +1482,6 @@ def test_error_on_path_collision() -> None:
     add_routes(app, RunnableLambda(lambda foo: "hello"), path="/baz")
 
 
-@pytest.mark.asyncio
 async def test_custom_user_type() -> None:
     """Test custom user type."""
     app = FastAPI()
@@ -1532,7 +1512,6 @@ async def test_custom_user_type() -> None:
         assert await runnable.ainvoke({"bar": 1}) == 1
 
 
-@pytest.mark.asyncio
 async def test_using_router() -> None:
     """Test using a router."""
     app = FastAPI()
@@ -1559,7 +1538,6 @@ def _is_valid_uuid(uuid_as_str: str) -> bool:
         return False
 
 
-@pytest.mark.asyncio
 async def test_invoke_returns_run_id(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
@@ -1568,7 +1546,6 @@ async def test_invoke_returns_run_id(app: FastAPI) -> None:
         assert _is_valid_uuid(run_id)
 
 
-@pytest.mark.asyncio
 async def test_batch_returns_run_id(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
@@ -1579,7 +1556,6 @@ async def test_batch_returns_run_id(app: FastAPI) -> None:
             assert _is_valid_uuid(run_id)
 
 
-@pytest.mark.asyncio
 async def test_feedback_succeeds_when_langsmith_enabled() -> None:
     """Tests that the feedback endpoint can accept feedback to langsmith."""
 
@@ -1635,7 +1611,6 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
                 assert json_response == expected_response_json
 
 
-@pytest.mark.asyncio
 async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
     """Tests that feedback is not sent to langsmith if langsmith is disabled."""
     with MonkeyPatch.context() as mp:
@@ -1664,7 +1639,6 @@ async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
             assert response.status_code == 400
 
 
-@pytest.mark.asyncio
 async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
     """
     Tests that the feedback endpoint returns 400s if the user turns it off.
@@ -1684,7 +1658,6 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
         assert response.status_code == 400
 
 
-@pytest.mark.asyncio
 async def test_per_request_config_modifier(
     event_loop: AbstractEventLoop, mocker: MockerFixture
 ) -> None:
@@ -1718,7 +1691,6 @@ async def test_per_request_config_modifier(
     )
 
 
-@pytest.mark.asyncio
 async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
     """Test updating the config based on the raw request object."""
     import datetime
