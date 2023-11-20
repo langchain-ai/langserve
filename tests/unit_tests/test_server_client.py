@@ -882,7 +882,7 @@ async def test_input_validation(
         server_runnable2,
         input_type=int,
         path="/add_one_config",
-        config_keys=["tags", "run_name", "metadata"],
+        config_keys=["tags", "metadata"],
     )
 
     async with get_async_remote_runnable(
@@ -911,6 +911,8 @@ async def test_input_validation(
         assert "metadata" in config_seen
         assert "__useragent" in config_seen["metadata"]
         assert "__langserve_version" in config_seen["metadata"]
+        assert "__langserve_endpoint" in config_seen["metadata"]
+        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
 
     server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
     async with get_async_remote_runnable(app, path="/add_one_config") as runnable2:
@@ -923,6 +925,8 @@ async def test_input_validation(
         assert config_seen["metadata"]["a"] == 5
         assert "__useragent" in config_seen["metadata"]
         assert "__langserve_version" in config_seen["metadata"]
+        assert "__langserve_endpoint" in config_seen["metadata"]
+        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
 
 
 async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:

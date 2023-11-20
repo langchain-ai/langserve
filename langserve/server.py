@@ -133,6 +133,49 @@ def _unpack_request_config(
     )
 
 
+def _update_config_with_defaults(
+    path: str, incomingConfig: RunnableConfig, *, endpoint: Optional[str] = None
+) -> RunnableConfig:
+    """Set up some baseline configuration for the underlying runnable."""
+
+    # Currently all defaults are non-overridable
+    overridable_default_config = RunnableConfig()
+
+    metadata = {}
+
+    if endpoint:
+        metadata["__langserve_endpoint"] = endpoint
+
+    is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
+    if is_hosted:
+        hosted_metadata = {
+            "__langserve_hosted_git_commit": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_COMMIT", ""
+            ),
+            "__langserve_hosted_git_repo_base_path": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REPO_PATH", ""
+            ),
+            "__langserve_hosted_git_repo_url": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REPO", ""
+            ),
+        }
+        metadata.update(hosted_metadata)
+
+    non_overridable_default_config = RunnableConfig(
+        run_name=path,
+        metadata=metadata,
+    )
+
+    # merge_configs is last-writer-wins, so we specifically pass in the
+    # overridable configs first, then the user provided configs, then
+    # finally the non-overridable configs
+    return merge_configs(
+        overridable_default_config,
+        incomingConfig,
+        non_overridable_default_config,
+    )
+
+
 def _unpack_input(validated_model: BaseModel) -> Any:
     """Unpack the decoded input from the validated model."""
     if hasattr(validated_model, "__root__"):
@@ -504,11 +547,10 @@ def add_routes(
             f"Got an invalid path: {path}. "
             f"If specifying path please start it with a `/`"
         )
-    
+
     if "run_name" in config_keys:
         raise ValueError(
-            f"Cannot configure run_name. "
-            f"Please remove it from config_keys."
+            "Cannot configure run_name. Please remove it from config_keys."
         )
 
     namespace = path or ""
@@ -621,40 +663,8 @@ def add_routes(
     InvokeResponse = create_invoke_response_model(model_namespace, output_type_)
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-    def _update_config_with_defaults(incomingConfig: RunnableConfig) -> RunnableConfig:
-        """Set up some baseline configuration for the underlying runnable."""
-
-        # Currently all defaults are non-overridable
-        overridable_default_config = RunnableConfig()
-        
-        metadata = {}
-        
-        is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
-        if is_hosted:
-            hosted_metadata = {
-                "Commit SHA": os.environ.get("HOSTED_LANGSERVE_GIT_COMMIT", ""),
-                "Git Repo Subdirectory": os.environ.get("HOSTED_LANGSERVE_GIT_REPO_PATH", ""),
-                "Git Repo URL": os.environ.get("HOSTED_LANGSERVE_GIT_REPO", ""),
-
-            }
-            metadata.update(hosted_metadata)
-        
-        non_overridable_default_config = RunnableConfig(
-            run_name=path,
-            metadata=metadata,
-        )
-
-        # merge_configs is last-writer-wins, so we specifically pass in the
-        # overridable configs first, then the user provided configs, then
-        # finally the non-overridable configs
-        return merge_configs(
-            overridable_default_config,
-            incomingConfig,
-            non_overridable_default_config,
-        )
-
     async def _get_config_and_input(
-        request: Request, config_hash: str
+        request: Request, config_hash: str, endpoint: Optional[str] = None
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -673,7 +683,9 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(user_provided_config)
+            config = _update_config_with_defaults(
+                path, user_provided_config, endpoint=endpoint
+            )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
             # using configuration.
@@ -695,9 +707,10 @@ def add_routes(
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        user_provided_config, input_ = await _get_config_and_input(request, config_hash)
+        config, input_ = await _get_config_and_input(
+            request, config_hash, endpoint="invoke"
+        )
 
-        config = _update_config_with_defaults(user_provided_config)
         event_aggregator = AsyncEventAggregatorCallback()
         _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
@@ -759,7 +772,8 @@ def add_routes(
                         model=ConfigPayload,
                         request=request,
                         per_req_config_modifier=per_req_config_modifier,
-                    ) for config in config
+                    )
+                    for config in config
                 ]
             elif isinstance(config, dict):
                 configs = _unpack_request_config(
@@ -784,7 +798,6 @@ def add_routes(
             {k: v for k, v in config_.items() if k in config_keys}
             for config_ in get_config_list(configs, len(inputs_))
         ]
-        print(configs_)
 
         inputs = [
             _unpack_input(runnable.with_config(config_).input_schema.validate(input_))
@@ -798,7 +811,9 @@ def add_routes(
         for config_, aggregator in zip(configs_, aggregators):
             _add_tracing_info_to_metadata(config_, request)
             config_["callbacks"] = [aggregator]
-            final_configs.append(_update_config_with_defaults(config_))
+            final_configs.append(
+                _update_config_with_defaults(path, config_, endpoint="batch")
+            )
 
         output = await runnable.abatch(inputs, config=final_configs)
 
@@ -838,7 +853,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(
+                request, config_hash, endpoint="stream"
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -1043,7 +1060,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config)
 
         return runnable.get_input_schema(config).schema()
 
@@ -1067,7 +1084,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config)
         return runnable.get_output_schema(config).schema()
 
     @app.get(
@@ -1088,7 +1105,7 @@ def add_routes(
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
-            config = _update_config_with_defaults(user_provided_config)
+            config = _update_config_with_defaults(path, user_provided_config)
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
@@ -1109,12 +1126,12 @@ def add_routes(
                 per_req_config_modifier=per_req_config_modifier,
             )
 
+            config = _update_config_with_defaults(path, user_provided_config)
+
         if isinstance(app, FastAPI):  # type: ignore
             base_url = f"{namespace}/playground"
         else:
             base_url = f"{app.prefix}{namespace}/playground"
-        
-        config = _update_config_with_defaults(user_provided_config)
 
         return await serve_playground(
             runnable.with_config(config),
