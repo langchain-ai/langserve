@@ -63,7 +63,28 @@ add_routes(app, chain, path="/configurable_temp")
 
 
 ###############################################################################
-#             EXAMPLE 2: Configure fields based on Request metadata           #
+#                EXAMPLE 2: Configure prompt based on RunnableConfig          #
+###############################################################################
+configurable_prompt = PromptTemplate.from_template(
+    "tell me a joke about {topic}."
+).configurable_alternatives(
+    ConfigurableField(
+        id="prompt",
+        name="Prompt",
+        description="The prompt to use. Must contain {topic}.",
+    ),
+    default_key="joke",
+    fact=PromptTemplate.from_template(
+        "tell me a fact about {topic} in {language} language."
+    ),
+)
+prompt_chain = configurable_prompt | model | StrOutputParser()
+
+add_routes(app, prompt_chain, path="/configurable_prompt")
+
+
+###############################################################################
+#             EXAMPLE 3: Configure fields based on Request metadata           #
 ###############################################################################
 
 
