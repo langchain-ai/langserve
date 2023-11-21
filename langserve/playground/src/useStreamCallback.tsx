@@ -14,6 +14,35 @@ export const AppCallbackContext = createContext<MutableRefObject<{
   onError: Exclude<StreamCallback["onError"], undefined>[];
 }> | null>(null);
 
+export function useAppStreamCallbacks() {
+  // callbacks handling
+  const context = useRef<{
+    onStart: Exclude<StreamCallback["onStart"], undefined>[];
+    onSuccess: Exclude<StreamCallback["onSuccess"], undefined>[];
+    onError: Exclude<StreamCallback["onError"], undefined>[];
+  }>({ onStart: [], onSuccess: [], onError: [] });
+
+  const callbacks: StreamCallback = {
+    onStart(...args) {
+      for (const callback of context.current.onStart) {
+        callback(...args);
+      }
+    },
+    onSuccess(...args) {
+      for (const callback of context.current.onSuccess) {
+        callback(...args);
+      }
+    },
+    onError(...args) {
+      for (const callback of context.current.onError) {
+        callback(...args);
+      }
+    },
+  };
+
+  return { context, callbacks };
+}
+
 export function useStreamCallback<
   Type extends "onStart" | "onSuccess" | "onError"
 >(type: Type, callback: Exclude<StreamCallback[Type], undefined>) {
