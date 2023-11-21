@@ -4,36 +4,10 @@ import CodeIcon from "../assets/CodeIcon.svg?react";
 import PadlockIcon from "../assets/PadlockIcon.svg?react";
 import CopyIcon from "../assets/CopyIcon.svg?react";
 import CheckCircleIcon from "../assets/CheckCircleIcon.svg?react";
-import {
-  compressToEncodedURIComponent,
-  decompressFromEncodedURIComponent,
-} from "lz-string";
+import { compressToEncodedURIComponent } from "lz-string";
+import { getStateFromUrl } from "../utils/url";
 
 const URL_LENGTH_LIMIT = 2000;
-
-export function getStateFromUrl(path: string) {
-  let configFromUrl = null;
-  let basePath = path;
-  if (basePath.endsWith("/")) {
-    basePath = basePath.slice(0, -1);
-  }
-
-  if (basePath.endsWith("/playground")) {
-    basePath = basePath.slice(0, -"/playground".length);
-  }
-
-  // check if we can omit the last segment
-  const [configHash, c, ...rest] = basePath.split("/").reverse();
-  if (c === "c") {
-    basePath = rest.reverse().join("/");
-    try {
-      configFromUrl = JSON.parse(decompressFromEncodedURIComponent(configHash));
-    } catch (error) {
-      console.error(error);
-    }
-  }
-  return { basePath, configFromUrl };
-}
 
 function CopyButton(props: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -121,7 +95,6 @@ const result = await chain.invoke({ ... });
                     <PadlockIcon className="mx-3" />
                     <div className="overflow-auto whitespace-nowrap py-3 no-scrollbar text-ls-gray-100">
                       {playgroundUrl.split("://")[1]}
-                      PadlockIcon
                     </div>
                     <CopyButton value={playgroundUrl} />
                   </div>
