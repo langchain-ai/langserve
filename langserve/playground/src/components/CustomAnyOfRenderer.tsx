@@ -5,7 +5,7 @@ import {
   JsonSchema,
   isAnyOfControl,
 } from "@jsonforms/core";
-import { renderers, cells } from "../renderers";
+import { renderers, cells } from "../App";
 
 export const CustomAnyOfRenderer = withJsonFormsAnyOfProps((props) => {
   const anyOfRenderInfos = createCombinatorRenderInfos(

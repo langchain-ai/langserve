@@ -1,10 +1,9 @@
+import { useEffect, useState } from "react";
 import { resolveApiUrl } from "./utils/url";
 import { simplifySchema } from "./utils/simplifySchema";
-import { JsonSchema } from "@jsonforms/core";
+import { JsonFormsCore } from "@jsonforms/core";
 import { compressToEncodedURIComponent } from "lz-string";
-
-import useSWR from "swr";
-import defaults from "./utils/defaults";
+import { useDebounce } from "use-debounce";
 
 declare global {
   interface Window {
@@ -15,54 +14,63 @@ declare global {
   }
 }
 
-export function useConfigSchema() {
-  return useSWR(["/config_schema"], async () => {
-    let schema: JsonSchema | null = null;
-    if (!import.meta.env.DEV && window.CONFIG_SCHEMA) {
-      schema = await simplifySchema(window.CONFIG_SCHEMA);
-    } else {
-      const response = await fetch(resolveApiUrl(`/config_schema`));
-      if (!response.ok) throw new Error(await response.text());
+export function useSchemas(
+  configData: Pick<JsonFormsCore, "data" | "errors"> & { defaults: boolean }
+) {
+  const [schemas, setSchemas] = useState<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    config: null | any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    input: null | any;
+  }>({
+    config: null,
+    input: null,
+  });
 
-      const json = await response.json();
-      schema = await simplifySchema(json);
+  useEffect(() => {
+    async function save() {
+      if (import.meta.env.DEV) {
+        const [config, input] = await Promise.all([
+          fetch(resolveApiUrl("/config_schema"))
+            .then((r) => r.json())
+            .then(simplifySchema),
+          fetch(resolveApiUrl("/input_schema"))
+            .then((r) => r.json())
+            .then(simplifySchema),
+        ]);
+        setSchemas({ config, input });
+      } else {
+        setSchemas({
+          config: window.CONFIG_SCHEMA
+            ? await simplifySchema(window.CONFIG_SCHEMA)
+            : null,
+          input: window.INPUT_SCHEMA
+            ? await simplifySchema(window.INPUT_SCHEMA)
+            : null,
+        });
+      }
     }
 
-    if (schema == null) return null;
-    return {
-      schema,
-      defaults: defaults(schema),
-    };
-  });
-}
+    save();
+  }, []);
 
-export function useInputSchema(configData?: unknown) {
-  return useSWR(
-    ["/input_schema", configData],
-    async ([, configData]) => {
-      // TODO: this won't work if we're already seeing a prefixed URL
-      const prefix = configData
-        ? `/c/${compressToEncodedURIComponent(JSON.stringify(configData))}`
-        : "";
+  const [debouncedConfigData] = useDebounce(configData, 500);
 
-      let schema: JsonSchema | null = null;
+  useEffect(() => {
+    if (!debouncedConfigData.defaults) {
+      fetch(
+        resolveApiUrl(
+          `/c/${compressToEncodedURIComponent(
+            JSON.stringify(debouncedConfigData.data)
+          )}/input_schema`
+        )
+      )
+        .then((r) => r.json())
+        .then(simplifySchema)
+        .then((input) => setSchemas((current) => ({ ...current, input })))
+        .catch(() => {}); // ignore errors, eg. due to incomplete config
+    }
+  }, [debouncedConfigData]);
 
-      if (!prefix && !import.meta.env.DEV && window.INPUT_SCHEMA) {
-        schema = await simplifySchema(window.INPUT_SCHEMA);
-      } else {
-        const response = await fetch(resolveApiUrl(`${prefix}/input_schema`));
-        if (!response.ok) throw new Error(await response.text());
-
-        const json = await response.json();
-        schema = await simplifySchema(json);
-      }
-
-      if (schema == null) return null;
-      return {
-        schema,
-        defaults: defaults(schema),
-      };
-    },
-    { keepPreviousData: true }
-  );
+  return schemas;
 }
