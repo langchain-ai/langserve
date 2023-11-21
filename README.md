@@ -272,6 +272,9 @@ You can deploy to GCP Cloud Run using the following command:
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
 
+### Deploy to Railway
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/pW9tXP?referralCode=c-aq4K)
+
 ## Pydantic
 
 LangServe provides support for Pydantic 2 with some limitations.
