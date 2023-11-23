@@ -76,6 +76,7 @@ export function useStreamLog(callbacks: StreamCallback = {}) {
           setLatest(innerLatest);
         }
       },
+      openWhenHidden: true,
       onclose() {
         setController(null);
         successRef.current?.({ input, output: innerLatest?.final_output });
