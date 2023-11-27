@@ -87,12 +87,14 @@ class ChatHistory(BaseModel):
 
     chat_history: List[Tuple[str, str]] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "question", "output": "answer"}},
+        extra={"widget": {"type": "chat", "input": "question", "output": "output"}},
     )
     question: str
 
 
-conversational_qa_chain = _inputs | _context | ANSWER_PROMPT | ChatOpenAI()
+conversational_qa_chain = (
+    _inputs | _context | ANSWER_PROMPT | ChatOpenAI() | StrOutputParser()
+)
 chain = conversational_qa_chain.with_types(input_type=ChatHistory)
 
 app = FastAPI(
