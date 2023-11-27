@@ -18,7 +18,7 @@ def _get_mimetype(path: str) -> str:
     """Get mimetype for file.
 
     Custom implementation of mimetypes.guess_type that
-    uses the file extension to determine the mimetype for some files.
+    uses the file extension to etermine the mimetype for some files.
 
     This is necessary due to: https://bugs.python.org/issue43975
     Resolves issue: https://github.com/langchain-ai/langserve/issues/245

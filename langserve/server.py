@@ -456,6 +456,12 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
     return JSONResponse(content=obj)
 
 
+class RunnableServer:
+    def __init__(self, app_or_router: Union[FastAPI, APIRouter], runnable: Runnable):
+        """Create a new RunnableServer."""
+        self.app_or_router = app_or_router
+
+
 # PUBLIC API
 
 
@@ -470,6 +476,13 @@ def add_routes(
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
+    with_invoke: bool = True,
+    with_batch: bool = True,
+    with_stream: bool = True,
+    with_stream_log: bool = True,
+    with_schemas: bool = True,
+    with_config_hash: bool = True,
+    with_playground: bool = True,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -515,6 +528,13 @@ def add_routes(
             for example, if the user wants to pass in a header containing credentials
             to a runnable. The RunnableConfig is presented in its dictionary form.
             Note that only keys in `config_keys` will be modifiable by this function.
+        with_invoke: if True, add the /invoke endpoint.
+        with_batch: if True, add the /batch endpoint.
+        with_stream: if True, add the /stream endpoint.
+        with_stream_log: if True, add the /stream_log endpoint.
+        with_schemas: if True, add the /input_schema, /output_schema, and /config_schema
+        with_config_hash:  if True, add the /config_hash endpoint.
+        with_playground: if True, add the /playground endpoint.
     """
     try:
         from sse_starlette import EventSourceResponse
@@ -636,9 +656,6 @@ def add_routes(
         model_namespace, runnable.config_schema(include=config_keys)
     )
 
-    InvokeRequest = create_invoke_request_model(
-        model_namespace, input_type_, ConfigPayload
-    )
     BatchRequest = create_batch_request_model(
         model_namespace, input_type_, ConfigPayload
     )
