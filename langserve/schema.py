@@ -88,35 +88,7 @@ class FeedbackCreateRequest(BaseFeedback):
     Represents a request that creates feedback for an individual run
     """
 
-    run_id: UUID
-    """The associated run ID this feedback is logged for."""
-
-    key: str
-    """The metric name, tag, or aspect to provide feedback on."""
-
-    score: Optional[Union[float, int, bool]] = None
-    """Value or score to assign the run."""
-
-    value: Optional[Union[float, int, bool, str, dict]] = None
-    """The display value for the feedback if not a metric."""
-
-    comment: Optional[str] = None
-    """Comment or explanation for the feedback."""
-
-
-class FeedbackUpdateRequest(BaseFeedback):
-    """
-    Represents a request that updates an existing feedback
-    """
-
-    score: Optional[Union[float, int, bool]] = None
-    """Value or score to assign the run."""
-
-    value: Optional[Union[float, int, bool, str, dict]] = None
-    """The display value for the feedback if not a metric."""
-
-    comment: Optional[str] = None
-    """Comment or explanation for the feedback."""
+    pass
 
 
 class Feedback(BaseFeedback):
