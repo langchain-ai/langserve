@@ -123,14 +123,14 @@ def test_decode_events(data: Any, expected: Any) -> None:
     assert load_events(data) == expected
 
 
-class TestEnum(Enum):
+class SimpleEnum(Enum):
     a = "a"
     b = "b"
 
 
-class TestModel(BaseModel):
+class SimpleModel(BaseModel):
     x: int
-    y: TestEnum
+    y: SimpleEnum
     z: uuid.UUID
     dt: datetime.datetime
     d: datetime.date
@@ -148,11 +148,11 @@ class TestModel(BaseModel):
         (datetime.date(2020, 1, 1), "2020-01-01"),
         (datetime.time(0, 0, 0), "00:00:00"),
         (datetime.time(0, 0, 0, 1), "00:00:00.000001"),
-        (TestEnum.a, "a"),
+        (SimpleEnum.a, "a"),
         (
-            TestModel(
+            SimpleModel(
                 x=1,
-                y=TestEnum.a,
+                y=SimpleEnum.a,
                 z=uuid.UUID(int=1),
                 dt=datetime.datetime(2020, 1, 1),
                 d=datetime.date(2020, 1, 1),

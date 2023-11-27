@@ -59,13 +59,32 @@ prompt = PromptTemplate.from_template(
 )
 chain = prompt | model | StrOutputParser()
 
-# Add routes requires you to specify which config keys are accepted
-# specifically, you must accept `configurable` as a config key.
-add_routes(app, chain, path="/configurable_temp", config_keys=["configurable"])
+add_routes(app, chain, path="/configurable_temp")
 
 
 ###############################################################################
-#             EXAMPLE 2: Configure fields based on Request metadata           #
+#                EXAMPLE 2: Configure prompt based on RunnableConfig          #
+###############################################################################
+configurable_prompt = PromptTemplate.from_template(
+    "tell me a joke about {topic}."
+).configurable_alternatives(
+    ConfigurableField(
+        id="prompt",
+        name="Prompt",
+        description="The prompt to use. Must contain {topic}.",
+    ),
+    default_key="joke",
+    fact=PromptTemplate.from_template(
+        "tell me a fact about {topic} in {language} language."
+    ),
+)
+prompt_chain = configurable_prompt | model | StrOutputParser()
+
+add_routes(app, prompt_chain, path="/configurable_prompt")
+
+
+###############################################################################
+#             EXAMPLE 3: Configure fields based on Request metadata           #
 ###############################################################################
 
 
@@ -96,7 +115,6 @@ add_routes(
     app,
     dynamic_auth_chain,
     path="/auth_from_header",
-    config_keys=["configurable"],
     per_req_config_modifier=fetch_api_key_from_header,
 )
 

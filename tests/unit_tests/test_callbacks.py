@@ -1,11 +1,8 @@
 import uuid
 
-import pytest
-
 from langserve.callbacks import AsyncEventAggregatorCallback, replace_uuids
 
 
-@pytest.mark.asyncio
 async def test_event_aggregator() -> None:
     """Test that the event aggregator is aggregating events."""
 

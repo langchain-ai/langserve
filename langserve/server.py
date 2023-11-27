@@ -7,6 +7,7 @@ FastAPI app or APIRouter.
 """
 import contextlib
 import json
+import os
 import re
 import weakref
 from inspect import isclass
@@ -35,18 +36,20 @@ from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
-from langsmith.utils import LangSmithNotFoundError, tracing_is_enabled
+from langsmith.utils import tracing_is_enabled
 from typing_extensions import Annotated
-
-try:
-    from pydantic.v1 import BaseModel, Field, ValidationError, create_model
-except ImportError:
-    from pydantic import BaseModel, Field, ValidationError, create_model
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic_v1 import _PYDANTIC_MAJOR_VERSION
+from langserve.pydantic_v1 import (
+    _PYDANTIC_MAJOR_VERSION,
+    PYDANTIC_VERSION,
+    BaseModel,
+    Field,
+    ValidationError,
+    create_model,
+)
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -99,7 +102,7 @@ def _config_from_hash(config_hash: str) -> Dict[str, Any]:
 
 def _unpack_request_config(
     *configs: Union[BaseModel, Mapping, str],
-    keys: Sequence[str],
+    config_keys: Sequence[str],
     model: Type[BaseModel],
     request: Request,
     per_req_config_modifier: Optional[PerRequestConfigModifier],
@@ -116,11 +119,69 @@ def _unpack_request_config(
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
-    projected_config = {k: config[k] for k in keys if k in config}
+    if "configurable" in config and config["configurable"]:
+        if "configurable" not in config_keys:
+            raise HTTPException(
+                422,
+                "The config field `configurable` has been disallowed by the server. "
+                "This can be modified server side by adding `configurable` to the list "
+                "of `config_keys` argument in `add_routes`",
+            )
+    projected_config = {k: config[k] for k in config_keys if k in config}
     return (
         per_req_config_modifier(projected_config, request)
         if per_req_config_modifier
         else projected_config
+    )
+
+
+def _update_config_with_defaults(
+    path: str,
+    incoming_config: RunnableConfig,
+    request: Request,
+    *,
+    endpoint: Optional[str] = None,
+) -> RunnableConfig:
+    """Set up some baseline configuration for the underlying runnable."""
+
+    # Currently all defaults are non-overridable
+    overridable_default_config = RunnableConfig()
+
+    metadata = {
+        "__useragent": request.headers.get("user-agent"),
+        "__langserve_version": __version__,
+    }
+
+    if endpoint:
+        metadata["__langserve_endpoint"] = endpoint
+
+    is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
+    if is_hosted:
+        hosted_metadata = {
+            "__langserve_hosted_git_commit_sha": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_COMMIT", ""
+            ),
+            "__langserve_hosted_repo_subdirectory_path": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REPO_PATH", ""
+            ),
+            "__langserve_hosted_repo_url": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REPO", ""
+            ),
+        }
+        metadata.update(hosted_metadata)
+
+    non_overridable_default_config = RunnableConfig(
+        run_name=path,
+        metadata=metadata,
+    )
+
+    # merge_configs is last-writer-wins, so we specifically pass in the
+    # overridable configs first, then the user provided configs, then
+    # finally the non-overridable configs
+    return merge_configs(
+        overridable_default_config,
+        incoming_config,
+        non_overridable_default_config,
     )
 
 
@@ -224,24 +285,6 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
     return model_with_unique_name
 
 
-def _add_tracing_info_to_metadata(config: Dict[str, Any], request: Request) -> None:
-    """Add information useful for tracing and debugging purposes.
-
-    Args:
-        config: The config to expand with tracing information.
-        request: The request to use for expanding the metadata.
-    """
-
-    metadata = config["metadata"] if "metadata" in config else {}
-
-    info = {
-        "__useragent": request.headers.get("user-agent"),
-        "__langserve_version": __version__,
-    }
-    metadata.update(info)
-    config["metadata"] = metadata
-
-
 def _scrub_exceptions_in_event(event: CallbackEventDict) -> CallbackEventDict:
     """Scrub exceptions and change to a serializable format."""
     type_ = event["type"]
@@ -269,29 +312,47 @@ _APP_TO_PATHS = weakref.WeakKeyDictionary()
 def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
-        # ruff: noqa: E501
-        LANGSERVE = """
+        LANGSERVE = r"""
  __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
 |  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__   
 |  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|  
 |  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____ 
 |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""
+"""  # noqa: E501
 
-        def green(text):
+        def green(text: str) -> str:
+            """Return the given text in green."""
             return "\x1b[1;32;40m" + text + "\x1b[0m"
+
+        def orange(text: str) -> str:
+            """Return the given text in orange."""
+            return "\x1b[1;31;40m" + text + "\x1b[0m"
 
         paths = _APP_TO_PATHS[app]
         print(LANGSERVE)
         for path in paths:
             print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is live at:'
+                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
+                f"live at:"
             )
             print(f'{green("LANGSERVE:")}  │')
             print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
             print(f'{green("LANGSERVE:")}')
         print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+
+        if _PYDANTIC_MAJOR_VERSION == 2:
+            print()
+            print(f'{orange("LANGSERVE:")} ', end="")
+            print(
+                f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
+                f"OpenAPI docs for invoke, batch, stream, stream_log "
+                f"endpoints will not be generated. API endpoints and playground "
+                f"should work as expected. "
+                f"If you need to see the docs, you can downgrade to pydantic 1. "
+                "For example, `pip install pydantic==1.10.13`. "
+                f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
+            )
         print()
 
 
@@ -407,7 +468,7 @@ def add_routes(
     path: str = "",
     input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
-    config_keys: Sequence[str] = (),
+    config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
@@ -440,7 +501,9 @@ def add_routes(
             Favor using runnable.with_types(input_type=..., output_type=...) instead.
             This parameter may get deprecated!
         config_keys: list of config keys that will be accepted, by default
-                     no config keys are accepted.
+            will accept `configurable` key in the config. Will only be used
+            if the runnable is configurable. Cannot configure run_name,
+            which is set by default to the path of the API.
         include_callback_events: Whether to include callback events in the response.
             If true, the client will be able to show trace information
             including events that occurred on the server side.
@@ -476,6 +539,11 @@ def add_routes(
             f"If specifying path please start it with a `/`"
         )
 
+    if "run_name" in config_keys:
+        raise ValueError(
+            "Cannot configure run_name. Please remove it from config_keys."
+        )
+
     namespace = path or ""
 
     model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
@@ -504,16 +572,46 @@ def add_routes(
     if hasattr(app, "openapi_tags") and (path or (app not in _APP_SEEN)):
         if not path:
             _APP_SEEN.add(app)
+
+        if _PYDANTIC_MAJOR_VERSION == 1:
+            # Documentation for the default endpoints
+            default_endpoint_tags = {
+                "name": route_tags[0] if route_tags else "default",
+            }
+        elif _PYDANTIC_MAJOR_VERSION == 2:
+            # When using pydantic v2, we cannot generate openapi docs for
+            # the invoke/batch/stream/stream_log endpoints since the underlying
+            # models are from the pydantic.v1 namespace and cannot be supported
+            # by fastapi's.
+            # https://github.com/tiangolo/fastapi/issues/10360
+            default_endpoint_tags = {
+                "name": route_tags[0] if route_tags else "default",
+                "description": (
+                    f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
+                    f"OpenAPI docs for `invoke`, `batch`, `stream`, `stream_log` "
+                    f"endpoints will not be generated. API endpoints and playground "
+                    f"should work as expected. "
+                    f"If you need to see the docs, you can downgrade to pydantic 1. "
+                    "For example, `pip install pydantic==1.10.13`"
+                    f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
+                ),
+            }
+        else:
+            raise AssertionError(
+                f"Expected pydantic major version 1 or 2, got {_PYDANTIC_MAJOR_VERSION}"
+            )
+
         app.openapi_tags = [
             *(getattr(app, "openapi_tags", []) or []),
-            {
-                "name": route_tags[0] if route_tags else "default",
-            },
+            default_endpoint_tags,
             {
                 "name": route_tags_with_config[0],
                 "description": (
                     "Endpoints with a default configuration "
-                    "set by `config_hash` path parameter."
+                    "set by `config_hash` path parameter. "
+                    "Used in conjunction with share links generated using the "
+                    "LangServe UI playground. "
+                    "The hash is an LZString compressed JSON string."
                 ),
             },
         ]
@@ -557,7 +655,7 @@ def add_routes(
     BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
     async def _get_config_and_input(
-        request: Request, config_hash: str
+        request: Request, config_hash: str, *, endpoint: Optional[str] = None
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -568,13 +666,16 @@ def add_routes(
             body = InvokeRequestShallowValidator.validate(body)
 
             # Merge the config from the path with the config from the body.
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
                 body.config,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
+            )
+            config = _update_config_with_defaults(
+                path, user_provided_config, request, endpoint=endpoint
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -597,10 +698,11 @@ def add_routes(
         """Invoke the runnable with the given input and config."""
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        config, input_ = await _get_config_and_input(request, config_hash)
+        config, input_ = await _get_config_and_input(
+            request, config_hash, endpoint="invoke"
+        )
 
         event_aggregator = AsyncEventAggregatorCallback()
-        _add_tracing_info_to_metadata(config, request)
         config["callbacks"] = [event_aggregator]
         output = await runnable.ainvoke(input_, config=config)
 
@@ -615,8 +717,8 @@ def add_routes(
         return _json_encode_response(
             InvokeResponse(
                 output=well_known_lc_serializer.dumpd(output),
-                # Callbacks are scrubbed and exceptions are converted to serializable format
-                # before returned in the response.
+                # Callbacks are scrubbed and exceptions are converted to
+                # serializable format before returned in the response.
                 callback_events=callback_events,
                 metadata=SingletonResponseMetadata(
                     run_id=_get_base_run_id_as_str(event_aggregator)
@@ -656,7 +758,7 @@ def add_routes(
                     _unpack_request_config(
                         config_hash,
                         config,
-                        keys=config_keys,
+                        config_keys=config_keys,
                         model=ConfigPayload,
                         request=request,
                         per_req_config_modifier=per_req_config_modifier,
@@ -667,7 +769,7 @@ def add_routes(
                 configs = _unpack_request_config(
                     config_hash,
                     config,
-                    keys=config_keys,
+                    config_keys=config_keys,
                     model=ConfigPayload,
                     request=request,
                     per_req_config_modifier=per_req_config_modifier,
@@ -695,11 +797,14 @@ def add_routes(
         # Update the configuration with callbacks
         aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
 
+        final_configs = []
         for config_, aggregator in zip(configs_, aggregators):
-            _add_tracing_info_to_metadata(config_, request)
             config_["callbacks"] = [aggregator]
+            final_configs.append(
+                _update_config_with_defaults(path, config_, request, endpoint="batch")
+            )
 
-        output = await runnable.abatch(inputs, config=configs_)
+        output = await runnable.abatch(inputs, config=final_configs)
 
         if include_callback_events:
             callback_events = [
@@ -737,7 +842,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(
+                request, config_hash, endpoint="stream"
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -830,7 +937,9 @@ def add_routes(
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
-            config, input_ = await _get_config_and_input(request, config_hash)
+            config, input_ = await _get_config_and_input(
+                request, config_hash, endpoint="stream_log"
+            )
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -935,13 +1044,14 @@ def add_routes(
     async def input_schema(request: Request, config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(path, user_provided_config, request)
 
         return runnable.get_input_schema(config).schema()
 
@@ -958,13 +1068,14 @@ def add_routes(
     async def output_schema(request: Request, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(path, user_provided_config, request)
         return runnable.get_output_schema(config).schema()
 
     @app.get(
@@ -978,13 +1089,14 @@ def add_routes(
     async def config_schema(request: Request, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+            config = _update_config_with_defaults(path, user_provided_config, request)
         return runnable.with_config(config).config_schema(include=config_keys).schema()
 
     @app.get(
@@ -997,19 +1109,28 @@ def add_routes(
     ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
-            config = _unpack_request_config(
+            user_provided_config = _unpack_request_config(
                 config_hash,
-                keys=config_keys,
+                config_keys=config_keys,
                 model=ConfigPayload,
                 request=request,
                 per_req_config_modifier=per_req_config_modifier,
             )
+
+            config = _update_config_with_defaults(path, user_provided_config, request)
+
+        if isinstance(app, FastAPI):  # type: ignore
+            base_url = f"{namespace}/playground"
+        else:
+            base_url = f"{app.prefix}{namespace}/playground"
+
         feedback_enabled = tracing_is_enabled() and enable_feedback_endpoint
+
         return await serve_playground(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,
             config_keys,
-            f"{namespace}/playground",
+            base_url,
             file_path,
             feedback_enabled,
         )
@@ -1031,6 +1152,11 @@ def add_routes(
     ) -> Feedback:
         """
         Send feedback on an individual run to langsmith
+
+        Note that a successful response means that feedback was successfully
+        submitted. It does not guarantee that the feedback is recorded by
+        langsmith. Requests may be silently rejected if they are
+        unauthenticated or invalid by the server.
         """
 
         if not tracing_is_enabled() or not enable_feedback_endpoint:
@@ -1040,28 +1166,16 @@ def add_routes(
                 + "enabled on your LangServe server.",
             )
 
-        try:
-            feedback_from_langsmith = langsmith_client.create_feedback(
-                feedback_create_req.run_id,
-                feedback_create_req.key,
-                score=feedback_create_req.score,
-                value=feedback_create_req.value,
-                comment=feedback_create_req.comment,
-                source_info={
-                    "from_langserve": True,
-                },
-                # We execute eagerly, meaning we confirm the run exists in
-                # LangSmith before returning a response to the user. This ensures
-                # that clients of the UI know that the feedback was successfully
-                # recorded before they receive a 200 response
-                eager=True,
-                # We lower the number of attempts to 3 to ensure we have time
-                # to wait for a run to show up, but do not take forever in cases
-                # of bad input
-                stop_after_attempt=3,
-            )
-        except LangSmithNotFoundError:
-            raise HTTPException(404, "No run with the given run_id exists")
+        feedback_from_langsmith = langsmith_client.create_feedback(
+            feedback_create_req.run_id,
+            feedback_create_req.key,
+            score=feedback_create_req.score,
+            value=feedback_create_req.value,
+            comment=feedback_create_req.comment,
+            source_info={
+                "from_langserve": True,
+            },
+        )
 
         # We purposefully select out fields from langsmith so that we don't
         # fail validation if langsmith adds extra fields. We prefer this over
@@ -1117,6 +1231,13 @@ def add_routes(
             response_model=InvokeResponse,
             tags=route_tags_with_config,
             name=_route_name_with_config("invoke"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /invoke endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
         )
         @app.post(
             f"{namespace}/invoke",
@@ -1136,6 +1257,13 @@ def add_routes(
             response_model=BatchResponse,
             tags=route_tags_with_config,
             name=_route_name_with_config("batch"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /batch endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
         )
         @app.post(
             f"{namespace}/batch",
@@ -1155,6 +1283,13 @@ def add_routes(
             include_in_schema=True,
             tags=route_tags_with_config,
             name=_route_name_with_config("stream"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /stream endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
         )
         @app.post(
             f"{namespace}/stream",
@@ -1214,6 +1349,13 @@ def add_routes(
             include_in_schema=True,
             tags=route_tags_with_config,
             name=_route_name_with_config("stream_log"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /stream_log endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
         )
         @app.post(
             f"{namespace}/stream_log",
