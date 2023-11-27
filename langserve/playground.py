@@ -14,6 +14,39 @@ class PlaygroundTemplate(Template):
     delimiter = "____"
 
 
+def _get_mimetype(path: str) -> str:
+    """Get mimetype for file.
+
+    Custom implementation of mimetypes.guess_type that
+    uses the file extension to determine the mimetype for some files.
+
+    This is necessary due to: https://bugs.python.org/issue43975
+    Resolves issue: https://github.com/langchain-ai/langserve/issues/245
+
+    Args:
+        path (str): Path to file
+
+    Returns:
+        str: Mimetype of file
+    """
+    try:
+        file_extension = path.lower().split(".")[-1]
+    except IndexError:
+        return mimetypes.guess_type(path)[0]
+
+    if file_extension == "js":
+        return "application/javascript"
+    elif file_extension == "css":
+        return "text/css"
+    elif file_extension in ["htm", "html"]:
+        return "text/html"
+
+    # If the file extension is not one of the specified ones,
+    # use the default guess method
+    mime_type = mimetypes.guess_type(path)[0]
+    return mime_type
+
+
 async def serve_playground(
     runnable: Runnable,
     input_schema: Type[BaseModel],
@@ -39,7 +72,7 @@ async def serve_playground(
 
     try:
         with open(local_file_path, encoding="utf-8") as f:
-            mime_type = mimetypes.guess_type(local_file_path)[0]
+            mime_type = _get_mimetype(local_file_path)
             if mime_type in ("text/html", "text/css", "application/javascript"):
                 response = PlaygroundTemplate(f.read()).substitute(
                     LANGSERVE_BASE_URL=base_url[1:]
