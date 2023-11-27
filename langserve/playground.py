@@ -84,7 +84,7 @@ async def serve_playground(
                     ),
                     LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
                     LANGSERVE_FEEDBACK_ENABLED=json.dumps(
-                        "1" if feedback_enabled else "0"
+                        "true" if feedback_enabled else "false"
                     ),
                 )
             else:

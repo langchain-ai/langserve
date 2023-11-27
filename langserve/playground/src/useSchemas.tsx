@@ -20,7 +20,7 @@ declare global {
 export function useFeedback() {
   return useSWR(["/feedback"], async () => {
     if (!import.meta.env.DEV && window.FEEDBACK_ENABLED) {
-      return window.FEEDBACK_ENABLED === "1";
+      return window.FEEDBACK_ENABLED === "true";
     }
 
     const response = await fetch(resolveApiUrl("/feedback"), {
