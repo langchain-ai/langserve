@@ -25,7 +25,6 @@ from typing import (
     Type,
     Union,
 )
-from uuid import UUID
 
 from fastapi import HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
