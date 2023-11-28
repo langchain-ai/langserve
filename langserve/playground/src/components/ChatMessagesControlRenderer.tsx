@@ -308,12 +308,6 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
                         message.additional_kwargs?.function_call.name ?? ""
                       }
                       onChange={(e) => {
-                        console.log(
-                          Paths.compose(
-                            msgPath,
-                            "additional_kwargs.function_call.name"
-                          )
-                        );
                         props.handleChange(
                           Paths.compose(
                             msgPath,
