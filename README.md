@@ -274,8 +274,10 @@ az containerapp up \
   --source <SOURCE_DIRECTORY> \
   --resource-group <RESOURCE_GROUP_NAME> \
   --environment <ENVIRONMENT_NAME> \
-   --ingress external
+  --ingress external
 ```
+
+You can find more info [here](https://learn.microsoft.com/en-us/azure/container-apps/containerapp-up)
 
 ### Deploy to GCP
 
