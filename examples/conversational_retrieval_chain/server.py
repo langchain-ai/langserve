@@ -87,12 +87,14 @@ class ChatHistory(BaseModel):
 
     chat_history: List[Tuple[str, str]] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "question", "output": "answer"}},
+        extra={"widget": {"type": "chat", "input": "question"}},
     )
     question: str
 
 
-conversational_qa_chain = _inputs | _context | ANSWER_PROMPT | ChatOpenAI()
+conversational_qa_chain = (
+    _inputs | _context | ANSWER_PROMPT | ChatOpenAI() | StrOutputParser()
+)
 chain = conversational_qa_chain.with_types(input_type=ChatHistory)
 
 app = FastAPI(
@@ -104,7 +106,7 @@ app = FastAPI(
 # /invoke
 # /batch
 # /stream
-add_routes(app, chain)
+add_routes(app, chain, enable_feedback_endpoint=True)
 
 if __name__ == "__main__":
     import uvicorn

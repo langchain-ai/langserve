@@ -332,7 +332,7 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
         for path in paths:
             print(
                 f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
-                f'live at:'
+                f"live at:"
             )
             print(f'{green("LANGSERVE:")}  │')
             print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
@@ -1139,16 +1139,32 @@ def add_routes(
         else:
             base_url = f"{app.prefix}{namespace}/playground"
 
+        feedback_enabled = tracing_is_enabled() and enable_feedback_endpoint
+
         return await serve_playground(
             runnable.with_config(config),
             runnable.with_config(config).input_schema,
             config_keys,
             base_url,
             file_path,
+            feedback_enabled,
         )
 
+    @app.head(namespace + "/c/{config_hash}/feedback")
+    @app.head(namespace + "/feedback")
+    async def check_feedback_enabled(config_hash: str = ""):
+        if not tracing_is_enabled() or not enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
+    @app.post(namespace + "/c/{config_hash}/feedback")
     @app.post(namespace + "/feedback")
-    async def feedback(feedback_create_req: FeedbackCreateRequest) -> Feedback:
+    async def create_feedback(
+        feedback_create_req: FeedbackCreateRequest, config_hash: str = ""
+    ) -> Feedback:
         """
         Send feedback on an individual run to langsmith
 

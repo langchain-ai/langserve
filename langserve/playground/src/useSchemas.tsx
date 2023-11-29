@@ -12,7 +12,22 @@ declare global {
     CONFIG_SCHEMA?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     INPUT_SCHEMA?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    FEEDBACK_ENABLED?: any;
   }
+}
+
+export function useFeedback() {
+  return useSWR(["/feedback"], async () => {
+    if (!import.meta.env.DEV && window.FEEDBACK_ENABLED) {
+      return window.FEEDBACK_ENABLED === "true";
+    }
+
+    const response = await fetch(resolveApiUrl("/feedback"), {
+      method: "HEAD",
+    });
+    return response.ok;
+  });
 }
 
 export function useConfigSchema() {
