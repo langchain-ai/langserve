@@ -48,7 +48,7 @@ class ChatHistory(BaseModel):
 class ChatHistoryMessage(BaseModel):
     chat_history: List[BaseMessage] = Field(
         ...,
-        extra={"widget": {"type": "chat", "input": "location", "output": "output"}},
+        extra={"widget": {"type": "chat", "input": "location"}},
     )
     location: str
 
