@@ -516,7 +516,6 @@ class _APIHandler:
                 dictionary form. Note that only keys in `config_keys` will be
                 modifiable by this function.
         """
-        self.runnable = runnable
 
         try:
             from sse_starlette import EventSourceResponse
@@ -557,6 +556,8 @@ class _APIHandler:
 
         if with_types:
             runnable = runnable.with_types(**with_types)
+
+        self.runnable = runnable
 
         model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
@@ -655,7 +656,7 @@ class _APIHandler:
 
         event_aggregator = AsyncEventAggregatorCallback()
         config["callbacks"] = [event_aggregator]
-        output = await self.runnable.ainvoke(input_, config)
+        output = await self.runnable.ainvoke(input_, config=config)
 
         if self.include_callback_events:
             callback_events = [
