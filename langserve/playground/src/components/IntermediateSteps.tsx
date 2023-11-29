@@ -4,8 +4,12 @@ import ChevronRight from "../assets/ChevronRight.svg?react";
 import { RunState } from "../useStreamLog";
 import { cn } from "../utils/cn";
 import { str } from "../utils/str";
+import { CorrectnessFeedback } from "./feedback/CorrectnessFeedback";
 
-export function IntermediateSteps(props: { latest: RunState }) {
+export function IntermediateSteps(props: {
+  latest: RunState;
+  feedbackEnabled: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const length = Object.values(props.latest.logs).length;
   const disabled = length === 0;
@@ -41,9 +45,16 @@ export function IntermediateSteps(props: { latest: RunState }) {
                 <strong className="text-sm font-medium">{log.name}</strong>
                 <p className="text-sm">{dayjs.utc(log.start_time).fromNow()}</p>
               </div>
-              <pre className="break-words whitespace-pre-wrap min-w-0 text-sm bg-ls-gray-400 rounded-lg p-3">
-                {str(log.final_output) ?? "..."}
-              </pre>
+              <div className="bg-ls-gray-400 rounded-lg p-3 relative group">
+                <pre className="break-words whitespace-pre-wrap min-w-0 text-sm">
+                  {str(log.final_output) ?? "..."}
+                </pre>
+                {props.feedbackEnabled && log.id ? (
+                  <div className="absolute right-3 top-3 flex items-center gap-2 transition-opacity opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                    <CorrectnessFeedback key={log.id} runId={log.id} />
+                  </div>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>

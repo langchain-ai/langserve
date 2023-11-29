@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import ShareIcon from "./assets/ShareIcon.svg?react";
 
-import { useConfigSchema, useInputSchema } from "./useSchemas";
+import { useConfigSchema, useFeedback, useInputSchema } from "./useSchemas";
 import { useStreamLog } from "./useStreamLog";
 import { AppCallbackContext, useAppStreamCallbacks } from "./useStreamCallback";
 import { JsonSchema } from "@jsonforms/core";
@@ -16,6 +16,7 @@ import { InputValue, SectionInputs } from "./sections/SectionInputs";
 import { SubmitButton } from "./components/SubmitButton";
 import { useDebounce } from "use-debounce";
 import { cn } from "./utils/cn";
+import { CorrectnessFeedback } from "./components/feedback/CorrectnessFeedback";
 import { getStateFromUrl } from "./utils/url";
 
 function InputPlayground(props: {
@@ -110,6 +111,8 @@ function ConfigPlayground(props: {
     defaults: true,
   });
 
+  const feedback = useFeedback();
+
   // input schema is derived from config data
   const [debouncedConfigData, debounceState] = useDebounce(
     configData.data,
@@ -159,10 +162,22 @@ function ConfigPlayground(props: {
                 {latest && (
                   <div className="flex flex-col gap-3">
                     <h2 className="text-xl font-semibold">Output</h2>
-                    <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg whitespace-pre-wrap break-words">
+                    <div className="p-4 border border-divider-700 flex flex-col gap-3 rounded-2xl bg-background text-lg whitespace-pre-wrap break-words relative group">
                       <StreamOutput streamed={latest.streamed_output} />
+
+                      {feedback.data && latest.id ? (
+                        <div className="absolute right-4 top-4 flex items-center gap-2 transition-opacity opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                          <CorrectnessFeedback
+                            key={latest.id}
+                            runId={latest.id}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                    <IntermediateSteps latest={latest} />
+                    <IntermediateSteps
+                      latest={latest}
+                      feedbackEnabled={!!feedback.data}
+                    />
                   </div>
                 )}
               </InputPlayground>

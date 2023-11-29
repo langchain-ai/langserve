@@ -11,7 +11,8 @@ import {
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { isJsonSchemaExtra } from "../utils/schema";
 import { useStreamCallback } from "../useStreamCallback";
-import { traverseNaiveJsonPath } from "../utils/path";
+import { getNormalizedJsonPath, traverseNaiveJsonPath } from "../utils/path";
+import { getMessageContent } from "../utils/messages";
 
 type MessageTuple = [string, string];
 
@@ -53,9 +54,22 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
       const widget = props.schema.extra.widget;
       if (!("input" in widget) && !("output" in widget)) return;
 
-      const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
-      const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
+      const inputPath = getNormalizedJsonPath(widget.input ?? "");
+      const outputPath = getNormalizedJsonPath(widget.output ?? "");
 
+      const isSingleOutputKey =
+        ctx.output != null &&
+        Object.keys(ctx.output).length === 1 &&
+        Object.keys(ctx.output)[0] === "output";
+
+      const human = traverseNaiveJsonPath(ctx.input, inputPath);
+      let ai = traverseNaiveJsonPath(ctx.output, outputPath);
+
+      if (isSingleOutputKey) {
+        ai = traverseNaiveJsonPath(ai, ["output", ...outputPath]) ?? ai;
+      }
+
+      ai = getMessageContent(ai);
       if (typeof human === "string" && typeof ai === "string") {
         props.handleChange(props.path, [...data, [human, ai]]);
       }

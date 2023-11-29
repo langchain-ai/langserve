@@ -12,7 +12,7 @@ import {
 } from "@jsonforms/core";
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { useStreamCallback } from "../useStreamCallback";
-import { traverseNaiveJsonPath } from "../utils/path";
+import { getNormalizedJsonPath, traverseNaiveJsonPath } from "../utils/path";
 import { isJsonSchemaExtra } from "../utils/schema";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 
@@ -122,8 +122,20 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
       const widget = props.schema.extra.widget;
       if (!("input" in widget) && !("output" in widget)) return;
 
-      const human = traverseNaiveJsonPath(ctx.input, widget.input ?? "");
-      const ai = traverseNaiveJsonPath(ctx.output, widget.output ?? "");
+      const inputPath = getNormalizedJsonPath(widget.input ?? "");
+      const outputPath = getNormalizedJsonPath(widget.output ?? "");
+
+      const human = traverseNaiveJsonPath(ctx.input, inputPath);
+      let ai = traverseNaiveJsonPath(ctx.output, outputPath);
+
+      const isSingleOutputKey =
+        ctx.output != null &&
+        Object.keys(ctx.output).length === 1 &&
+        Object.keys(ctx.output)[0] === "output";
+
+      if (isSingleOutputKey) {
+        ai = traverseNaiveJsonPath(ai, ["output", ...outputPath]) ?? ai;
+      }
 
       const humanMsg = constructMessage(human, "human");
       const aiMsg = constructMessage(ai, "ai");
@@ -296,12 +308,6 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
                         message.additional_kwargs?.function_call.name ?? ""
                       }
                       onChange={(e) => {
-                        console.log(
-                          Paths.compose(
-                            msgPath,
-                            "additional_kwargs.function_call.name"
-                          )
-                        );
                         props.handleChange(
                           Paths.compose(
                             msgPath,
