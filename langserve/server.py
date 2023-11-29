@@ -655,7 +655,7 @@ class _APIHandler:
 
         event_aggregator = AsyncEventAggregatorCallback()
         config["callbacks"] = [event_aggregator]
-        output = await self.runnable.ainvoke(input_, config=config)
+        output = await self.runnable.ainvoke(input_, config)
 
         if self.include_callback_events:
             callback_events = [
