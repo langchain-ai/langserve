@@ -462,12 +462,18 @@ except ImportError:
     EventSourceResponse = Any
 
 
-class APIHandler:
+class _APIHandler:
+    """A class that handles the API endpoints for a given runnable.
+
+    To be treated as a private class whose API may change at any time.
+    """
+
     def __init__(
         self,
         runnable: Runnable,
         *,
         path: str = "",
+        base_url: str = "",
         input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         config_keys: Sequence[str] = ("configurable",),
@@ -475,7 +481,41 @@ class APIHandler:
         enable_feedback_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
     ) -> None:
-        """Create a new RunnableServer."""
+        """Create a new RunnableServer.
+
+        Args:
+            runnable: The runnable to serve.
+            path: The path to serve the runnable under.
+            base_url: Base URL for playground
+            input_type: type to use for input validation.
+                Default is "auto" which will use the InputType of the runnable.
+                User is free to provide a custom type annotation.
+                Favor using runnable.with_types(input_type=..., output_type=...)
+                instead. This parameter may get deprecated!
+            output_type: type to use for output validation.
+                Default is "auto" which will use the OutputType of the runnable.
+                User is free to provide a custom type annotation.
+                Favor using runnable.with_types(input_type=..., output_type=...)
+                instead. This parameter may get deprecated!
+            config_keys: list of config keys that will be accepted, by default
+                will accept `configurable` key in the config. Will only be used
+                if the runnable is configurable. Cannot configure run_name,
+                which is set by default to the path of the API.
+            include_callback_events: Whether to include callback events in the response.
+                If true, the client will be able to show trace information
+                including events that occurred on the server side.
+                Be sure not to include any sensitive information in the callback events.
+            enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
+                to LangSmith. Enabled by default. If this flag is disabled or LangSmith
+                tracing is not enabled for the runnable, then 400 errors will be thrown
+                when accessing the feedback endpoint
+            per_req_config_modifier: optional function that can be used to update the
+                RunnableConfig for a given run based on the raw request. This is useful,
+                for example, if the user wants to pass in a header containing
+                credentials to a runnable. The RunnableConfig is presented in its
+                dictionary form. Note that only keys in `config_keys` will be
+                modifiable by this function.
+        """
         self.runnable = runnable
 
         try:
@@ -487,14 +527,6 @@ class APIHandler:
                 "Use `pip install sse_starlette` to install."
             )
 
-        self.well_known_lc_serializer = WellKnownLCSerializer()
-
-        if path and not path.startswith("/"):
-            raise ValueError(
-                f"Got an invalid path: {path}. "
-                f"If specifying path please start it with a `/`"
-            )
-
         if "run_name" in config_keys:
             raise ValueError(
                 "Cannot configure run_name. Please remove it from config_keys."
@@ -502,11 +534,11 @@ class APIHandler:
 
         self.config_keys = config_keys
         self.path = path
-        self.namespace = path or ""
         self.include_callback_events = include_callback_events
         self.per_req_config_modifier = per_req_config_modifier
-
-        model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
+        self.base_url = base_url
+        self.well_known_lc_serializer = WellKnownLCSerializer()
+        self.enable_feedback_endpoint = enable_feedback_endpoint
 
         # Please do not change the naming on ls_client. It is used with mocking
         # in our unit tests for langsmith integrations.
@@ -526,6 +558,8 @@ class APIHandler:
         if with_types:
             runnable = runnable.with_types(**with_types)
 
+        model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
+
         input_type_ = _resolve_model(
             runnable.get_input_schema(), "Input", model_namespace
         )
@@ -538,6 +572,10 @@ class APIHandler:
 
         self.ConfigPayload = _add_namespace_to_model(
             model_namespace, runnable.config_schema(include=config_keys)
+        )
+
+        self.InvokeRequest = create_invoke_request_model(
+            model_namespace, input_type_, self.ConfigPayload
         )
 
         self.BatchRequest = create_batch_request_model(
@@ -992,6 +1030,34 @@ class APIHandler:
             .schema()
         )
 
+    async def playground(
+        self, file_path: str, request: Request, config_hash: str = ""
+    ) -> Any:
+        """Return the playground of the runnable."""
+        with _with_validation_error_translation():
+            user_provided_config = _unpack_request_config(
+                config_hash,
+                config_keys=self.config_keys,
+                model=self.ConfigPayload,
+                request=request,
+                per_req_config_modifier=self.per_req_config_modifier,
+            )
+
+            config = _update_config_with_defaults(
+                self.path, user_provided_config, request
+            )
+
+        feedback_enabled = tracing_is_enabled() and self.enable_feedback_endpoint
+
+        return await serve_playground(
+            self.runnable.with_config(config),
+            self.runnable.with_config(config).input_schema,
+            self.config_keys,
+            self.base_url,
+            file_path,
+            feedback_enabled,
+        )
+
 
 # PUBLIC API
 
@@ -1076,15 +1142,24 @@ def add_routes(
             "Use `pip install sse_starlette` to install."
         )
 
+    if path and not path.startswith("/"):
+        raise ValueError(
+            f"Got an invalid path: {path}. "
+            f"If specifying path please start it with a `/`"
+        )
+
     if isinstance(app, FastAPI):  # type: ignore
         # Cannot do this checking logic for a router since
         # API routers are not hashable
         _register_path_for_app(app, path)
-    well_known_lc_serializer = WellKnownLCSerializer()
 
-    api_handler = APIHandler(
+    # Determine the base URL for the playground endpoint
+    base_url = (app.prefix if isinstance(app, APIRouter) else "") + path
+
+    api_handler = _APIHandler(
         runnable,
         path=path,
+        base_url=base_url,
         input_type=input_type,
         output_type=output_type,
         config_keys=config_keys,
@@ -1092,17 +1167,6 @@ def add_routes(
         enable_feedback_endpoint=enable_feedback_endpoint,
         per_req_config_modifier=per_req_config_modifier,
     )
-
-    if path and not path.startswith("/"):
-        raise ValueError(
-            f"Got an invalid path: {path}. "
-            f"If specifying path please start it with a `/`"
-        )
-
-    if "run_name" in config_keys:
-        raise ValueError(
-            "Cannot configure run_name. Please remove it from config_keys."
-        )
 
     namespace = path or ""
 
@@ -1174,104 +1238,101 @@ def add_routes(
             },
         ]
 
-    # add config_hash endpoint
-    app.post(f"{namespace}/invoke", include_in_schema=False)(api_handler.invoke)
+    if with_invoke:
+        invoke = app.post(f"{namespace}/invoke", include_in_schema=False)(
+            api_handler.invoke
+        )
 
-    # If config hash
-    app.post(
-        namespace + "/c/{config_hash}/invoke",
-        include_in_schema=False,
-    )(api_handler.invoke)
+        if with_config_hash:
+            app.post(
+                namespace + "/c/{config_hash}/invoke",
+                include_in_schema=False,
+            )(invoke)
 
-    # add batch endpoint
-    app.post(
-        namespace + "/c/{config_hash}/batch",
-        include_in_schema=False,
-    )
-    (app.post(f"{namespace}/batch", include_in_schema=False)(api_handler.batch))
+    if with_batch:
+        batch = app.post(f"{namespace}/batch", include_in_schema=False)(
+            api_handler.batch
+        )
 
-    # add stream endpoint
-    app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
-    (app.post(f"{namespace}/stream", include_in_schema=False)(api_handler.stream))
+        if with_config_hash:
+            app.post(
+                namespace + "/c/{config_hash}/batch",
+                include_in_schema=False,
+            )(batch)
 
-    # add stream_log endpoint
-    app.post(
-        namespace + "/c/{config_hash}/stream_log",
-        include_in_schema=False,
-    )
-    (app.post(
-        f"{namespace}/stream_log",
-        include_in_schema=False,
-    )(api_handler.stream_log))
+    if with_stream:
+        stream = app.post(f"{namespace}/stream", include_in_schema=False)(
+            api_handler.stream
+        )
 
-    app.get(
-        namespace + "/c/{config_hash}/input_schema",
-        tags=route_tags_with_config,
-        name=_route_name_with_config("input_schema"),
-    )
-    (
-        app.get(
+        if with_config_hash:
+            app.post(
+                namespace + "/c/{config_hash}/stream",
+                include_in_schema=False,
+            )(stream)
+
+    if with_stream_log:
+        stream_log = app.post(f"{namespace}/stream_log", include_in_schema=False)(
+            api_handler.stream_log
+        )
+
+        if with_config_hash:
+            app.post(
+                namespace + "/c/{config_hash}/stream_log",
+                include_in_schema=False,
+            )(stream_log)
+
+    if with_schemas:
+        input_schema = app.get(
             f"{namespace}/input_schema",
             tags=route_tags,
             name=_route_name("input_schema"),
         )(api_handler.input_schema)
-    )
 
-    app.get(
-        namespace + "/c/{config_hash}/output_schema",
-        tags=route_tags_with_config,
-        name=_route_name_with_config("output_schema"),
-    )
-    (app.get(
-        f"{namespace}/output_schema",
-        tags=route_tags,
-        name=_route_name("output_schema"),
-    )(api_handler.output_schema))
+        if with_config_hash:
+            app.get(
+                namespace + "/c/{config_hash}/input_schema",
+                tags=route_tags_with_config,
+                name=_route_name_with_config("input_schema"),
+            )(input_schema)
 
-    app.get(
-        namespace + "/c/{config_hash}/config_schema",
-        tags=route_tags_with_config,
-        name=_route_name_with_config("config_schema"),
-    )
-    (app.get(
-        f"{namespace}/config_schema", tags=route_tags, name=_route_name("config_schema")
-    )(api_handler.config_schema))
+        output_schema = app.get(
+            f"{namespace}/output_schema",
+            tags=route_tags,
+            name=_route_name("output_schema"),
+        )(api_handler.output_schema)
 
-    @app.get(
-        namespace + "/c/{config_hash}/playground/{file_path:path}",
-        include_in_schema=False,
-    )
-    @app.get(namespace + "/playground/{file_path:path}", include_in_schema=False)
-    async def playground(
-        file_path: str, request: Request, config_hash: str = ""
-    ) -> Any:
-        """Return the playground of the runnable."""
-        with _with_validation_error_translation():
-            user_provided_config = _unpack_request_config(
-                config_hash,
-                config_keys=config_keys,
-                model=api_handler.ConfigPayload,
-                request=request,
-                per_req_config_modifier=per_req_config_modifier,
-            )
+        if with_config_hash:
+            app.get(
+                namespace + "/c/{config_hash}/output_schema",
+                tags=route_tags_with_config,
+                name=_route_name_with_config("output_schema"),
+            )(output_schema)
 
-            config = _update_config_with_defaults(path, user_provided_config, request)
+        config_schema = app.get(
+            f"{namespace}/config_schema",
+            tags=route_tags,
+            name=_route_name("config_schema"),
+        )(api_handler.config_schema)
 
-        if isinstance(app, FastAPI):  # type: ignore
-            base_url = f"{namespace}/playground"
-        else:
-            base_url = f"{app.prefix}{namespace}/playground"
+        if with_config_hash:
+            app.get(
+                namespace + "/c/{config_hash}/config_schema",
+                tags=route_tags_with_config,
+                name=_route_name_with_config("config_schema"),
+            )(config_schema)
 
-        feedback_enabled = tracing_is_enabled() and enable_feedback_endpoint
+    if with_playground:
+        playground = app.get(
+            f"{namespace}/playground",
+            include_in_schema=False,
+        )(api_handler.playground)
 
-        return await serve_playground(
-            runnable.with_config(config),
-            runnable.with_config(config).input_schema,
-            config_keys,
-            base_url,
-            file_path,
-            feedback_enabled,
-        )
+        if with_config_hash:
+            app.get(
+                namespace + "/c/{config_hash}/playground",
+                include_in_schema=False,
+            )(playground)
 
     @app.head(namespace + "/c/{config_hash}/feedback")
     @app.head(namespace + "/feedback")
@@ -1330,193 +1391,199 @@ def add_routes(
             comment=feedback_from_langsmith.comment,
         )
 
-    # #######################################
-    # # Documentation variants of end points.
-    # #######################################
-    # # At the moment, we only support pydantic 1.x for documentation
-    # if _PYDANTIC_MAJOR_VERSION == 1:
-    #
-    #     @app.post(
-    #         namespace + "/c/{config_hash}/invoke",
-    #         response_model=InvokeResponse,
-    #         tags=route_tags_with_config,
-    #         name=_route_name_with_config("invoke"),
-    #         description=(
-    #             "This endpoint is to be used with share links generated by the "
-    #             "LangServe playground. "
-    #             "The hash is an LZString compressed JSON string. "
-    #             "For regular use cases, use the /invoke endpoint without "
-    #             "the `c/{config_hash}` path parameter."
-    #         ),
-    #     )
-    #     @app.post(
-    #         f"{namespace}/invoke",
-    #         response_model=InvokeResponse,
-    #         tags=route_tags,
-    #         name=_route_name("invoke"),
-    #     )
-    #     async def _invoke_docs(
-    #         invoke_request: Annotated[InvokeRequest, InvokeRequest],
-    #         config_hash: str = "",
-    #     ) -> InvokeResponse:
-    #         """Invoke the runnable with the given input and config."""
-    #         raise AssertionError("This endpoint should not be reachable.")
-    #
-    #     @app.post(
-    #         namespace + "/c/{config_hash}/batch",
-    #         response_model=BatchResponse,
-    #         tags=route_tags_with_config,
-    #         name=_route_name_with_config("batch"),
-    #         description=(
-    #             "This endpoint is to be used with share links generated by the "
-    #             "LangServe playground. "
-    #             "The hash is an LZString compressed JSON string. "
-    #             "For regular use cases, use the /batch endpoint without "
-    #             "the `c/{config_hash}` path parameter."
-    #         ),
-    #     )
-    #     @app.post(
-    #         f"{namespace}/batch",
-    #         response_model=BatchResponse,
-    #         tags=route_tags,
-    #         name=_route_name("batch"),
-    #     )
-    #     async def _batch_docs(
-    #         batch_request: Annotated[BatchRequest, BatchRequest],
-    #         config_hash: str = "",
-    #     ) -> BatchResponse:
-    #         """Batch invoke the runnable with the given inputs and config."""
-    #         raise AssertionError("This endpoint should not be reachable.")
-    #
-    #     @app.post(
-    #         namespace + "/c/{config_hash}/stream",
-    #         include_in_schema=True,
-    #         tags=route_tags_with_config,
-    #         name=_route_name_with_config("stream"),
-    #         description=(
-    #             "This endpoint is to be used with share links generated by the "
-    #             "LangServe playground. "
-    #             "The hash is an LZString compressed JSON string. "
-    #             "For regular use cases, use the /stream endpoint without "
-    #             "the `c/{config_hash}` path parameter."
-    #         ),
-    #     )
-    #     @app.post(
-    #         f"{namespace}/stream",
-    #         include_in_schema=True,
-    #         tags=route_tags,
-    #         name=_route_name("stream"),
-    #     )
-    #     async def _stream_docs(
-    #         stream_request: Annotated[StreamRequest, StreamRequest],
-    #         config_hash: str = "",
-    #     ) -> EventSourceResponse:
-    #         """Invoke the runnable stream the output.
-    #
-    #         This endpoint allows to stream the output of the runnable.
-    #
-    #         The endpoint uses a server sent event stream to stream the output.
-    #
-    #         https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-    #
-    #         Important: Set the "text/event-stream" media type for request headers if
-    #                    not using an existing SDK.
-    #
-    #         This endpoint uses two different types of events:
-    #
-    #         * data - for streaming the output of the runnable
-    #
-    #             {
-    #                 "event": "data",
-    #                 "data": {
-    #                 ...
-    #                 }
-    #             }
-    #
-    #         * error - for signaling an error in the stream, also ends the stream.
-    #
-    #         {
-    #             "event": "error",
-    #             "data": {
-    #                 "status_code": 500,
-    #                 "message": "Internal Server Error"
-    #             }
-    #         }
-    #
-    #         * end - for signaling the end of the stream.
-    #
-    #             This helps the client to know when to stop listening for events and
-    #             know that the streaming has ended successfully.
-    #
-    #             {
-    #                 "event": "end",
-    #             }
-    #         """
-    #         raise AssertionError("This endpoint should not be reachable.")
-    #
-    #     @app.post(
-    #         namespace + "/c/{config_hash}/stream_log",
-    #         include_in_schema=True,
-    #         tags=route_tags_with_config,
-    #         name=_route_name_with_config("stream_log"),
-    #         description=(
-    #             "This endpoint is to be used with share links generated by the "
-    #             "LangServe playground. "
-    #             "The hash is an LZString compressed JSON string. "
-    #             "For regular use cases, use the /stream_log endpoint without "
-    #             "the `c/{config_hash}` path parameter."
-    #         ),
-    #     )
-    #     @app.post(
-    #         f"{namespace}/stream_log",
-    #         include_in_schema=True,
-    #         tags=route_tags,
-    #         name=_route_name("stream_log"),
-    #     )
-    #     async def _stream_log_docs(
-    #         stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
-    #         config_hash: str = "",
-    #     ) -> EventSourceResponse:
-    #         """Invoke the runnable stream_log the output.
-    #
-    #         This endpoint allows to stream the output of the runnable, including
-    #         the output of all intermediate steps.
-    #
-    #         The endpoint uses a server sent event stream to stream the output.
-    #
-    #         https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-    #
-    #         Important: Set the "text/event-stream" media type for request headers if
-    #                    not using an existing SDK.
-    #
-    #         This endpoint uses two different types of events:
-    #
-    #         * data - for streaming the output of the runnable
-    #
-    #             {
-    #                 "event": "data",
-    #                 "data": {
-    #                 ...
-    #                 }
-    #             }
-    #
-    #         * error - for signaling an error in the stream, also ends the stream.
-    #
-    #         {
-    #             "event": "error",
-    #             "data": {
-    #                 "status_code": 500,
-    #                 "message": "Internal Server Error"
-    #             }
-    #         }
-    #
-    #         * end - for signaling the end of the stream.
-    #
-    #             This helps the client to know when to stop listening for events and
-    #             know that the streaming has ended successfully.
-    #
-    #             {
-    #                 "event": "end",
-    #             }
-    #         """
-    #         raise AssertionError("This endpoint should not be reachable.")
+    #######################################
+    # Documentation variants of end points.
+    #######################################
+    # At the moment, we only support pydantic 1.x for documentation
+    if _PYDANTIC_MAJOR_VERSION == 1:
+        InvokeRequest = api_handler.InvokeRequest
+        InvokeResponse = api_handler.InvokeResponse
+        BatchRequest = api_handler.BatchRequest
+        BatchResponse = api_handler.BatchResponse
+        StreamRequest = api_handler.StreamRequest
+        StreamLogRequest = api_handler.StreamLogRequest
+
+        @app.post(
+            namespace + "/c/{config_hash}/invoke",
+            response_model=api_handler.InvokeResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("invoke"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /invoke endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
+        )
+        @app.post(
+            f"{namespace}/invoke",
+            response_model=api_handler.InvokeResponse,
+            tags=route_tags,
+            name=_route_name("invoke"),
+        )
+        async def _invoke_docs(
+            invoke_request: Annotated[InvokeRequest, InvokeRequest],
+            config_hash: str = "",
+        ) -> InvokeResponse:
+            """Invoke the runnable with the given input and config."""
+            raise AssertionError("This endpoint should not be reachable.")
+
+        @app.post(
+            namespace + "/c/{config_hash}/batch",
+            response_model=BatchResponse,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("batch"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /batch endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
+        )
+        @app.post(
+            f"{namespace}/batch",
+            response_model=BatchResponse,
+            tags=route_tags,
+            name=_route_name("batch"),
+        )
+        async def _batch_docs(
+            batch_request: Annotated[BatchRequest, BatchRequest],
+            config_hash: str = "",
+        ) -> BatchResponse:
+            """Batch invoke the runnable with the given inputs and config."""
+            raise AssertionError("This endpoint should not be reachable.")
+
+        @app.post(
+            namespace + "/c/{config_hash}/stream",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /stream endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
+        )
+        @app.post(
+            f"{namespace}/stream",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream"),
+        )
+        async def _stream_docs(
+            stream_request: Annotated[StreamRequest, StreamRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream the output.
+
+            This endpoint allows to stream the output of the runnable.
+
+            The endpoint uses a server sent event stream to stream the output.
+
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
+
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
+
+            {
+                "event": "error",
+                "data": {
+                    "status_code": 500,
+                    "message": "Internal Server Error"
+                }
+            }
+
+            * end - for signaling the end of the stream.
+
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
+
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
+
+        @app.post(
+            namespace + "/c/{config_hash}/stream_log",
+            include_in_schema=True,
+            tags=route_tags_with_config,
+            name=_route_name_with_config("stream_log"),
+            description=(
+                "This endpoint is to be used with share links generated by the "
+                "LangServe playground. "
+                "The hash is an LZString compressed JSON string. "
+                "For regular use cases, use the /stream_log endpoint without "
+                "the `c/{config_hash}` path parameter."
+            ),
+        )
+        @app.post(
+            f"{namespace}/stream_log",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream_log"),
+        )
+        async def _stream_log_docs(
+            stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream_log the output.
+
+            This endpoint allows to stream the output of the runnable, including
+            the output of all intermediate steps.
+
+            The endpoint uses a server sent event stream to stream the output.
+
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
+
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
+                {
+                    "event": "data",
+                    "data": {
+                    ...
+                    }
+                }
+
+            * error - for signaling an error in the stream, also ends the stream.
+
+            {
+                "event": "error",
+                "data": {
+                    "status_code": 500,
+                    "message": "Internal Server Error"
+                }
+            }
+
+            * end - for signaling the end of the stream.
+
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
+
+                {
+                    "event": "end",
+                }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
