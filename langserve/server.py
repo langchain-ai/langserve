@@ -1324,13 +1324,12 @@ def add_routes(
 
     if with_playground:
         playground = app.get(
-            f"{namespace}/playground",
-            include_in_schema=False,
+            namespace + "/playground/{file_path:path}", include_in_schema=False
         )(api_handler.playground)
 
         if with_config_hash:
             app.get(
-                namespace + "/c/{config_hash}/playground",
+                namespace + "/c/{config_hash}/playground/{file_path:path}",
                 include_in_schema=False,
             )(playground)
 
