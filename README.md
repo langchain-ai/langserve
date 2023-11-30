@@ -264,6 +264,16 @@ If you encounter any errors, please open an issue on THIS repo, and we will work
 
 ## Deployment
 
+### Deploy to Azure 
+
+You can deploy to Azure using Azure Container Apps (Serverless):
+
+```
+az containerapp up --name [container-app-name] --source . --resource-group [resource-group-name] --environment  [environment-name] --ingress external --target-port 8001 --env-vars=OPENAI_API_KEY=your_key  
+```
+
+You can find more info [here](https://learn.microsoft.com/en-us/azure/container-apps/containerapp-up)
+
 ### Deploy to GCP
 
 You can deploy to GCP Cloud Run using the following command:
@@ -271,6 +281,9 @@ You can deploy to GCP Cloud Run using the following command:
 ```
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
+
+
+
 
 ## Pydantic
 
