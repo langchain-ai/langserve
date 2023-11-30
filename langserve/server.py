@@ -1052,11 +1052,16 @@ class _APIHandler:
 
         feedback_enabled = tracing_is_enabled() and self.enable_feedback_endpoint
 
+        if self.base_url.endswith("/"):
+            playground_url = self.base_url + "playground"
+        else:
+            playground_url = self.base_url + "/playground"
+
         return await serve_playground(
             self.runnable.with_config(config),
             self.runnable.with_config(config).input_schema,
             self.config_keys,
-            self.base_url,
+            playground_url,
             file_path,
             feedback_enabled,
         )
@@ -1271,20 +1276,21 @@ def add_routes(
                 f"Expected pydantic major version 1 or 2, got {_PYDANTIC_MAJOR_VERSION}"
             )
 
-        app.openapi_tags = [
-            *(getattr(app, "openapi_tags", []) or []),
-            default_endpoint_tags,
-            {
-                "name": route_tags_with_config[0],
-                "description": (
-                    "Endpoints with a default configuration "
-                    "set by `config_hash` path parameter. "
-                    "Used in conjunction with share links generated using the "
-                    "LangServe UI playground. "
-                    "The hash is an LZString compressed JSON string."
-                ),
-            },
-        ]
+        if with_config_hash:
+            app.openapi_tags = [
+                *(getattr(app, "openapi_tags", []) or []),
+                default_endpoint_tags,
+                {
+                    "name": route_tags_with_config[0],
+                    "description": (
+                        "Endpoints with a default configuration "
+                        "set by `config_hash` path parameter. "
+                        "Used in conjunction with share links generated using the "
+                        "LangServe UI playground. "
+                        "The hash is an LZString compressed JSON string."
+                    ),
+                },
+            ]
 
     if with_invoke:
         invoke = app.post(f"{namespace}/invoke", include_in_schema=False)(
@@ -1371,14 +1377,13 @@ def add_routes(
             )(config_schema)
 
     if with_playground:
-        playground = app.get(
-            namespace + "/playground/{file_path:path}", include_in_schema=False
-        )(api_handler.playground)
+        playground = app.get(namespace + "/playground/{file_path:path}")(
+            api_handler.playground
+        )
 
         if with_config_hash:
             app.get(
                 namespace + "/c/{config_hash}/playground/{file_path:path}",
-                include_in_schema=False,
             )(playground)
 
     if enable_feedback_endpoint:
