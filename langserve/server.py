@@ -6,6 +6,7 @@ The main entry point is the `add_routes` function which adds the routes to an ex
 FastAPI app or APIRouter.
 """
 import contextlib
+import importlib
 import json
 import os
 import re
@@ -463,9 +464,13 @@ except ImportError:
 
 
 class _APIHandler:
-    """A class that handles the API endpoints for a given runnable.
+    """Implementation of the various API endpoints for a runnable server.
 
-    To be treated as a private class whose API may change at any time.
+    This is a private class whose API is expected to change.
+
+    Currently, the sole role of the handler at the moment is to separate the
+    implementation of the endpoints from the logic that registers them on
+    a FastAPI app and logic that adds them to the FastAPI OpenAPI docs.
     """
 
     def __init__(
@@ -516,10 +521,7 @@ class _APIHandler:
                 dictionary form. Note that only keys in `config_keys` will be
                 modifiable by this function.
         """
-
-        try:
-            from sse_starlette import EventSourceResponse
-        except ImportError:
+        if importlib.util.find_spec("sse_starlette") is None:
             raise ImportError(
                 "sse_starlette must be installed to implement the stream and "
                 "stream_log endpoints. "
@@ -1059,6 +1061,59 @@ class _APIHandler:
             feedback_enabled,
         )
 
+    async def create_feedback(
+        self, feedback_create_req: FeedbackCreateRequest, config_hash: str = ""
+    ) -> Feedback:
+        """Send feedback on an individual run to langsmith
+
+        Note that a successful response means that feedback was successfully
+        submitted. It does not guarantee that the feedback is recorded by
+        langsmith. Requests may be silently rejected if they are
+        unauthenticated or invalid by the server.
+        """
+
+        if not tracing_is_enabled() or not self.enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
+        feedback_from_langsmith = self.langsmith_client.create_feedback(
+            feedback_create_req.run_id,
+            feedback_create_req.key,
+            score=feedback_create_req.score,
+            value=feedback_create_req.value,
+            comment=feedback_create_req.comment,
+            source_info={
+                "from_langserve": True,
+            },
+        )
+
+        # We purposefully select out fields from langsmith so that we don't
+        # fail validation if langsmith adds extra fields. We prefer this over
+        # using "Extra.allow" in pydantic since syntax changes between pydantic
+        # 1.x and 2.x for this functionality
+        return Feedback(
+            id=str(feedback_from_langsmith.id),
+            run_id=str(feedback_from_langsmith.run_id),
+            created_at=str(feedback_from_langsmith.created_at),
+            modified_at=str(feedback_from_langsmith.modified_at),
+            key=str(feedback_from_langsmith.key),
+            score=feedback_from_langsmith.score,
+            value=feedback_from_langsmith.value,
+            comment=feedback_from_langsmith.comment,
+        )
+
+    async def check_feedback_enabled(self, config_hash: str = "") -> None:
+        """Check if feedback is enabled for the runnable."""
+        if not tracing_is_enabled() or not self.enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.",
+            )
+
 
 # PUBLIC API
 
@@ -1117,15 +1172,15 @@ def add_routes(
             If true, the client will be able to show trace information
             including events that occurred on the server side.
             Be sure not to include any sensitive information in the callback events.
-        enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
-            to LangSmith. Enabled by default. If this flag is disabled or LangSmith
-            tracing is not enabled for the runnable, then 400 errors will be thrown
-            when accessing the feedback endpoint
         per_req_config_modifier: optional function that can be used to update the
             RunnableConfig for a given run based on the raw request. This is useful,
             for example, if the user wants to pass in a header containing credentials
             to a runnable. The RunnableConfig is presented in its dictionary form.
             Note that only keys in `config_keys` will be modifiable by this function.
+        enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
+            to LangSmith. Enabled by default. If this flag is disabled or LangSmith
+            tracing is not enabled for the runnable, then 400 errors will be thrown
+            when accessing the feedback endpoint
         with_invoke: if True, add the /invoke endpoint.
         with_batch: if True, add the /batch endpoint.
         with_stream: if True, add the /stream endpoint.
@@ -1155,7 +1210,7 @@ def add_routes(
         _register_path_for_app(app, path)
 
     # Determine the base URL for the playground endpoint
-    base_url = (app.prefix if isinstance(app, APIRouter) else "") + path
+    base_url = (app.prefix if isinstance(app, APIRouter) else "") + path  # type: ignore
 
     api_handler = _APIHandler(
         runnable,
@@ -1173,14 +1228,6 @@ def add_routes(
 
     route_tags = [path.strip("/")] if path else None
     route_tags_with_config = [f"{path.strip('/')}/config"] if path else ["config"]
-
-    # Please do not change the naming on ls_client. It is used with mocking
-    # in our unit tests for langsmith integrations.
-    langsmith_client = (
-        ls_client.Client()
-        if tracing_is_enabled() and enable_feedback_endpoint
-        else None
-    )
 
     def _route_name(name: str) -> str:
         """Return the route name with the given name."""
@@ -1334,62 +1381,24 @@ def add_routes(
                 include_in_schema=False,
             )(playground)
 
-    @app.head(namespace + "/c/{config_hash}/feedback")
-    @app.head(namespace + "/feedback")
-    async def check_feedback_enabled(config_hash: str = ""):
-        if not tracing_is_enabled() or not enable_feedback_endpoint:
-            raise HTTPException(
-                400,
-                "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.",
-            )
+    if enable_feedback_endpoint:
+        create_feedback = app.post(
+            namespace + "/feedback",
+        )(api_handler.create_feedback)
 
-    @app.post(namespace + "/c/{config_hash}/feedback")
-    @app.post(namespace + "/feedback")
-    async def create_feedback(
-        feedback_create_req: FeedbackCreateRequest, config_hash: str = ""
-    ) -> Feedback:
-        """
-        Send feedback on an individual run to langsmith
+        if with_config_hash:  # Is this needed? We only need run id presumably?
+            app.post(
+                namespace + "/c/{config_hash}/feedback",
+            )(create_feedback)
 
-        Note that a successful response means that feedback was successfully
-        submitted. It does not guarantee that the feedback is recorded by
-        langsmith. Requests may be silently rejected if they are
-        unauthenticated or invalid by the server.
-        """
+        check_feedback_enabled = app.head(
+            namespace + "/feedback",
+        )(api_handler.check_feedback_enabled)
 
-        if not tracing_is_enabled() or not enable_feedback_endpoint:
-            raise HTTPException(
-                400,
-                "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.",
-            )
-
-        feedback_from_langsmith = langsmith_client.create_feedback(
-            feedback_create_req.run_id,
-            feedback_create_req.key,
-            score=feedback_create_req.score,
-            value=feedback_create_req.value,
-            comment=feedback_create_req.comment,
-            source_info={
-                "from_langserve": True,
-            },
-        )
-
-        # We purposefully select out fields from langsmith so that we don't
-        # fail validation if langsmith adds extra fields. We prefer this over
-        # using "Extra.allow" in pydantic since syntax changes between pydantic
-        # 1.x and 2.x for this functionality
-        return Feedback(
-            id=str(feedback_from_langsmith.id),
-            run_id=str(feedback_from_langsmith.run_id),
-            created_at=str(feedback_from_langsmith.created_at),
-            modified_at=str(feedback_from_langsmith.modified_at),
-            key=str(feedback_from_langsmith.key),
-            score=feedback_from_langsmith.score,
-            value=feedback_from_langsmith.value,
-            comment=feedback_from_langsmith.comment,
-        )
+        if with_config_hash:  # Is this needed?
+            app.head(
+                namespace + "/c/{config_hash}/feedback",
+            )(check_feedback_enabled)
 
     #######################################
     # Documentation variants of end points.
