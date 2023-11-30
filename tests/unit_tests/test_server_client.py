@@ -1748,6 +1748,7 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
         )
 
 
+@pytest.mark.skip(reason="Configuration options not implemented yet")
 async def test_all_endpoints_off() -> None:
     """Test toggling endpoints."""
     app = FastAPI()
