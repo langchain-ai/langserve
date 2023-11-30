@@ -1134,13 +1134,6 @@ def add_routes(
     include_callback_events: bool = False,
     enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
-    with_invoke: bool = True,
-    with_batch: bool = True,
-    with_stream: bool = True,
-    with_stream_log: bool = True,
-    with_schemas: bool = True,
-    with_config_hash: bool = True,
-    with_playground: bool = True,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -1186,14 +1179,18 @@ def add_routes(
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
             when accessing the feedback endpoint
-        with_invoke: if True, add the /invoke endpoint.
-        with_batch: if True, add the /batch endpoint.
-        with_stream: if True, add the /stream endpoint.
-        with_stream_log: if True, add the /stream_log endpoint.
-        with_schemas: if True, add the /input_schema, /output_schema, and /config_schema
-        with_config_hash:  if True, add the /config_hash endpoint.
-        with_playground: if True, add the /playground endpoint.
     """
+    # Hard-coded flags to disable certain endpoints
+    # We'll expose them as flags in just a short while once we figure out
+    # which API to use.
+    with_invoke: bool = True
+    with_batch: bool = True
+    with_stream: bool = True
+    with_stream_log: bool = True
+    with_schemas: bool = True
+    with_config_hash: bool = True
+    with_playground: bool = True
+
     try:
         from sse_starlette import EventSourceResponse
     except ImportError:
