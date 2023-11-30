@@ -1645,9 +1645,7 @@ async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
 
 
 async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
-    """
-    Tests that the feedback endpoint returns 400s if the user turns it off.
-    """
+    """Tests that the feedback endpoint returns 404s if the user turns it off."""
     async with get_async_test_client(
         app,
         raise_app_exceptions=True,
@@ -1660,7 +1658,7 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
                 "score": 1000,
             },
         )
-        assert response.status_code == 400
+        assert response.status_code == 404
 
 
 async def test_per_request_config_modifier(
@@ -1748,3 +1746,109 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
                 "enum": MySpecialEnum.A,
             }
         )
+
+
+@pytest.mark.skip(reason="Configuration options not implemented yet")
+async def test_all_endpoints_off() -> None:
+    """Test toggling endpoints."""
+    app = FastAPI()
+
+    # All endpoints disabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        with_batch=False,
+        with_invoke=False,
+        with_stream=False,
+        with_stream_log=False,
+        with_config_hash=False,
+        with_schemas=False,
+        enable_feedback_endpoint=False,
+        with_playground=False,
+    )
+
+    # All endpoints disabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        with_batch=True,
+        with_invoke=True,
+        with_stream=True,
+        with_stream_log=True,
+        with_config_hash=True,
+        with_schemas=True,
+        enable_feedback_endpoint=True,
+        with_playground=True,
+        path="/all_on",
+    )
+
+    # Config disabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        with_batch=True,
+        with_invoke=True,
+        with_stream=True,
+        with_stream_log=True,
+        with_config_hash=False,
+        with_schemas=True,
+        enable_feedback_endpoint=True,
+        with_playground=True,
+        path="/config_off",
+    )
+
+    endpoints_with_payload = [
+        ("POST", "/invoke", {"input": 1}),
+        ("POST", "/batch", {"inputs": [1, 2]}),
+        ("POST", "/stream", {"input": 1}),
+        ("POST", "/stream_log", {"input": 1}),
+        ("GET", "/input_schema", {}),
+        ("GET", "/output_schema", {}),
+        ("GET", "/config_schema", {}),
+        ("GET", "/playground/index.html", {}),
+        ("HEAD", "/feedback", {}),
+        # Check config hashes
+        ("POST", "/c/1234/invoke", {"input": 1}),
+        ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
+        ("POST", "/c/1234/stream", {"input": 1}),
+        ("POST", "/c/1234/stream_log", {"input": 1}),
+        ("POST", "/c/1234/input_schema", {}),
+        ("POST", "/c/1234/output_schema", {}),
+        ("POST", "/c/1234/config_schema", {}),
+        ("POST", "/c/1234/playground/index.html", {}),
+        ("POST", "/c/1234/feedback", {}),
+    ]
+
+    # All endpoints disabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            response = await async_client.request(method, endpoint, json=payload)
+            assert response.status_code == 404, f"endpoint {endpoint} should be off"
+
+    # All endpoints enabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            response = await async_client.request(
+                method, "/all_on" + endpoint, json=payload
+            )
+            # We are only checking that the error code is not 404
+            # It may still be 4xx due to incorrect payload etc, but
+            # we don't care, we just want to make sure that the endpoint
+            # is enabled.
+            assert response.status_code != 404, f"endpoint {endpoint} should be on"
+
+    # Config disabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            if endpoint.startswith("/c/"):
+                # Check it's a 404
+                response = await async_client.request(
+                    method, "/config_off" + endpoint, json=payload
+                )
+                assert response.status_code == 404, f"endpoint {endpoint} should be off"
+            else:
+                # Check it's not a 404
+                response = await async_client.request(
+                    method, "/config_off" + endpoint, json=payload
+                )
+                assert response.status_code != 404, f"endpoint {endpoint} should be on"
