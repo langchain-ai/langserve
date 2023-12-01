@@ -27,8 +27,7 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
-import langserve.api_handler
-from langserve import server
+from langserve import api_handler
 from langserve.api_handler import (
     _rename_pydantic_model,
     _replace_non_alphanumeric_with_underscores,
@@ -1166,8 +1165,8 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     # TODO(Fix me): need to fix handling of global state -- we get problems
     # gives inconsistent results when running multiple tests / results
     # depending on ordering
-    langserve.api_handler._SEEN_NAMES = set()
-    langserve.api_handler._MODEL_REGISTRY = {}
+    api_handler._SEEN_NAMES = set()
+    api_handler._MODEL_REGISTRY = {}
 
     async def add_one(x: int) -> int:
         """Add one to simulate a valid function"""
