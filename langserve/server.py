@@ -18,7 +18,7 @@ from typing import (
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.api_handler import _APIHandler, PerRequestConfigModifier
+from langserve.api_handler import PerRequestConfigModifier, _APIHandler
 from langserve.pydantic_v1 import (
     _PYDANTIC_MAJOR_VERSION,
     PYDANTIC_VERSION,
@@ -102,7 +102,6 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
     else:
         _setup_global_app_handlers(app)
         _APP_TO_PATHS[app] = {path}
-
 
 
 # PUBLIC API

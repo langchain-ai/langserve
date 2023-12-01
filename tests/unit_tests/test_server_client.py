@@ -29,12 +29,14 @@ from typing_extensions import TypedDict
 
 import langserve.api_handler
 from langserve import server
+from langserve.api_handler import (
+    _rename_pydantic_model,
+    _replace_non_alphanumeric_with_underscores,
+)
 from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
-from langserve.api_handler import _rename_pydantic_model, \
-    _replace_non_alphanumeric_with_underscores
 
 try:
     from pydantic.v1 import BaseModel, Field

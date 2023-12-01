@@ -5,18 +5,18 @@ import os
 import re
 from inspect import isclass
 from typing import (
-    Dict,
     Any,
-    Union,
-    Mapping,
-    Sequence,
-    Type,
-    Optional,
-    Generator,
-    Literal,
-    Tuple,
     AsyncIterator,
     Callable,
+    Dict,
+    Generator,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
 )
 
 from fastapi import HTTPException
@@ -24,39 +24,39 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
-from langchain.schema.runnable import RunnableConfig, Runnable
-from langchain.schema.runnable.config import merge_configs, get_config_list
+from langchain.schema.runnable import Runnable, RunnableConfig
+from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
-from pydantic import BaseModel, create_model, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, create_model
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from langserve.schema import CustomUserType
-from langserve.version import __version__
-from langserve.callbacks import CallbackEventDict, AsyncEventAggregatorCallback
+
+from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
 from langserve.schema import (
-    SingletonResponseMetadata,
     BatchResponseMetadata,
-    FeedbackCreateRequest,
+    CustomUserType,
     Feedback,
+    FeedbackCreateRequest,
+    SingletonResponseMetadata,
 )
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
-    InvokeBaseResponse,
     BatchBaseResponse,
-    create_invoke_request_model,
-    create_batch_request_model,
-    create_stream_request_model,
-    create_stream_log_request_model,
-    create_invoke_response_model,
-    create_batch_response_model,
-    InvokeRequestShallowValidator,
     BatchRequestShallowValidator,
+    InvokeBaseResponse,
+    InvokeRequestShallowValidator,
     StreamLogParameters,
+    create_batch_request_model,
+    create_batch_response_model,
+    create_invoke_request_model,
+    create_invoke_response_model,
+    create_stream_log_request_model,
+    create_stream_request_model,
 )
-
+from langserve.version import __version__
 
 try:
     from sse_starlette import EventSourceResponse
