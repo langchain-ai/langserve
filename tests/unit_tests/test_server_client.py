@@ -5,7 +5,7 @@ import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union, Sequence
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Union
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -15,7 +15,7 @@ import pytest_asyncio
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLogPatch, RunLog
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
