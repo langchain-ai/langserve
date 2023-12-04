@@ -28,13 +28,13 @@ from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.schema.runnable.config import get_config_list, merge_configs
 from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
-from pydantic import BaseModel, Field, ValidationError, create_model
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
+from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
