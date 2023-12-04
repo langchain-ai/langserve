@@ -249,7 +249,7 @@ def test_server(app: FastAPI) -> None:
 
     output_schema = sync_client.get("/config_schema").json()
     assert isinstance(output_schema, dict)
-    assert output_schema["title"] == "RunnableLambdaConfig"
+    assert output_schema["title"] == "RunnableBindingConfig"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     # # Test stream
@@ -640,15 +640,17 @@ async def test_astream_log_diff_no_effect(
                 "op": "replace",
                 "path": "",
                 "value": {
-                    "final_output": {"output": 2},
+                    "final_output": 2,
                     "id": uuid,
                     "logs": {},
-                    "streamed_output": [],
+                    "streamed_output": [2],
                 },
             }
         ],
-        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+        [
+            {"op": "add", "path": "/streamed_output/-", "value": 2},
+            {"op": "replace", "path": "/final_output", "value": 2},
+        ],
     ]
 
 
@@ -700,15 +702,17 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
                     "op": "replace",
                     "path": "",
                     "value": {
-                        "final_output": {"output": 2},
+                        "final_output": 2,
                         "id": uuid,
                         "logs": {},
-                        "streamed_output": [],
+                        "streamed_output": [2],
                     },
                 }
             ],
-            [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-            [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+            [
+                {"op": "add", "path": "/streamed_output/-", "value": 2},
+                {"op": "replace", "path": "/final_output", "value": 2},
+            ],
         ]
 
 
@@ -1243,7 +1247,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_one/config_schema")
         assert response.json() == {
             "properties": {},
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1252,7 +1256,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
             },
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1276,7 +1280,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 "configurable": {"$ref": "#/definitions/Configurable"},
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
             },
-            "title": "RunnableConfigurableFieldsConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
