@@ -6,7 +6,7 @@ from fastapi import Request
 from langchain.prompts import PromptTemplate
 from langchain.schema.runnable.utils import ConfigurableField
 
-from langserve.server import _unpack_request_config
+from langserve.api_handler import _unpack_request_config
 
 try:
     from pydantic.v1 import BaseModel, ValidationError
