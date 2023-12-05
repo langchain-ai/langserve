@@ -1661,6 +1661,14 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
         assert response.status_code == 404
 
 
+async def test_enforce_trailing_slash_in_client() -> None:
+    """Ensure that the client enforces a trailing slash in the URL."""
+    r = RemoteRunnable(url="nosuchurl")
+    assert r.url == "nosuchurl/"
+    r = RemoteRunnable(url="nosuchurl/")
+    assert r.url == "nosuchurl/"
+
+
 async def test_per_request_config_modifier(
     event_loop: AbstractEventLoop, mocker: MockerFixture
 ) -> None:
