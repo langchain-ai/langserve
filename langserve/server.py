@@ -104,6 +104,106 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
         _APP_TO_PATHS[app] = {path}
 
 
+EndpointName = Literal[
+    "invoke",
+    "batch",
+    "stream",
+    "stream_log",
+    "playground",
+    "feedback",
+    "input_schema",
+    "config_schema",
+    "output_schema",
+    "config_hashes",
+]
+
+KNOWN_ENDPOINTS = {
+    "invoke",
+    "batch",
+    "stream",
+    "stream_log",
+    "playground",
+    "feedback",
+    "input_schema",
+    "config_schema",
+    "output_schema",
+    "config_hashes",
+}
+
+
+class _EndpointConfiguration:
+    """Logic for enabling/disabling endpoints."""
+
+    def __init__(
+        self,
+        *,
+        enabled_endpoints: Optional[Sequence[EndpointName]] = None,
+        disabled_endpoints: Optional[Sequence[EndpointName]] = None,
+        enable_feedback_endpoint: bool = False,
+    ) -> None:
+        """Initialize the endpoint configuration."""
+        if enabled_endpoints and disabled_endpoints:
+            raise ValueError(
+                f'Cannot specify both "enabled_endpoints" and "disabled_endpoints".'
+                f"Got enabled_endpoints={enabled_endpoints} and disabled_endpoints="
+                f"{disabled_endpoints}."
+            )
+
+        if enabled_endpoints is None:
+            if disabled_endpoints is None:
+                is_invoke_enabled = True
+                is_batch_enabled = True
+                is_stream_enabled = True
+                is_stream_log_enabled = True
+                is_playground_enabled = True
+                is_input_schema_enabled = True
+                is_output_schema_enabled = True
+                is_config_schema_enabled = True
+                is_config_hash_enabled = True
+            else:
+                disabled_endpoints_ = set(name.lower() for name in disabled_endpoints)
+                if disabled_endpoints_ - KNOWN_ENDPOINTS:
+                    raise ValueError(
+                        f"Got unknown endpoint "
+                        f"names: {disabled_endpoints_ - KNOWN_ENDPOINTS}"
+                    )
+                is_invoke_enabled = "invoke" not in disabled_endpoints_
+                is_batch_enabled = "batch" not in disabled_endpoints_
+                is_stream_enabled = "stream" not in disabled_endpoints_
+                is_stream_log_enabled = "stream_log" not in disabled_endpoints_
+                is_playground_enabled = "playground" not in disabled_endpoints_
+                is_input_schema_enabled = "input_schema" not in disabled_endpoints_
+                is_output_schema_enabled = "output_schema" not in disabled_endpoints_
+                is_config_schema_enabled = "config_schema" not in disabled_endpoints_
+                is_config_hash_enabled = "config_hashes" not in disabled_endpoints_
+        else:
+            enabled_endpoints_ = set(name.lower() for name in enabled_endpoints)
+            if enabled_endpoints_ - KNOWN_ENDPOINTS:
+                raise ValueError(
+                    f"Got unknown endpoint names: {enabled_endpoints_- KNOWN_ENDPOINTS}"
+                )
+            is_invoke_enabled = "invoke" in enabled_endpoints_
+            is_batch_enabled = "batch" in enabled_endpoints_
+            is_stream_enabled = "stream" in enabled_endpoints_
+            is_stream_log_enabled = "stream_log" in enabled_endpoints_
+            is_playground_enabled = "playground" in enabled_endpoints_
+            is_input_schema_enabled = "input_schema" in enabled_endpoints_
+            is_output_schema_enabled = "output_schema" in enabled_endpoints_
+            is_config_schema_enabled = "config_schema" in enabled_endpoints_
+            is_config_hash_enabled = "config_hashes" in enabled_endpoints_
+
+        self.is_invoke_enabled = is_invoke_enabled
+        self.is_batch_enabled = is_batch_enabled
+        self.is_stream_enabled = is_stream_enabled
+        self.is_stream_log_enabled = is_stream_log_enabled
+        self.is_playground_enabled = is_playground_enabled
+        self.is_input_schema_enabled = is_input_schema_enabled
+        self.is_output_schema_enabled = is_output_schema_enabled
+        self.is_config_type_enabled = is_config_schema_enabled
+        self.is_config_hash_enabled = is_config_hash_enabled
+        self.is_feedback_enabled = enable_feedback_endpoint
+
+
 # PUBLIC API
 
 
@@ -116,8 +216,10 @@ def add_routes(
     output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
     config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
-    enable_feedback_endpoint: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
+    enable_feedback_endpoint: bool = False,
+    enabled_endpoints: Optional[Sequence[EndpointName]] = None,
+    disabled_endpoints: Optional[Sequence[EndpointName]] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -163,17 +265,55 @@ def add_routes(
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
             when accessing the feedback endpoint
+        enabled_endpoints: A list of endpoints which should be enabled. If not
+            specified, all associated endpoints will be enabled. The list can contain
+            the following values: *invoke*, *batch*, *stream*, *stream_log*,
+            *playground*, *input_schema*, *output_schema*, *config_schema*,
+            *config_hashes*.
+
+            *config_hashes* represents the config hash variant (when it exists)
+            of each endpoint. Enabling this is useful when working with configurable
+            runnables and sharing playground configuration links to the runnables.
+
+            For example, if we want to enable regular invoke and batch endpoints
+            and their config hash variants, we can do:
+
+            ```python
+
+            add_routes(
+                ...,
+                enabled_endpoints=("invoke", "batch", "config_hashes"),
+            )
+            ```
+
+            Please note that the feedback endpoint is not included in this list
+            and is controlled by the `enable_feedback_endpoint` flag.
+        disabled_endpoints: A list of endpoints which should be disabled. If not
+            specified, all associated endpoints will be enabled. The list can contain
+            the following values: *invoke*, *batch*, *stream*, *stream_log*,
+            *playground*, *input_schema*, *output_schema*, *config_schema*,
+            *config_hashes*.
+
+            *config_hashes* represents the config hash variant (when it exists)
+            of each endpoint. Enabling this is useful when working with configurable
+            runnables and sharing playground configuration links to the runnables.
+
+            For example, if we want to enable regular invoke and batch endpoints
+            and their config hash variants, we can do:
+
+            ```python
+
+            add_routes(
+                ...,
+                disabled_endpoints=["playground"],
+            )
+            ```
     """
-    # Hard-coded flags to disable certain endpoints
-    # We'll expose them as flags in just a short while once we figure out
-    # which API to use.
-    with_invoke: bool = True
-    with_batch: bool = True
-    with_stream: bool = True
-    with_stream_log: bool = True
-    with_schemas: bool = True
-    with_config_hash: bool = True
-    with_playground: bool = True
+    endpoint_configuration = _EndpointConfiguration(
+        enabled_endpoints=enabled_endpoints,
+        disabled_endpoints=disabled_endpoints,
+        enable_feedback_endpoint=enable_feedback_endpoint,
+    )
 
     try:
         from sse_starlette import EventSourceResponse
@@ -257,7 +397,7 @@ def add_routes(
                 f"Expected pydantic major version 1 or 2, got {_PYDANTIC_MAJOR_VERSION}"
             )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.openapi_tags = [
                 *(getattr(app, "openapi_tags", []) or []),
                 default_endpoint_tags,
@@ -273,96 +413,98 @@ def add_routes(
                 },
             ]
 
-    if with_invoke:
+    if endpoint_configuration.is_invoke_enabled:
         invoke = app.post(f"{namespace}/invoke", include_in_schema=False)(
             api_handler.invoke
         )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
                 namespace + "/c/{config_hash}/invoke",
                 include_in_schema=False,
             )(invoke)
 
-    if with_batch:
+    if endpoint_configuration.is_batch_enabled:
         batch = app.post(f"{namespace}/batch", include_in_schema=False)(
             api_handler.batch
         )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
                 namespace + "/c/{config_hash}/batch",
                 include_in_schema=False,
             )(batch)
 
-    if with_stream:
+    if endpoint_configuration.is_stream_enabled:
         stream = app.post(f"{namespace}/stream", include_in_schema=False)(
             api_handler.stream
         )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
                 namespace + "/c/{config_hash}/stream",
                 include_in_schema=False,
             )(stream)
 
-    if with_stream_log:
+    if endpoint_configuration.is_stream_log_enabled:
         stream_log = app.post(f"{namespace}/stream_log", include_in_schema=False)(
             api_handler.stream_log
         )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
                 namespace + "/c/{config_hash}/stream_log",
                 include_in_schema=False,
             )(stream_log)
 
-    if with_schemas:
+    if endpoint_configuration.is_input_schema_enabled:
         input_schema = app.get(
             f"{namespace}/input_schema",
             tags=route_tags,
             name=_route_name("input_schema"),
         )(api_handler.input_schema)
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/input_schema",
                 tags=route_tags_with_config,
                 name=_route_name_with_config("input_schema"),
             )(input_schema)
 
+    if endpoint_configuration.is_output_schema_enabled:
         output_schema = app.get(
             f"{namespace}/output_schema",
             tags=route_tags,
             name=_route_name("output_schema"),
         )(api_handler.output_schema)
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/output_schema",
                 tags=route_tags_with_config,
                 name=_route_name_with_config("output_schema"),
             )(output_schema)
 
+    if endpoint_configuration.is_input_schema_enabled:
         config_schema = app.get(
             f"{namespace}/config_schema",
             tags=route_tags,
             name=_route_name("config_schema"),
         )(api_handler.config_schema)
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/config_schema",
                 tags=route_tags_with_config,
                 name=_route_name_with_config("config_schema"),
             )(config_schema)
 
-    if with_playground:
+    if endpoint_configuration.is_playground_enabled:
         playground = app.get(namespace + "/playground/{file_path:path}")(
             api_handler.playground
         )
 
-        if with_config_hash:
+        if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/playground/{file_path:path}",
             )(playground)
@@ -372,7 +514,7 @@ def add_routes(
             namespace + "/feedback",
         )(api_handler.create_feedback)
 
-        if with_config_hash:  # Is this needed? We only need run id presumably?
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
                 namespace + "/c/{config_hash}/feedback",
             )(create_feedback)
@@ -381,7 +523,7 @@ def add_routes(
             namespace + "/feedback",
         )(api_handler.check_feedback_enabled)
 
-        if with_config_hash:  # Is this needed?
+        if endpoint_configuration.is_config_hash_enabled:  # Is this needed?
             app.head(
                 namespace + "/c/{config_hash}/feedback",
             )(check_feedback_enabled)
@@ -398,7 +540,7 @@ def add_routes(
         StreamRequest = api_handler.StreamRequest
         StreamLogRequest = api_handler.StreamLogRequest
 
-        if with_invoke:
+        if endpoint_configuration.is_invoke_enabled:
 
             async def _invoke_docs(
                 invoke_request: Annotated[InvokeRequest, InvokeRequest],
@@ -414,7 +556,7 @@ def add_routes(
                 name=_route_name("invoke"),
             )(_invoke_docs)
 
-            if with_config_hash:
+            if endpoint_configuration.is_config_hash_enabled:
                 app.post(
                     namespace + "/c/{config_hash}/invoke",
                     response_model=api_handler.InvokeResponse,
@@ -429,7 +571,7 @@ def add_routes(
                     ),
                 )(invoke_docs)
 
-        if with_batch:
+        if endpoint_configuration.is_batch_enabled:
 
             async def _batch_docs(
                 batch_request: Annotated[BatchRequest, BatchRequest],
@@ -445,7 +587,7 @@ def add_routes(
                 name=_route_name("batch"),
             )(_batch_docs)
 
-            if with_config_hash:
+            if endpoint_configuration.is_config_hash_enabled:
                 app.post(
                     namespace + "/c/{config_hash}/batch",
                     response_model=BatchResponse,
@@ -460,7 +602,7 @@ def add_routes(
                     ),
                 )(batch_docs)
 
-        if with_stream:
+        if endpoint_configuration.is_stream_enabled:
 
             async def _stream_docs(
                 stream_request: Annotated[StreamRequest, StreamRequest],
@@ -516,7 +658,7 @@ def add_routes(
                 name=_route_name("stream"),
             )(_stream_docs)
 
-            if with_config_hash:
+            if endpoint_configuration.is_config_hash_enabled:
                 app.post(
                     namespace + "/c/{config_hash}/stream",
                     include_in_schema=True,
@@ -531,7 +673,7 @@ def add_routes(
                     ),
                 )(stream_docs)
 
-        if with_stream_log:
+        if endpoint_configuration.is_stream_log_enabled:
 
             async def _stream_log_docs(
                 stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
@@ -588,7 +730,7 @@ def add_routes(
                 name=_route_name("stream_log"),
             )(_stream_log_docs)
 
-            if with_config_hash:
+            if endpoint_configuration.is_config_hash_enabled:
                 app.post(
                     namespace + "/c/{config_hash}/stream_log",
                     include_in_schema=True,

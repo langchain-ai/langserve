@@ -1748,7 +1748,6 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
         )
 
 
-@pytest.mark.skip(reason="Configuration options not implemented yet")
 async def test_all_endpoints_off() -> None:
     """Test toggling endpoints."""
     app = FastAPI()
@@ -1757,28 +1756,16 @@ async def test_all_endpoints_off() -> None:
     add_routes(
         app,
         RunnableLambda(lambda foo: "hello"),
-        with_batch=False,
-        with_invoke=False,
-        with_stream=False,
-        with_stream_log=False,
-        with_config_hash=False,
-        with_schemas=False,
+        enabled_endpoints=[],
         enable_feedback_endpoint=False,
-        with_playground=False,
     )
 
-    # All endpoints disabled
+    # All endpoints enabled
     add_routes(
         app,
         RunnableLambda(lambda foo: "hello"),
-        with_batch=True,
-        with_invoke=True,
-        with_stream=True,
-        with_stream_log=True,
-        with_config_hash=True,
-        with_schemas=True,
+        enabled_endpoints=None,
         enable_feedback_endpoint=True,
-        with_playground=True,
         path="/all_on",
     )
 
@@ -1786,14 +1773,8 @@ async def test_all_endpoints_off() -> None:
     add_routes(
         app,
         RunnableLambda(lambda foo: "hello"),
-        with_batch=True,
-        with_invoke=True,
-        with_stream=True,
-        with_stream_log=True,
-        with_config_hash=False,
-        with_schemas=True,
+        disabled_endpoints=["config_hashes"],
         enable_feedback_endpoint=True,
-        with_playground=True,
         path="/config_off",
     )
 
