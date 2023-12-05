@@ -670,9 +670,13 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = self._lc_serializer.loads(sse.data)
+                        # Create a copy of the data to yield since underlying
+                        # code is using jsonpatch which does some stuff in-place
+                        # that can cause unexpected consequences.
+                        chunk_to_yield = RunLogPatch(*copy.deepcopy(data["ops"]))
                         chunk = RunLogPatch(*data["ops"])
 
-                        yield chunk
+                        yield chunk_to_yield
                         if final_output:
                             final_output += chunk
                         else:
