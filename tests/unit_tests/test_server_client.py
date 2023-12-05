@@ -648,10 +648,10 @@ async def test_astream_log_diff_no_effect(
                 "op": "replace",
                 "path": "",
                 "value": {
-                    "final_output": 2,
+                    "final_output": None,
                     "id": uuid,
                     "logs": {},
-                    "streamed_output": [2],
+                    "streamed_output": [],
                 },
             }
         ],
@@ -664,7 +664,7 @@ async def test_astream_log_diff_no_effect(
         "final_output": 2,
         "id": uuid,
         "logs": {},
-        "streamed_output": [2, 2],
+        "streamed_output": [2],
     }
 
 
@@ -716,10 +716,10 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
                     "op": "replace",
                     "path": "",
                     "value": {
-                        "final_output": 2,
+                        "final_output": None,
                         "id": uuid,
                         "logs": {},
-                        "streamed_output": [2],
+                        "streamed_output": [],
                     },
                 }
             ],
@@ -733,7 +733,7 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
             "final_output": 2,
             "id": uuid,
             "logs": {},
-            "streamed_output": [2, 2],
+            "streamed_output": [2],
         }
 
 
