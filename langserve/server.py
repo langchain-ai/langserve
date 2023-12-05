@@ -6,8 +6,6 @@ The main entry point is the `add_routes` function which adds the routes to an ex
 FastAPI app or APIRouter.
 """
 import weakref
-
-from typing import Literal
 from typing import (
     Any,
     Literal,
