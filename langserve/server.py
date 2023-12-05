@@ -117,6 +117,19 @@ EndpointName = Literal[
     "config_hashes",
 ]
 
+KNOWN_ENDPOINTS = {
+    "invoke",
+    "batch",
+    "stream",
+    "stream_log",
+    "playground",
+    "feedback",
+    "input_schema",
+    "config_schema",
+    "output_schema",
+    "config_hashes",
+}
+
 
 class _EndpointConfiguration:
     """Logic for enabling/disabling endpoints."""
@@ -148,7 +161,12 @@ class _EndpointConfiguration:
                 is_config_schema_enabled = True
                 is_config_hash_enabled = True
             else:
-                disabled_endpoints_ = set(disabled_endpoints)
+                disabled_endpoints_ = set(name.lower() for name in disabled_endpoints)
+                if disabled_endpoints_ - KNOWN_ENDPOINTS:
+                    raise ValueError(
+                        f"Got unknown endpoint "
+                        f"names: {disabled_endpoints_ - KNOWN_ENDPOINTS}"
+                    )
                 is_invoke_enabled = "invoke" not in disabled_endpoints_
                 is_batch_enabled = "batch" not in disabled_endpoints_
                 is_stream_enabled = "stream" not in disabled_endpoints_
@@ -159,7 +177,11 @@ class _EndpointConfiguration:
                 is_config_schema_enabled = "config_schema" not in disabled_endpoints_
                 is_config_hash_enabled = "config_hashes" not in disabled_endpoints_
         else:
-            enabled_endpoints_ = set(enabled_endpoints)
+            enabled_endpoints_ = set(name.lower() for name in enabled_endpoints)
+            if enabled_endpoints_ - KNOWN_ENDPOINTS:
+                raise ValueError(
+                    f"Got unknown endpoint names: {enabled_endpoints_- KNOWN_ENDPOINTS}"
+                )
             is_invoke_enabled = "invoke" in enabled_endpoints_
             is_batch_enabled = "batch" in enabled_endpoints_
             is_stream_enabled = "stream" in enabled_endpoints_
