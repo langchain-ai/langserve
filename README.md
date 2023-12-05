@@ -22,7 +22,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - API docs page with JSONSchema and Swagger (insert example link)
 - Efficient `/invoke`, `/batch` and `/stream` endpoints with support for many concurrent requests on a single server
 - `/stream_log` endpoint for streaming all (or some) intermediate steps from your chain/agent
-- Playground page at `/playground` with streaming output and intermediate steps
+- Playground page at `/playground/` with streaming output and intermediate steps
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
@@ -237,7 +237,7 @@ These endpoints match the [LangChain Expression Language interface](https://pyth
 
 ## Playground
 
-You can find a playground page for your runnable at `/my_runnable/playground`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
+You can find a playground page for your runnable at `/my_runnable/playground/`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
 
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/5ca56e29-f1bb-40f4-84b5-15916384a276" width="50%"/>
