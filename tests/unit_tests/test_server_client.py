@@ -5,7 +5,7 @@ import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Union
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -15,7 +15,7 @@ import pytest_asyncio
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -249,7 +249,7 @@ def test_server(app: FastAPI) -> None:
 
     output_schema = sync_client.get("/config_schema").json()
     assert isinstance(output_schema, dict)
-    assert output_schema["title"] == "RunnableLambdaConfig"
+    assert output_schema["title"] == "RunnableBindingConfig"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     # # Test stream
@@ -622,6 +622,14 @@ async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
         assert outputs == [data]
 
 
+def _get_run_log(run_log_patches: Sequence[RunLogPatch]) -> RunLog:
+    """Get run log"""
+    run_log = RunLog(state=None)  # type: ignore
+    for log_patch in run_log_patches:
+        run_log = run_log + log_patch
+    return run_log
+
+
 async def test_astream_log_diff_no_effect(
     async_remote_runnable: RemoteRunnable,
 ) -> None:
@@ -640,16 +648,24 @@ async def test_astream_log_diff_no_effect(
                 "op": "replace",
                 "path": "",
                 "value": {
-                    "final_output": {"output": 2},
+                    "final_output": None,
                     "id": uuid,
                     "logs": {},
                     "streamed_output": [],
                 },
             }
         ],
-        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+        [
+            {"op": "add", "path": "/streamed_output/-", "value": 2},
+            {"op": "replace", "path": "/final_output", "value": 2},
+        ],
     ]
+    assert _get_run_log(run_logs).state == {
+        "final_output": 2,
+        "id": uuid,
+        "logs": {},
+        "streamed_output": [2],
+    }
 
 
 async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
@@ -700,16 +716,25 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
                     "op": "replace",
                     "path": "",
                     "value": {
-                        "final_output": {"output": 2},
+                        "final_output": None,
                         "id": uuid,
                         "logs": {},
                         "streamed_output": [],
                     },
                 }
             ],
-            [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-            [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+            [
+                {"op": "add", "path": "/streamed_output/-", "value": 2},
+                {"op": "replace", "path": "/final_output", "value": 2},
+            ],
         ]
+
+        assert _get_run_log(run_log_patches).state == {
+            "final_output": 2,
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [2],
+        }
 
 
 @pytest.mark.asyncio
@@ -1327,7 +1352,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_one/config_schema")
         assert response.json() == {
             "properties": {},
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1336,7 +1361,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
             },
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1360,7 +1385,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 "configurable": {"$ref": "#/definitions/Configurable"},
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
             },
-            "title": "RunnableConfigurableFieldsConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1743,6 +1768,14 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
             },
         )
         assert response.status_code == 404
+
+
+async def test_enforce_trailing_slash_in_client() -> None:
+    """Ensure that the client enforces a trailing slash in the URL."""
+    r = RemoteRunnable(url="nosuchurl")
+    assert r.url == "nosuchurl/"
+    r = RemoteRunnable(url="nosuchurl/")
+    assert r.url == "nosuchurl/"
 
 
 async def test_per_request_config_modifier(

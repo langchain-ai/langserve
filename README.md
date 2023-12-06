@@ -449,3 +449,22 @@ Example widget:
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f" width="50%"/>
 </p>
+
+
+
+### Enabling / Disabling Endpoints (LangServe >=0.0.33)
+
+You can enable / disable which endpoints are exposed. Use `enabled_endpoints` if you want to make sure to never get a new endpoint when upgrading langserve to a newer verison.
+
+Enable: The code below will only enable `invoke`, `batch` and the corresponding `config_hash` endpoint variants.
+
+
+```python
+add_routes(app, chain, enabled_endpoints=("invoke", "batch", "config_hashes"))
+```
+
+Disable: The code below will disable the playground for the chain
+
+```python
+add_routes(app, chain, disabled_endpoints=["playground"]) 
+```
