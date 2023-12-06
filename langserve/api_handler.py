@@ -389,7 +389,7 @@ class _APIHandler:
         include_callback_events: bool = False,
         enable_feedback_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
-        stream_log_name_allowlist: Optional[Sequence[str]] = None,
+        stream_log_name_allow_list: Optional[Sequence[str]] = None,
     ) -> None:
         """Create a new RunnableServer.
 
@@ -445,7 +445,7 @@ class _APIHandler:
         self.base_url = base_url
         self.well_known_lc_serializer = WellKnownLCSerializer()
         self.enable_feedback_endpoint = enable_feedback_endpoint
-        self.stream_log_name_allowlist = stream_log_name_allowlist
+        self.stream_log_name_allow_list = stream_log_name_allow_list
 
         # Please do not change the naming on ls_client. It is used with mocking
         # in our unit tests for langsmith integrations.
@@ -861,9 +861,9 @@ class _APIHandler:
                             f"Expected a RunLog instance got {type(chunk)}"
                         )
                     if (
-                        self.stream_log_name_allowlist is None
+                        self.stream_log_name_allow_list is None
                         or self.runnable.config.get("run_name")
-                        in self.stream_log_name_allowlist
+                        in self.stream_log_name_allow_list
                     ):
                         data = {
                             "ops": chunk.ops,

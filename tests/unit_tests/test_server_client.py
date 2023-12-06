@@ -751,14 +751,14 @@ async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
         RunnableLambda(add_one).with_config({"run_name": "allowed"}),
         path="/empty_allowlist",
         input_type=int,
-        stream_log_name_allowlist=[],
+        stream_log_name_allow_list=[],
     )
     add_routes(
         app,
         RunnableLambda(add_one).with_config({"run_name": "allowed"}),
         input_type=int,
         path="/allowlist",
-        stream_log_name_allowlist=["allowed"],
+        stream_log_name_allow_list=["allowed"],
     )
 
     # Invoke request

@@ -218,9 +218,9 @@ def add_routes(
     include_callback_events: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
     enable_feedback_endpoint: bool = False,
-    stream_log_name_allowlist: Optional[Sequence[str]] = None,
-    enabled_endpoints: Optional[Sequence[EndpointName]] = None,
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
+    stream_log_name_allow_list: Optional[Sequence[str]] = None,
+    enabled_endpoints: Optional[Sequence[EndpointName]] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -308,9 +308,10 @@ def add_routes(
                 ...,
                 disabled_endpoints=["playground"],
             )
-        stream_log_name_allowlist: list of run names that the client can
-            stream as intermediate steps
             ```
+        stream_log_name_allow_list: list of run names that the client can
+            stream as intermediate steps
+
     """
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
@@ -351,9 +352,8 @@ def add_routes(
         include_callback_events=include_callback_events,
         enable_feedback_endpoint=enable_feedback_endpoint,
         per_req_config_modifier=per_req_config_modifier,
-        stream_log_name_allowlist=stream_log_name_allowlist,
+        stream_log_name_allow_list=stream_log_name_allow_list,
     )
-
     namespace = path or ""
 
     route_tags = [path.strip("/")] if path else None
