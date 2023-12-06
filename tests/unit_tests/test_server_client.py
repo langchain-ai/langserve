@@ -712,6 +712,90 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
         ]
 
 
+@pytest.mark.asyncio
+async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
+    """Test async stream with an allowlist."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+    add_routes(
+        app,
+        RunnableLambda(add_one).with_config({"run_name": "allowed"}),
+        path="/empty_allowlist",
+        input_type=int,
+        stream_log_name_allowlist=[],
+    )
+    add_routes(
+        app,
+        RunnableLambda(add_one).with_config({"run_name": "allowed"}),
+        input_type=int,
+        path="/allowlist",
+        stream_log_name_allowlist=["allowed"],
+    )
+
+    # Invoke request
+    async with get_async_remote_runnable(app, path="/empty_allowlist/") as runnable:
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+    async with get_async_remote_runnable(app, path="/allowlist/") as runnable:
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=["allowed"]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+
 def test_invoke_as_part_of_sequence(sync_remote_runnable: RemoteRunnable) -> None:
     """Test as part of sequence."""
     runnable = sync_remote_runnable | RunnableLambda(func=lambda x: x + 1)

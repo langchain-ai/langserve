@@ -389,6 +389,7 @@ class _APIHandler:
         include_callback_events: bool = False,
         enable_feedback_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
+        stream_log_name_allowlist: Optional[Sequence[str]] = None,
     ) -> None:
         """Create a new RunnableServer.
 
@@ -444,6 +445,7 @@ class _APIHandler:
         self.base_url = base_url
         self.well_known_lc_serializer = WellKnownLCSerializer()
         self.enable_feedback_endpoint = enable_feedback_endpoint
+        self.stream_log_name_allowlist = stream_log_name_allowlist
 
         # Please do not change the naming on ls_client. It is used with mocking
         # in our unit tests for langsmith integrations.
@@ -858,20 +860,25 @@ class _APIHandler:
                         raise AssertionError(
                             f"Expected a RunLog instance got {type(chunk)}"
                         )
-                    data = {
-                        "ops": chunk.ops,
-                    }
+                    if (
+                        self.stream_log_name_allowlist is None
+                        or self.runnable.config.get("run_name")
+                        in self.stream_log_name_allowlist
+                    ):
+                        data = {
+                            "ops": chunk.ops,
+                        }
 
-                    # Temporary adapter
-                    yield {
-                        # EventSourceResponse expects a string for data
-                        # so after serializing into bytes, we decode into utf-8
-                        # to get a string.
-                        "data": self.well_known_lc_serializer.dumps(data).decode(
-                            "utf-8"
-                        ),
-                        "event": "data",
-                    }
+                        # Temporary adapter
+                        yield {
+                            # EventSourceResponse expects a string for data
+                            # so after serializing into bytes, we decode into utf-8
+                            # to get a string.
+                            "data": self.well_known_lc_serializer.dumps(data).decode(
+                                "utf-8"
+                            ),
+                            "event": "data",
+                        }
                 yield {"event": "end"}
             except BaseException:
                 yield {
