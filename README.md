@@ -460,7 +460,7 @@ Enable: The code below will only enable `invoke`, `batch` and the corresponding 
 
 
 ```python
-add_routes(app, chain, enabled_endpoints=("invoke", "batch", "config_hashes"))
+add_routes(app, chain, enabled_endpoints=["invoke", "batch", "config_hashes"])
 ```
 
 Disable: The code below will disable the playground for the chain

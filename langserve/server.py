@@ -149,6 +149,18 @@ class _EndpointConfiguration:
                 f"{disabled_endpoints}."
             )
 
+        if enabled_endpoints and not isinstance(enabled_endpoints, Sequence):
+            raise ValueError(
+                f"Expected enabled_endpoints to be a sequence (e.g., list or tuple), "
+                f"got {type(enabled_endpoints)}"
+            )
+
+        if disabled_endpoints and not isinstance(disabled_endpoints, Sequence):
+            raise ValueError(
+                f"Expected disabled_endpoints to be a sequence (e.g., list or tuple), "
+                f"got {type(disabled_endpoints)}"
+            )
+
         if enabled_endpoints is None:
             if disabled_endpoints is None:
                 is_invoke_enabled = True
