@@ -1781,8 +1781,8 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
         )
 
 
-async def test_all_endpoints_off() -> None:
-    """Test toggling endpoints."""
+async def test_endpoint_configurations() -> None:
+    """Test enabling/disabling endpoints."""
     app = FastAPI()
 
     # All endpoints disabled
@@ -1866,3 +1866,32 @@ async def test_all_endpoints_off() -> None:
                     method, "/config_off" + endpoint, json=payload
                 )
                 assert response.status_code != 404, f"endpoint {endpoint} should be on"
+
+    with pytest.raises(ValueError):
+        # Passing "invoke" instead of ["invoke"]
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            disabled_endpoints="invoke",  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
+        )
+    with pytest.raises(ValueError):
+        # meow is not an endpoint.
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            disabled_endpoints=["meow"],  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
+        )
+
+    with pytest.raises(ValueError):
+        # meow is not an endpoint.
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            enabled_endpoints=["meow"],  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
+        )
