@@ -667,7 +667,6 @@ async def test_astream_log_diff_no_effect(
         "streamed_output": [2],
     }
 
-from langchain_core.vectorstores import VectorStore
 
 async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
     """Test astream log."""
