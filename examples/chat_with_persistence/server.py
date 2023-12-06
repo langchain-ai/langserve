@@ -24,11 +24,11 @@ from typing_extensions import TypedDict
 from langserve import add_routes
 
 
-def _is_valid_identifier(session_id: str) -> bool:
+def _is_valid_identifier(value: str) -> bool:
     """Check if the session ID is in a valid format."""
     # Use a regular expression to match the allowed characters
     valid_characters = re.compile(r"^[a-zA-Z0-9-_]+$")
-    return bool(valid_characters.match(session_id))
+    return bool(valid_characters.match(value))
 
 
 def create_session_factory(
@@ -92,17 +92,7 @@ def _per_request_config_modifier(
             detail="No session ID found. Please set a cookie named 'session_id'.",
         )
 
-    # Look for a cookie named "conversation_id"
-    conversation_id = request.cookies.get("conversation_id", None)
-
-    if conversation_id is not None and not isinstance(conversation_id, str):
-        raise HTTPException(
-            status_code=400,
-            detail="Conversation ID must be a string r",
-        )
-
     configurable["user_id"] = user_id
-    configurable["conversation_id"] = conversation_id
     config["configurable"] = configurable
     return config
 
