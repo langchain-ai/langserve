@@ -10,12 +10,12 @@ fetch configuration from the request.
 """
 import re
 from pathlib import Path
-from typing import Dict, Any
-from typing import Union, Callable
+from typing import Any, Callable, Dict, Union
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from langchain.chat_models import ChatAnthropic
 from langchain.memory import FileChatMessageHistory
+from langchain.schema.runnable.utils import ConfigurableFieldSpec
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -24,7 +24,7 @@ from typing_extensions import TypedDict
 from langserve import add_routes
 
 
-def _is_valid_session_id(session_id: str) -> bool:
+def _is_valid_identifier(session_id: str) -> bool:
     """Check if the session ID is in a valid format."""
     # Use a regular expression to match the allowed characters
     valid_characters = re.compile(r"^[a-zA-Z0-9-_]+$")
@@ -46,16 +46,25 @@ def create_session_factory(
     if not base_dir_.exists():
         base_dir_.mkdir(parents=True)
 
-    def get_chat_history(session_id: str) -> FileChatMessageHistory:
+    def get_chat_history(user_id: str, conversation_id: str) -> FileChatMessageHistory:
         """Get a chat history from a session ID."""
-        if not _is_valid_session_id(session_id):
+        if not _is_valid_identifier(user_id):
             raise ValueError(
-                f"Session ID {session_id} is not in a valid format. "
+                f"User ID {user_id} is not in a valid format. "
+                "User ID must only contain alphanumeric characters, "
+                "hyphens, and underscores."
+            )
+        if not _is_valid_identifier(conversation_id):
+            raise ValueError(
+                f"Session ID {conversation_id} is not in a valid format. "
                 "Session ID must only contain alphanumeric characters, "
                 "hyphens, and underscores."
             )
 
-        file_path = base_dir_ / f"{session_id}.json"
+        user_dir = base_dir_ / user_id
+        if not user_dir.exists():
+            user_dir.mkdir(parents=True)
+        file_path = user_dir / f"{conversation_id}.json"
         return FileChatMessageHistory(file_path)
 
     return get_chat_history
@@ -76,12 +85,24 @@ def _per_request_config_modifier(
     configurable = config.get("configurable", {})
     # Look for a cookie named "user_id"
     user_id = request.cookies.get("user_id", None)
+
     if user_id is None:
         raise HTTPException(
             status_code=400,
             detail="No session ID found. Please set a cookie named 'session_id'.",
         )
+
+    # Look for a cookie named "conversation_id"
+    conversation_id = request.cookies.get("conversation_id", None)
+
+    if conversation_id is not None and not isinstance(conversation_id, str):
+        raise HTTPException(
+            status_code=400,
+            detail="Conversation ID must be a string r",
+        )
+
     configurable["user_id"] = user_id
+    configurable["conversation_id"] = conversation_id
     config["configurable"] = configurable
     return config
 
@@ -110,6 +131,25 @@ chain_with_history = RunnableWithMessageHistory(
     create_session_factory("chat_histories"),
     input_messages_key="human_input",
     history_messages_key="history",
+    session_history_config_specs=[
+        ConfigurableFieldSpec(
+            id="user_id",
+            annotation=str,
+            name="User ID",
+            description="Unique identifier for the user.",
+            default="",
+            is_shared=True,
+        ),
+        ConfigurableFieldSpec(
+            id="conversation_id",
+            annotation=str,
+            name="Conversation ID",
+            description="Unique identifier for the conversation.",
+            # None means that the conversation ID will be generated automatically
+            default=None,
+            is_shared=True,
+        ),
+    ],
 ).with_types(input_type=InputChat)
 
 
@@ -117,9 +157,14 @@ add_routes(
     app,
     chain_with_history,
     per_req_config_modifier=_per_request_config_modifier,
-    # Disable the playground for this example since there's no mechanism
-    # to set the cookie right now through the playground.
-    disabled_endpoints=["playground"],
+    # Disable playground and batch
+    # 1) Playground we're passing information via headers, which is not supported via
+    #    the playground right now.
+    # 2) Disable batch to avoid users being confused. Batch will work fine
+    #    as long as users invoke it with multiple configs appropriately, but
+    #    without validation users are likely going to forget to do that.
+    #    In addition, there's likely little sense in support batch for a chatbot.
+    disabled_endpoints=["playground", "batch"],
 )
 
 if __name__ == "__main__":
