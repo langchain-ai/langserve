@@ -59,7 +59,7 @@ class Input(TypedDict):
 
 class Output(TypedDict):
     output: chain.output_schema
-    info: Any
+    info: Dict[str, Any]
 
 
 add_routes(
