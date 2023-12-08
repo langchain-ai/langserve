@@ -64,6 +64,10 @@ except ImportError:
     EventSourceResponse = Any
 
 
+def _is_hosted() -> bool:
+    return os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
+
+
 def _config_from_hash(config_hash: str) -> Dict[str, Any]:
     try:
         if not config_hash:
@@ -137,8 +141,7 @@ def _update_config_with_defaults(
     if endpoint:
         metadata["__langserve_endpoint"] = endpoint
 
-    is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
-    if is_hosted:
+    if _is_hosted():
         hosted_metadata = {
             "__langserve_hosted_git_commit_sha": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_COMMIT", ""
@@ -149,6 +152,7 @@ def _update_config_with_defaults(
             "__langserve_hosted_repo_url": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO", ""
             ),
+            "__langserve_hosted_is_hosted": "true",
         }
         metadata.update(hosted_metadata)
 
