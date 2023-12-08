@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 from fastapi import FastAPI
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnableMap
+from langchain.schema.runnable import RunnableMap, RunnablePassthrough
 
 from langserve import add_routes
 
@@ -41,11 +41,11 @@ prompt = ChatPromptTemplate.from_messages(
 )
 model = ChatOpenAI()
 
-chain = prompt | model
+underlying_chain = prompt | model
 
 wrapped_chain = RunnableMap(
     {
-        "output": _create_projection(exclude_keys=["info"]) | chain,
+        "output": _create_projection(exclude_keys=["info"]) | underlying_chain,
         "info": _create_projection(include_keys=["info"]),
     }
 )
@@ -58,13 +58,26 @@ class Input(TypedDict):
 
 
 class Output(TypedDict):
-    output: chain.output_schema
+    output: underlying_chain.output_schema
     info: Dict[str, Any]
 
 
 add_routes(
+    app, wrapped_chain.with_types(input_type=Input, output_type=Output), path="/v1"
+)
+
+
+# Version 2
+# Uses RunnablePassthrough.assign
+wrapped_chain_2 = RunnablePassthrough.assign(output=underlying_chain) | {
+    "output": lambda x: x["output"],
+    "info": lambda x: x["info"],
+}
+
+add_routes(
     app,
-    wrapped_chain.with_types(input_type=Input, output_type=Output),
+    wrapped_chain_2.with_types(input_type=Input, output_type=Output),
+    path="/v2",
 )
 
 if __name__ == "__main__":
