@@ -18,7 +18,7 @@ from typing import (
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.api_handler import PerRequestConfigModifier, _APIHandler
+from langserve.api_handler import PerRequestConfigModifier, _APIHandler, _is_hosted
 from langserve.pydantic_v1 import (
     _PYDANTIC_MAJOR_VERSION,
     PYDANTIC_VERSION,
@@ -229,7 +229,7 @@ def add_routes(
     config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
-    enable_feedback_endpoint: bool = False,
+    enable_feedback_endpoint: bool = _is_hosted(),
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
@@ -330,6 +330,10 @@ def add_routes(
         disabled_endpoints=disabled_endpoints,
         enable_feedback_endpoint=enable_feedback_endpoint,
     )
+
+    print("WHAAT")
+    print("feedback is: ", enable_feedback_endpoint)
+    print("hosted is: ", _is_hosted())
 
     try:
         from sse_starlette import EventSourceResponse
