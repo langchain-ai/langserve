@@ -331,10 +331,6 @@ def add_routes(
         enable_feedback_endpoint=enable_feedback_endpoint,
     )
 
-    print("WHAAT")
-    print("feedback is: ", enable_feedback_endpoint)
-    print("hosted is: ", _is_hosted())
-
     try:
         from sse_starlette import EventSourceResponse
     except ImportError:

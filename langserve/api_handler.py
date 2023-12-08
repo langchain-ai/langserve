@@ -65,8 +65,6 @@ except ImportError:
 
 
 def _is_hosted() -> bool:
-    print("HELLOOOOO")
-    print("CAN U HEAR ME")
     return os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
 
 
