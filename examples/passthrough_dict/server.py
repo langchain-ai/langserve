@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Example LangChain server exposes multiple runnables (LLMs in this case)."""
+"""Example LangChain server passes through some of the inputs in the response."""
 
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
