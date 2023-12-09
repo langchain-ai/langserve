@@ -20,9 +20,9 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 
 - Input and Output schemas automatically inferred from your LangChain object, and enforced on every API call, with rich error messages
 - API docs page with JSONSchema and Swagger (insert example link)
-- Efficient `/invoke`, `/batch` and `/stream` endpoints with support for many concurrent requests on a single server
-- `/stream_log` endpoint for streaming all (or some) intermediate steps from your chain/agent
-- Playground page at `/playground` with streaming output and intermediate steps
+- Efficient `/invoke/`, `/batch/` and `/stream/` endpoints with support for many concurrent requests on a single server
+- `/stream_log/` endpoint for streaming all (or some) intermediate steps from your chain/agent
+- Playground page at `/playground/` with streaming output and intermediate steps
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
 
-> ⚠️ If using pydantic v2, docs will not be generated for invoke/batch/stream/stream_log. See [Pydantic](#pydantic) section below for more details.
+> ⚠️ If using pydantic v2, docs will not be generated for *invoke*, *batch*, *stream*, *stream_log*. See [Pydantic](#pydantic) section below for more details.
 
 ```sh
 curl localhost:8000/docs
@@ -237,7 +237,7 @@ These endpoints match the [LangChain Expression Language interface](https://pyth
 
 ## Playground
 
-You can find a playground page for your runnable at `/my_runnable/playground`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
+You can find a playground page for your runnable at `/my_runnable/playground/`. This exposes a simple UI to [configure](https://python.langchain.com/docs/expression_language/how_to/configure) and invoke your runnable with streaming output and intermediate steps.
 
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/5ca56e29-f1bb-40f4-84b5-15916384a276" width="50%"/>
@@ -264,6 +264,16 @@ If you encounter any errors, please open an issue on THIS repo, and we will work
 
 ## Deployment
 
+### Deploy to Azure 
+
+You can deploy to Azure using Azure Container Apps (Serverless):
+
+```
+az containerapp up --name [container-app-name] --source . --resource-group [resource-group-name] --environment  [environment-name] --ingress external --target-port 8001 --env-vars=OPENAI_API_KEY=your_key  
+```
+
+You can find more info [here](https://learn.microsoft.com/en-us/azure/container-apps/containerapp-up)
+
 ### Deploy to GCP
 
 You can deploy to GCP Cloud Run using the following command:
@@ -272,7 +282,11 @@ You can deploy to GCP Cloud Run using the following command:
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
 
-### Deploy to Railway
+### Community Contributed
+
+#### Deploy to Railway
+
+[Example Repo](https://github.com/PaulLockett/LangServe-Railway/tree/main)
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/pW9tXP?referralCode=c-aq4K)
 
 ## Pydantic
@@ -439,3 +453,22 @@ Example widget:
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f" width="50%"/>
 </p>
+
+
+
+### Enabling / Disabling Endpoints (LangServe >=0.0.33)
+
+You can enable / disable which endpoints are exposed. Use `enabled_endpoints` if you want to make sure to never get a new endpoint when upgrading langserve to a newer verison.
+
+Enable: The code below will only enable `invoke`, `batch` and the corresponding `config_hash` endpoint variants.
+
+
+```python
+add_routes(app, chain, enabled_endpoints=["invoke", "batch", "config_hashes"])
+```
+
+Disable: The code below will disable the playground for the chain
+
+```python
+add_routes(app, chain, disabled_endpoints=["playground"]) 
+```

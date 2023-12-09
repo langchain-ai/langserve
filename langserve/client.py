@@ -235,7 +235,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 callback events returned by the server.
         """
         _client_kwargs = client_kwargs or {}
-        self.url = url
+        # Enforce trailing slash
+        self.url = url if url.endswith("/") else url + "/"
         self.sync_client = httpx.Client(
             base_url=url,
             timeout=timeout,
@@ -365,11 +366,6 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         return outputs
 
-    def _enforce_trailing_slash(self, url: str) -> str:
-        if url.endswith("/"):
-            return url
-        return url + "/"
-
     def batch(
         self,
         inputs: List[Input],
@@ -465,7 +461,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
-        endpoint = urljoin(self._enforce_trailing_slash(self.url), "stream")
+        endpoint = urljoin(self.url, "stream")
 
         try:
             from httpx_sse import connect_sse
@@ -551,7 +547,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "config": _without_callbacks(config),
             "kwargs": kwargs,
         }
-        endpoint = urljoin(self._enforce_trailing_slash(self.url), "stream")
+        endpoint = urljoin(self.url, "stream")
 
         try:
             from httpx_sse import aconnect_sse
@@ -674,9 +670,13 @@ class RemoteRunnable(Runnable[Input, Output]):
                 async for sse in event_source.aiter_sse():
                     if sse.event == "data":
                         data = self._lc_serializer.loads(sse.data)
+                        # Create a copy of the data to yield since underlying
+                        # code is using jsonpatch which does some stuff in-place
+                        # that can cause unexpected consequences.
+                        chunk_to_yield = RunLogPatch(*copy.deepcopy(data["ops"]))
                         chunk = RunLogPatch(*data["ops"])
 
-                        yield chunk
+                        yield chunk_to_yield
                         if final_output:
                             final_output += chunk
                         else:

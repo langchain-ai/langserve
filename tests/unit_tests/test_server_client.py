@@ -5,7 +5,7 @@ import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Union
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
@@ -15,7 +15,7 @@ import pytest_asyncio
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain.prompts import PromptTemplate
 from langchain.prompts.base import StringPromptValue
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -27,15 +27,15 @@ from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
 
-from langserve import server
+from langserve import api_handler
+from langserve.api_handler import (
+    _rename_pydantic_model,
+    _replace_non_alphanumeric_with_underscores,
+)
 from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
-from langserve.server import (
-    _rename_pydantic_model,
-    _replace_non_alphanumeric_with_underscores,
-)
 
 try:
     from pydantic.v1 import BaseModel, Field
@@ -103,7 +103,7 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
     """A simple server that wraps a Runnable and exposes it as an API."""
 
     async def add_one_or_passthrough(
-        x: Union[int, HumanMessage]
+        x: Union[int, HumanMessage],
     ) -> Union[int, HumanMessage]:
         """Add one to int or passthrough."""
         if isinstance(x, int):
@@ -249,7 +249,7 @@ def test_server(app: FastAPI) -> None:
 
     output_schema = sync_client.get("/config_schema").json()
     assert isinstance(output_schema, dict)
-    assert output_schema["title"] == "RunnableLambdaConfig"
+    assert output_schema["title"] == "RunnableBindingConfig"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     # # Test stream
@@ -582,7 +582,7 @@ async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
     app = FastAPI()
 
     async def add_one_or_passthrough(
-        x: Union[int, HumanMessage]
+        x: Union[int, HumanMessage],
     ) -> Union[int, HumanMessage]:
         """Add one to int or passthrough."""
         if isinstance(x, int):
@@ -622,6 +622,14 @@ async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
         assert outputs == [data]
 
 
+def _get_run_log(run_log_patches: Sequence[RunLogPatch]) -> RunLog:
+    """Get run log"""
+    run_log = RunLog(state=None)  # type: ignore
+    for log_patch in run_log_patches:
+        run_log = run_log + log_patch
+    return run_log
+
+
 async def test_astream_log_diff_no_effect(
     async_remote_runnable: RemoteRunnable,
 ) -> None:
@@ -640,16 +648,24 @@ async def test_astream_log_diff_no_effect(
                 "op": "replace",
                 "path": "",
                 "value": {
-                    "final_output": {"output": 2},
+                    "final_output": None,
                     "id": uuid,
                     "logs": {},
                     "streamed_output": [],
                 },
             }
         ],
-        [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-        [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+        [
+            {"op": "add", "path": "/streamed_output/-", "value": 2},
+            {"op": "replace", "path": "/final_output", "value": 2},
+        ],
     ]
+    assert _get_run_log(run_logs).state == {
+        "final_output": 2,
+        "id": uuid,
+        "logs": {},
+        "streamed_output": [2],
+    }
 
 
 async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
@@ -700,16 +716,109 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
                     "op": "replace",
                     "path": "",
                     "value": {
-                        "final_output": {"output": 2},
+                        "final_output": None,
                         "id": uuid,
                         "logs": {},
                         "streamed_output": [],
                     },
                 }
             ],
-            [{"op": "replace", "path": "/final_output", "value": {"output": 2}}],
-            [{"op": "add", "path": "/streamed_output/-", "value": 2}],
+            [
+                {"op": "add", "path": "/streamed_output/-", "value": 2},
+                {"op": "replace", "path": "/final_output", "value": 2},
+            ],
         ]
+
+        assert _get_run_log(run_log_patches).state == {
+            "final_output": 2,
+            "id": uuid,
+            "logs": {},
+            "streamed_output": [2],
+        }
+
+
+@pytest.mark.asyncio
+async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
+    """Test async stream with an allowlist."""
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+    add_routes(
+        app,
+        RunnableLambda(add_one).with_config({"run_name": "allowed"}),
+        path="/empty_allowlist",
+        input_type=int,
+        stream_log_name_allow_list=[],
+    )
+    add_routes(
+        app,
+        RunnableLambda(add_one).with_config({"run_name": "allowed"}),
+        input_type=int,
+        path="/allowlist",
+        stream_log_name_allow_list=["allowed"],
+    )
+
+    # Invoke request
+    async with get_async_remote_runnable(app, path="/empty_allowlist/") as runnable:
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) == 0
+
+    async with get_async_remote_runnable(app, path="/allowlist/") as runnable:
+        run_log_patches = []
+
+        async for chunk in runnable.astream_log(1):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_tags=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_types=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=[]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
+
+        run_log_patches = []
+        async for chunk in runnable.astream_log(1, include_names=["allowed"]):
+            run_log_patches.append(chunk)
+
+        assert len(run_log_patches) > 0
 
 
 def test_invoke_as_part_of_sequence(sync_remote_runnable: RemoteRunnable) -> None:
@@ -1165,8 +1274,8 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     # TODO(Fix me): need to fix handling of global state -- we get problems
     # gives inconsistent results when running multiple tests / results
     # depending on ordering
-    server._SEEN_NAMES = set()
-    server._MODEL_REGISTRY = {}
+    api_handler._SEEN_NAMES = set()
+    api_handler._MODEL_REGISTRY = {}
 
     async def add_one(x: int) -> int:
         """Add one to simulate a valid function"""
@@ -1243,7 +1352,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_one/config_schema")
         assert response.json() == {
             "properties": {},
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1252,7 +1361,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
             },
-            "title": "RunnableLambdaConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1276,7 +1385,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 "configurable": {"$ref": "#/definitions/Configurable"},
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
             },
-            "title": "RunnableConfigurableFieldsConfig",
+            "title": "RunnableBindingConfig",
             "type": "object",
         }
 
@@ -1564,8 +1673,8 @@ async def test_batch_returns_run_id(app: FastAPI) -> None:
 async def test_feedback_succeeds_when_langsmith_enabled() -> None:
     """Tests that the feedback endpoint can accept feedback to langsmith."""
 
-    with patch("langserve.server.ls_client") as mocked_ls_client_package:
-        with patch("langserve.server.tracing_is_enabled") as tracing_is_enabled:
+    with patch("langserve.api_handler.ls_client") as mocked_ls_client_package:
+        with patch("langserve.api_handler.tracing_is_enabled") as tracing_is_enabled:
             tracing_is_enabled.return_value = True
             mocked_client = MagicMock(return_value=None)
             mocked_ls_client_package.Client.return_value = mocked_client
@@ -1584,6 +1693,90 @@ async def test_feedback_succeeds_when_langsmith_enabled() -> None:
                 RunnableLambda(lambda foo: "hello"),
                 enable_feedback_endpoint=True,
             )
+
+            async with get_async_test_client(
+                local_app, raise_app_exceptions=True
+            ) as async_client:
+                response = await async_client.post(
+                    "/feedback",
+                    json={
+                        "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                        "key": "silliness",
+                        "score": 1000,
+                    },
+                )
+
+                expected_response_json = {
+                    "run_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "key": "silliness",
+                    "score": 1000,
+                    "created_at": "1994-09-19T09:19:00",
+                    "modified_at": "1994-09-19T09:19:00",
+                    "comment": None,
+                    "correction": None,
+                    "value": None,
+                }
+
+                json_response = response.json()
+
+                assert "id" in json_response
+                del json_response["id"]
+
+                assert json_response == expected_response_json
+
+
+async def test_feedback_defaults_on_for_hosted() -> None:
+    """Tests that the feedback endpoint can accept feedback to langsmith."""
+
+    with patch("langserve.api_handler.ls_client") as mocked_ls_client_package:
+        with patch("langserve.api_handler.tracing_is_enabled") as tracing_is_enabled:
+            tracing_is_enabled.return_value = True
+            mocked_client = MagicMock(return_value=None)
+            mocked_ls_client_package.Client.return_value = mocked_client
+            mocked_client.create_feedback.return_value = ls_schemas.Feedback(
+                id="5484c6b3-5a1a-4a87-b2c7-2e39e7a7e4ac",
+                created_at=datetime.datetime(1994, 9, 19, 9, 19),
+                modified_at=datetime.datetime(1994, 9, 19, 9, 19),
+                run_id="f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                key="silliness",
+                score=1000,
+            )
+
+            local_app = FastAPI()
+
+            # This is the hackiest code ever, but here's how it goes:
+            #
+            # Python caches modules when you import them for the first time.
+            # This is a problem for testing the default behavior of the
+            # feedback endpoint because it is read in at import time.
+            #
+            # We therefore have to do things in this order:
+            # 1. monkeypatch our env variable for hosting to ensure that the
+            #    feedback endpoint is enabled by default
+            # 2. import the whole langserve.server module so we can reference
+            #    it directly
+            # 3. reload the langserve.server module so that it redefines the
+            #    default behavior based on the env variable
+            # 4. import the add_routes function under a new name so we can
+            #    monkeypatch use it instead of the original add_routes which
+            #    was imported before the env variable was set
+            # 5. (Later) reload the langserve.server module again outside of the
+            #    monkeypatch context so that the overridden defaults are not
+            #    loaded in
+            with MonkeyPatch.context() as mp:
+                mp.setenv("HOSTED_LANGSERVE_ENABLED", "true")
+                import importlib
+
+                import langserve.server
+
+                importlib.reload(langserve.server)
+                from langserve.server import add_routes as add_routes_patched
+
+                add_routes_patched(
+                    local_app,
+                    RunnableLambda(lambda foo: "hello"),
+                )
+            importlib.reload(langserve.server)
 
             async with get_async_test_client(
                 local_app, raise_app_exceptions=True
@@ -1645,9 +1838,7 @@ async def test_feedback_fails_when_langsmith_disabled(app: FastAPI) -> None:
 
 
 async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
-    """
-    Tests that the feedback endpoint returns 400s if the user turns it off.
-    """
+    """Tests that the feedback endpoint returns 404s if the user turns it off."""
     async with get_async_test_client(
         app,
         raise_app_exceptions=True,
@@ -1660,7 +1851,15 @@ async def test_feedback_fails_when_endpoint_disabled(app: FastAPI) -> None:
                 "score": 1000,
             },
         )
-        assert response.status_code == 400
+        assert response.status_code == 404
+
+
+async def test_enforce_trailing_slash_in_client() -> None:
+    """Ensure that the client enforces a trailing slash in the URL."""
+    r = RemoteRunnable(url="nosuchurl")
+    assert r.url == "nosuchurl/"
+    r = RemoteRunnable(url="nosuchurl/")
+    assert r.url == "nosuchurl/"
 
 
 async def test_per_request_config_modifier(
@@ -1747,4 +1946,120 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
                 "time": datetime.time(hour=5, minute=30),
                 "enum": MySpecialEnum.A,
             }
+        )
+
+
+async def test_endpoint_configurations() -> None:
+    """Test enabling/disabling endpoints."""
+    app = FastAPI()
+
+    # All endpoints disabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        enabled_endpoints=[],
+        enable_feedback_endpoint=False,
+    )
+
+    # All endpoints enabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        enabled_endpoints=None,
+        enable_feedback_endpoint=True,
+        path="/all_on",
+    )
+
+    # Config disabled
+    add_routes(
+        app,
+        RunnableLambda(lambda foo: "hello"),
+        disabled_endpoints=["config_hashes"],
+        enable_feedback_endpoint=True,
+        path="/config_off",
+    )
+
+    endpoints_with_payload = [
+        ("POST", "/invoke", {"input": 1}),
+        ("POST", "/batch", {"inputs": [1, 2]}),
+        ("POST", "/stream", {"input": 1}),
+        ("POST", "/stream_log", {"input": 1}),
+        ("GET", "/input_schema", {}),
+        ("GET", "/output_schema", {}),
+        ("GET", "/config_schema", {}),
+        ("GET", "/playground/index.html", {}),
+        ("HEAD", "/feedback", {}),
+        # Check config hashes
+        ("POST", "/c/1234/invoke", {"input": 1}),
+        ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
+        ("POST", "/c/1234/stream", {"input": 1}),
+        ("POST", "/c/1234/stream_log", {"input": 1}),
+        ("POST", "/c/1234/input_schema", {}),
+        ("POST", "/c/1234/output_schema", {}),
+        ("POST", "/c/1234/config_schema", {}),
+        ("POST", "/c/1234/playground/index.html", {}),
+        ("POST", "/c/1234/feedback", {}),
+    ]
+
+    # All endpoints disabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            response = await async_client.request(method, endpoint, json=payload)
+            assert response.status_code == 404, f"endpoint {endpoint} should be off"
+
+    # All endpoints enabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            response = await async_client.request(
+                method, "/all_on" + endpoint, json=payload
+            )
+            # We are only checking that the error code is not 404
+            # It may still be 4xx due to incorrect payload etc, but
+            # we don't care, we just want to make sure that the endpoint
+            # is enabled.
+            assert response.status_code != 404, f"endpoint {endpoint} should be on"
+
+    # Config disabled
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            if endpoint.startswith("/c/"):
+                # Check it's a 404
+                response = await async_client.request(
+                    method, "/config_off" + endpoint, json=payload
+                )
+                assert response.status_code == 404, f"endpoint {endpoint} should be off"
+            else:
+                # Check it's not a 404
+                response = await async_client.request(
+                    method, "/config_off" + endpoint, json=payload
+                )
+                assert response.status_code != 404, f"endpoint {endpoint} should be on"
+
+    with pytest.raises(ValueError):
+        # Passing "invoke" instead of ["invoke"]
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            disabled_endpoints="invoke",  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
+        )
+    with pytest.raises(ValueError):
+        # meow is not an endpoint.
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            disabled_endpoints=["meow"],  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
+        )
+
+    with pytest.raises(ValueError):
+        # meow is not an endpoint.
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            enabled_endpoints=["meow"],  # type: ignore
+            enable_feedback_endpoint=True,
+            path="/config_off",
         )
