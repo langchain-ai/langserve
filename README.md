@@ -40,7 +40,7 @@ We will be releasing a hosted version of LangServe for one-click deployments of 
 ## Security
 
 * Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing arbitrary files on server. [Resolved in 0.0.16](https://github.com/langchain-ai/langserve/pull/98).
- 
+
 ## Installation
 
 For both client and server:
@@ -56,7 +56,7 @@ or `pip install "langserve[client]"` for client code, and `pip install "langserv
 
 Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
-To use the langchain CLI make sure that you have a recent version of `langchain-cli` 
+To use the langchain CLI make sure that you have a recent version of `langchain-cli`
 installed. You can install it with `pip install -U langchain-cli`.
 
 ```sh
@@ -65,11 +65,11 @@ langchain app new ../path/to/directory
 
 ## Examples
 
-Get your LangServe instance started quickly with 
+Get your LangServe instance started quickly with
 [LangChain Templates](https://github.com/langchain-ai/langchain/blob/master/templates/README.md).
 
-For more examples, see the templates 
-[index](https://github.com/langchain-ai/langchain/blob/master/templates/docs/INDEX.md) 
+For more examples, see the templates
+[index](https://github.com/langchain-ai/langchain/blob/master/templates/docs/INDEX.md)
 or the [examples](https://github.com/langchain-ai/langserve/tree/main/examples) directory.
 
 ### Server
@@ -127,7 +127,7 @@ If you've deployed the server above, you can view the generated OpenAPI docs usi
 curl localhost:8000/docs
 ```
 
-make sure to **add** the `/docs` suffix. 
+make sure to **add** the `/docs` suffix.
 
 > ⚠️ Index page `/` is not defined by **design**, so `curl localhost:8000` or visiting the URL
 > will return a 404. If you want content at `/` define an endpoint `@app.get("/")`.
@@ -192,7 +192,7 @@ Python using `requests`:
 ```python
 import requests
 response = requests.post(
-    "http://localhost:8000/joke/invoke/",
+    "http://localhost:8000/joke/invoke",
     json={'input': {'topic': 'cats'}}
 )
 response.json()
@@ -201,7 +201,7 @@ response.json()
 You can also use `curl`:
 
 ```sh
-curl --location --request POST 'http://localhost:8000/joke/invoke/' \
+curl --location --request POST 'http://localhost:8000/joke/invoke' \
     --header 'Content-Type: application/json' \
     --data-raw '{
         "input": {
@@ -264,12 +264,12 @@ If you encounter any errors, please open an issue on THIS repo, and we will work
 
 ## Deployment
 
-### Deploy to Azure 
+### Deploy to Azure
 
 You can deploy to Azure using Azure Container Apps (Serverless):
 
 ```
-az containerapp up --name [container-app-name] --source . --resource-group [resource-group-name] --environment  [environment-name] --ingress external --target-port 8001 --env-vars=OPENAI_API_KEY=your_key  
+az containerapp up --name [container-app-name] --source . --resource-group [resource-group-name] --environment  [environment-name] --ingress external --target-port 8001 --env-vars=OPENAI_API_KEY=your_key
 ```
 
 You can find more info [here](https://learn.microsoft.com/en-us/azure/container-apps/containerapp-up)
@@ -296,7 +296,7 @@ LangServe provides support for Pydantic 2 with some limitations.
 1. OpenAPI docs will not be generated for invoke/batch/stream/stream_log when using Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces].
 2. LangChain uses the v1 namespace in Pydantic v2. Please read the [following guidelines to ensure compatibility with LangChain](https://github.com/langchain-ai/langchain/discussions/9337)
 
-Except for these limitations, we expect the API endpoints, the playground and any other features to work as expected. 
+Except for these limitations, we expect the API endpoints, the playground and any other features to work as expected.
 
 ## Advanced
 
@@ -319,8 +319,8 @@ that can be made to implement file processing; at a high level:
 
 You should determine what is the appropriate architecture for your application.
 
-Currently, to upload files by value to a runnable, use base64 encoding for the 
-file (`multipart/form-data` is not supported yet). 
+Currently, to upload files by value to a runnable, use base64 encoding for the
+file (`multipart/form-data` is not supported yet).
 
 Here's an [example](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing) that shows
 how to use base64 encoding to send a file to a remote runnable.
@@ -363,7 +363,7 @@ add_routes(app, runnable)
 
 ### Custom User Types
 
-Inherit from `CustomUserType` if you want the data to de-serialize into a 
+Inherit from `CustomUserType` if you want the data to de-serialize into a
 pydantic model rather than the equivalent dict representation.
 
 At the moment, this type only works *server* side and is used
@@ -395,7 +395,7 @@ def func(foo: Foo) -> int:
 # runnable = RunnableLambda(func).with_types( # <-- Not needed in this case
 #     input_schema=Foo,
 #     output_schema=int,
-# 
+#
 add_routes(app, RunnableLambda(func), path="/foo")
 ```
 
@@ -448,7 +448,7 @@ class FileProcessingRequest(CustomUserType):
 
 ```
 
-Example widget: 
+Example widget:
 
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f" width="50%"/>
@@ -470,5 +470,5 @@ add_routes(app, chain, enabled_endpoints=["invoke", "batch", "config_hashes"])
 Disable: The code below will disable the playground for the chain
 
 ```python
-add_routes(app, chain, disabled_endpoints=["playground"]) 
+add_routes(app, chain, disabled_endpoints=["playground"])
 ```
