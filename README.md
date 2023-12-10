@@ -266,13 +266,13 @@ If you encounter any errors, please open an issue on THIS repo, and we will work
 
 ### Deploy to AWS
 
-You can deploy to AWS using [AWS Copilot](https://aws.amazon.com/containers/copilot/)
+You can deploy to AWS using the [AWS Copilot CLI](https://aws.github.io/copilot-cli/)
 
 ```bash
 copilot init --app [application-name] --name [service-name] --type 'Load Balanced Web Service' --dockerfile './Dockerfile' --deploy
 ```
 
-Click [here](https://aws.github.io/copilot-cli/) to learn more.
+Click [here](https://aws.amazon.com/containers/copilot/) to learn more.
 
 ### Deploy to Azure
 
