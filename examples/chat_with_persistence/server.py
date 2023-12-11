@@ -15,7 +15,6 @@ from typing import Callable, Union
 from fastapi import FastAPI, HTTPException
 from langchain.chat_models import ChatAnthropic
 from langchain.memory import FileChatMessageHistory
-from langchain.schema.runnable.utils import ConfigurableFieldSpec
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -92,25 +91,6 @@ chain_with_history = RunnableWithMessageHistory(
     create_session_factory("chat_histories"),
     input_messages_key="human_input",
     history_messages_key="history",
-    session_history_config_specs=[
-        ConfigurableFieldSpec(
-            id="user_id",
-            annotation=str,
-            name="User ID",
-            description="Unique identifier for the user.",
-            default="",
-            is_shared=True,
-        ),
-        ConfigurableFieldSpec(
-            id="session_id",
-            annotation=str,
-            name="Session ID",
-            description="Unique identifier for the conversation.",
-            # None means that the conversation ID will be generated automatically
-            default=None,
-            is_shared=True,
-        ),
-    ],
 ).with_types(input_type=InputChat)
 
 
