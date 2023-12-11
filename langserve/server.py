@@ -18,7 +18,7 @@ from typing import (
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.api_handler import PerRequestConfigModifier, _APIHandler
+from langserve.api_handler import PerRequestConfigModifier, _APIHandler, _is_hosted
 from langserve.pydantic_v1 import (
     _PYDANTIC_MAJOR_VERSION,
     PYDANTIC_VERSION,
@@ -46,11 +46,11 @@ def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
     @app.on_event("startup")
     async def startup_event():
         LANGSERVE = r"""
- __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______ 
+ __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
 |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
-|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__   
-|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|  
-|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____ 
+|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
+|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
+|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
 |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
 """  # noqa: E501
 
@@ -149,6 +149,18 @@ class _EndpointConfiguration:
                 f"{disabled_endpoints}."
             )
 
+        if enabled_endpoints and not isinstance(enabled_endpoints, Sequence):
+            raise ValueError(
+                f"Expected enabled_endpoints to be a sequence (e.g., list or tuple), "
+                f"got {type(enabled_endpoints)}"
+            )
+
+        if disabled_endpoints and not isinstance(disabled_endpoints, Sequence):
+            raise ValueError(
+                f"Expected disabled_endpoints to be a sequence (e.g., list or tuple), "
+                f"got {type(disabled_endpoints)}"
+            )
+
         if enabled_endpoints is None:
             if disabled_endpoints is None:
                 is_invoke_enabled = True
@@ -217,9 +229,10 @@ def add_routes(
     config_keys: Sequence[str] = ("configurable",),
     include_callback_events: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
-    enable_feedback_endpoint: bool = False,
-    enabled_endpoints: Optional[Sequence[EndpointName]] = None,
+    enable_feedback_endpoint: bool = _is_hosted(),
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
+    stream_log_name_allow_list: Optional[Sequence[str]] = None,
+    enabled_endpoints: Optional[Sequence[EndpointName]] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -308,6 +321,9 @@ def add_routes(
                 disabled_endpoints=["playground"],
             )
             ```
+        stream_log_name_allow_list: list of run names that the client can
+            stream as intermediate steps
+
     """
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
@@ -348,8 +364,8 @@ def add_routes(
         include_callback_events=include_callback_events,
         enable_feedback_endpoint=enable_feedback_endpoint,
         per_req_config_modifier=per_req_config_modifier,
+        stream_log_name_allow_list=stream_log_name_allow_list,
     )
-
     namespace = path or ""
 
     route_tags = [path.strip("/")] if path else None

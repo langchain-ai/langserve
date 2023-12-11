@@ -64,6 +64,10 @@ except ImportError:
     EventSourceResponse = Any
 
 
+def _is_hosted() -> bool:
+    return os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
+
+
 def _config_from_hash(config_hash: str) -> Dict[str, Any]:
     try:
         if not config_hash:
@@ -137,8 +141,7 @@ def _update_config_with_defaults(
     if endpoint:
         metadata["__langserve_endpoint"] = endpoint
 
-    is_hosted = os.environ.get("HOSTED_LANGSERVE_ENABLED", "false").lower() == "true"
-    if is_hosted:
+    if _is_hosted():
         hosted_metadata = {
             "__langserve_hosted_git_commit_sha": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_COMMIT", ""
@@ -149,6 +152,7 @@ def _update_config_with_defaults(
             "__langserve_hosted_repo_url": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO", ""
             ),
+            "__langserve_hosted_is_hosted": "true",
         }
         metadata.update(hosted_metadata)
 
@@ -389,6 +393,7 @@ class _APIHandler:
         include_callback_events: bool = False,
         enable_feedback_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
+        stream_log_name_allow_list: Optional[Sequence[str]] = None,
     ) -> None:
         """Create a new RunnableServer.
 
@@ -444,6 +449,7 @@ class _APIHandler:
         self.base_url = base_url
         self.well_known_lc_serializer = WellKnownLCSerializer()
         self.enable_feedback_endpoint = enable_feedback_endpoint
+        self.stream_log_name_allow_list = stream_log_name_allow_list
 
         # Please do not change the naming on ls_client. It is used with mocking
         # in our unit tests for langsmith integrations.
@@ -858,20 +864,25 @@ class _APIHandler:
                         raise AssertionError(
                             f"Expected a RunLog instance got {type(chunk)}"
                         )
-                    data = {
-                        "ops": chunk.ops,
-                    }
+                    if (
+                        self.stream_log_name_allow_list is None
+                        or self.runnable.config.get("run_name")
+                        in self.stream_log_name_allow_list
+                    ):
+                        data = {
+                            "ops": chunk.ops,
+                        }
 
-                    # Temporary adapter
-                    yield {
-                        # EventSourceResponse expects a string for data
-                        # so after serializing into bytes, we decode into utf-8
-                        # to get a string.
-                        "data": self.well_known_lc_serializer.dumps(data).decode(
-                            "utf-8"
-                        ),
-                        "event": "data",
-                    }
+                        # Temporary adapter
+                        yield {
+                            # EventSourceResponse expects a string for data
+                            # so after serializing into bytes, we decode into utf-8
+                            # to get a string.
+                            "data": self.well_known_lc_serializer.dumps(data).decode(
+                                "utf-8"
+                            ),
+                            "event": "data",
+                        }
                 yield {"event": "end"}
             except BaseException:
                 yield {
