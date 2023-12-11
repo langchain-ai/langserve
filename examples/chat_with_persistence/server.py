@@ -32,7 +32,7 @@ def _is_valid_identifier(value: str) -> bool:
 
 
 def create_session_factory(
-    base_dir: Union[str, Path]
+    base_dir: Union[str, Path],
 ) -> Callable[[str], BaseChatMessageHistory]:
     """Create a session ID factory that creates session IDs from a base dir.
 
