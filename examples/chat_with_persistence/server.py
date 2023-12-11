@@ -10,9 +10,9 @@ fetch configuration from the request.
 """
 import re
 from pathlib import Path
-from typing import Any, Callable, Dict, Union
+from typing import Callable, Union
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from langchain.chat_models import ChatAnthropic
 from langchain.memory import FileChatMessageHistory
 from langchain.schema.runnable.utils import ConfigurableFieldSpec
@@ -46,15 +46,16 @@ def create_session_factory(
     if not base_dir_.exists():
         base_dir_.mkdir(parents=True)
 
-    def get_chat_history(conversation_id: str) -> FileChatMessageHistory:
+    def get_chat_history(session_id: str) -> FileChatMessageHistory:
         """Get a chat history from a session ID."""
-        if not _is_valid_identifier(conversation_id):
-            raise ValueError(
-                f"Conversation id {conversation_id} is not in a valid format. "
-                "Conversatino ID must only contain alphanumeric characters, "
-                "hyphens, and underscores."
+        if not _is_valid_identifier(session_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Session ID `{session_id}` is not in a valid format. "
+                "Session ID must only contain alphanumeric characters, "
+                "hyphens, and underscores.",
             )
-        file_path = base_dir_ / f"{conversation_id}.json"
+        file_path = base_dir_ / f"{session_id}.json"
         return FileChatMessageHistory(str(file_path))
 
     return get_chat_history
@@ -101,9 +102,9 @@ chain_with_history = RunnableWithMessageHistory(
             is_shared=True,
         ),
         ConfigurableFieldSpec(
-            id="conversation_id",
+            id="session_id",
             annotation=str,
-            name="Conversation ID",
+            name="Session ID",
             description="Unique identifier for the conversation.",
             # None means that the conversation ID will be generated automatically
             default=None,
