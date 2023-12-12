@@ -22,6 +22,7 @@ from typing import (
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from langchain.callbacks.base import AsyncCallbackHandler
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.load.serializable import Serializable
 from langchain.schema.runnable import Runnable, RunnableConfig
@@ -371,6 +372,15 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
     return JSONResponse(content=obj)
 
 
+def _add_callbacks(
+    config: RunnableConfig, callbacks: Sequence[AsyncCallbackHandler]
+) -> None:
+    """Add the callback aggregator to the config."""
+    if "callbacks" not in config:
+        config["callbacks"] = []
+    config["callbacks"].extend(callbacks)
+
+
 class _APIHandler:
     """Implementation of the various API endpoints for a runnable server.
 
@@ -567,7 +577,7 @@ class _APIHandler:
         )
 
         event_aggregator = AsyncEventAggregatorCallback()
-        config["callbacks"] = [event_aggregator]
+        _add_callbacks(config, [event_aggregator])
         output = await self.runnable.ainvoke(input_, config=config)
 
         if self.include_callback_events:
@@ -661,7 +671,7 @@ class _APIHandler:
 
         final_configs = []
         for config_, aggregator in zip(configs_, aggregators):
-            config_["callbacks"] = [aggregator]
+            _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
                     self.path, config_, request, endpoint="batch"
@@ -741,7 +751,7 @@ class _APIHandler:
             try:
                 config_w_callbacks = config.copy()
                 event_aggregator = AsyncEventAggregatorCallback()
-                config_w_callbacks["callbacks"] = [event_aggregator]
+                _add_callbacks(config_w_callbacks, [event_aggregator])
                 has_sent_metadata = False
                 async for chunk in self.runnable.astream(
                     input_,
