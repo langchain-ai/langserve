@@ -1076,7 +1076,7 @@ class _APIHandler:
         This endpoint is private since it will be deprecated in the future.
 
         """
-        if not self._enable_feedback_endpoint or not tracing_is_enabled():
+        if not (await self.check_feedback_enabled(config_hash)):
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "

@@ -1905,6 +1905,7 @@ async def test_endpoint_configurations() -> None:
         ("GET", "/config_schema", {}),
         ("GET", "/playground/index.html", {}),
         ("HEAD", "/feedback", {}),
+        ("GET", "/feedback", {}),
         # Check config hashes
         ("POST", "/c/1234/invoke", {"input": 1}),
         ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
