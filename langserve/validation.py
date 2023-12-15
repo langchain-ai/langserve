@@ -26,6 +26,7 @@ from langchain.schema import (
     Generation,
     RunInfo,
 )
+from typing_extensions import Type
 
 from langserve.schema import BatchResponseMetadata, SingletonResponseMetadata
 
@@ -34,7 +35,6 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field, create_model
 
-from typing_extensions import Type, TypedDict
 
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.
@@ -46,7 +46,7 @@ Validator = Union[Type[BaseModel], type]
 def create_invoke_request_model(
     namespace: str,
     input_type: Validator,
-    config: TypedDict,
+    config: Type[BaseModel],
 ) -> Type[BaseModel]:
     """Create a pydantic model for the invoke request."""
     invoke_request_type = create_model(
@@ -77,7 +77,7 @@ def create_invoke_request_model(
 def create_stream_request_model(
     namespace: str,
     input_type: Validator,
-    config: TypedDict,
+    config: Type[BaseModel],
 ) -> Type[BaseModel]:
     """Create a pydantic model for the stream request."""
     stream_request_model = create_model(
@@ -108,7 +108,7 @@ def create_stream_request_model(
 def create_batch_request_model(
     namespace: str,
     input_type: Validator,
-    config: TypedDict,
+    config: Type[BaseModel],
 ) -> Type[BaseModel]:
     """Create a pydantic model for the batch request."""
     batch_request_type = create_model(
@@ -140,7 +140,7 @@ def create_batch_request_model(
 def create_stream_log_request_model(
     namespace: str,
     input_type: Validator,
-    config: TypedDict,
+    config: Type[BaseModel],
 ) -> Type[BaseModel]:
     """Create a pydantic model for the invoke request."""
     stream_log_request = create_model(
