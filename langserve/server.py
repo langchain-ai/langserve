@@ -18,7 +18,7 @@ from typing import (
 from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
 
-from langserve.api_handler import PerRequestConfigModifier, _APIHandler, _is_hosted
+from langserve.api_handler import APIHandler, PerRequestConfigModifier, _is_hosted
 from langserve.pydantic_v1 import (
     _PYDANTIC_MAJOR_VERSION,
     PYDANTIC_VERSION,
@@ -354,7 +354,7 @@ def add_routes(
     # Determine the base URL for the playground endpoint
     prefix = app.prefix if isinstance(app, APIRouter) else ""  # type: ignore
 
-    api_handler = _APIHandler(
+    api_handler = APIHandler(
         runnable,
         path=path,
         prefix=prefix,

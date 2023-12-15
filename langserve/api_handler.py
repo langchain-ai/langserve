@@ -381,7 +381,14 @@ def _add_callbacks(
     config["callbacks"].extend(callbacks)
 
 
-class _APIHandler:
+_MODEL_REGISTRY = {}
+_SEEN_NAMES = set()
+
+
+# PUBLIC API
+
+
+class APIHandler:
     """Implementation of the various API endpoints for a runnable server.
 
     This is a private class whose API is expected to change.
@@ -394,8 +401,8 @@ class _APIHandler:
     def __init__(
         self,
         runnable: Runnable,
+        path: str,  # The path under which the runnable is served.
         *,
-        path: str = "",
         prefix: str = "",
         input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
@@ -461,7 +468,14 @@ class _APIHandler:
                 "Cannot configure run_name. Please remove it from config_keys."
             )
 
+        if path and not path.startswith("/"):
+            raise ValueError(
+                f"Got an invalid path: {path}. "
+                f"If specifying path please start it with a `/`"
+            )
+
         self._config_keys = config_keys
+
         self._path = path
         self._base_url = prefix + path
         self._include_callback_events = include_callback_events
@@ -524,22 +538,6 @@ class _APIHandler:
             model_namespace, output_type_
         )
         self._BatchResponse = create_batch_response_model(model_namespace, output_type_)
-
-        def _route_name(name: str) -> str:
-            """Return the route name with the given name."""
-            return f"{path.strip('/')} {name}" if path else name
-
-        self._route_name = _route_name
-
-        def _route_name_with_config(name: str) -> str:
-            """Return the route name with the given name."""
-            return (
-                f"{path.strip('/')} {name} with config"
-                if path
-                else f"{name} with config"
-            )
-
-        self._route_name_with_config = _route_name_with_config
 
     @property
     def InvokeRequest(self) -> Type[BaseModel]:
@@ -1074,7 +1072,6 @@ class _APIHandler:
         """Check if feedback is enabled for the runnable.
 
         This endpoint is private since it will be deprecated in the future.
-
         """
         if not (await self.check_feedback_enabled(config_hash)):
             raise HTTPException(
@@ -1086,7 +1083,3 @@ class _APIHandler:
     async def check_feedback_enabled(self, config_hash: str = "") -> bool:
         """Check if feedback is enabled for the runnable."""
         return self._enable_feedback_endpoint or not tracing_is_enabled()
-
-
-_MODEL_REGISTRY = {}
-_SEEN_NAMES = set()
