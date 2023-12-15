@@ -38,14 +38,16 @@ api_handler = APIHandler(chain, "/simple")
 @app.post("/simple/invoke", include_in_schema=False)
 async def simple_invoke(request: Request) -> Response:
     """Handle a request."""
-    # The API Handler validates the request parts that are defined
+    # The API Handler validates the parts of the request
+    # that are used by the runnnable (e.g., input, config fields)
     return await api_handler.invoke(request)
 
 
 @app.post("/simple/batch", include_in_schema=False)
 async def simple_batch(request: Request) -> Response:
     """Handle a request."""
-    # The API Handler validates the request parts that are defined
+    # The API Handler validates the parts of the request
+    # that are used by the runnnable (e.g., input, config fields)
     return await api_handler.batch(request)
 
 
@@ -95,8 +97,9 @@ async def _get_api_handler() -> APIHandler:
 async def v2_invoke(
     request: Request, runnable: Annotated[APIHandler, Depends(_get_api_handler)]
 ) -> Response:
-    """Handle a request."""
-    # The API Handler validates the request parts that are defined
+    """Handle invoke request."""
+    # The API Handler validates the parts of the request
+    # that are used by the runnnable (e.g., input, config fields)
     return await runnable.invoke(request)
 
 
@@ -104,8 +107,9 @@ async def v2_invoke(
 async def v2_stream(
     request: Request, runnable: Annotated[APIHandler, Depends(_get_api_handler)]
 ) -> EventSourceResponse:
-    """Handle a request."""
-    # The API Handler validates the request parts that are defined
+    """Handle stream request."""
+    # The API Handler validates the parts of the request
+    # that are used by the runnnable (e.g., input, config fields)
     return await runnable.stream(request)
 
 
