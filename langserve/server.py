@@ -537,7 +537,7 @@ def add_routes(
 
         check_feedback_enabled = app.head(
             namespace + "/feedback",
-        )(api_handler.check_feedback_enabled)
+        )(api_handler._check_feedback_enabled)
 
         if endpoint_configuration.is_config_hash_enabled:  # Is this needed?
             app.head(

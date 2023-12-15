@@ -439,8 +439,8 @@ class _APIHandler:
                 including events that occurred on the server side.
                 Be sure not to include any sensitive information in the callback events.
             enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
-                to LangSmith. Enabled by default. If this flag is disabled or LangSmith
-                tracing is not enabled for the runnable, then 400 errors will be thrown
+                to LangSmith. Disabled by default. If this flag is disabled or LangSmith
+                tracing is not enabled for the runnable, then 4xx errors will be thrown
                 when accessing the feedback endpoint
             per_req_config_modifier: optional function that can be used to update the
                 RunnableConfig for a given run based on the raw request. This is useful,
@@ -1070,14 +1070,22 @@ class _APIHandler:
             comment=feedback_from_langsmith.comment,
         )
 
-    async def check_feedback_enabled(self, config_hash: str = "") -> None:
-        """Check if feedback is enabled for the runnable."""
-        if not tracing_is_enabled() or not self._enable_feedback_endpoint:
+    async def _check_feedback_enabled(self, config_hash: str = "") -> None:
+        """Check if feedback is enabled for the runnable.
+
+        This endpoint is private since it will be deprecated in the future.
+
+        """
+        if not self._enable_feedback_endpoint or not tracing_is_enabled():
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server.",
             )
+
+    async def check_feedback_enabled(self, config_hash: str = "") -> bool:
+        """Check if feedback is enabled for the runnable."""
+        return self._enable_feedback_endpoint or not tracing_is_enabled()
 
 
 _MODEL_REGISTRY = {}
