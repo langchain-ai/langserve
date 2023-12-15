@@ -405,12 +405,21 @@ class _APIHandler:
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
     ) -> None:
-        """Create a new RunnableServer.
+        """Create an API handler for the given runnable.
+
+        The API Handler has implementations for the various endpoints
+        associated with the runnable. The endpoints use Request and Response
+        objects from Starlette (same as fast API). The API handler
+        does complete validation of the request objects.
+
+        Response validation can be added by the user.
 
         Args:
             runnable: The runnable to serve.
             path: The path to serve the runnable under.
-            base_url: Base URL for playground
+            base_url: Any prefix that may need to be added to the path
+                to get the full URL for the runnable.
+                This is relevant when the runnable is added to an APIRouter.
             input_type: type to use for input validation.
                 Default is "auto" which will use the InputType of the runnable.
                 User is free to provide a custom type annotation.
@@ -452,18 +461,18 @@ class _APIHandler:
                 "Cannot configure run_name. Please remove it from config_keys."
             )
 
-        self.config_keys = config_keys
-        self.path = path
-        self.include_callback_events = include_callback_events
-        self.per_req_config_modifier = per_req_config_modifier
-        self.base_url = base_url
-        self.well_known_lc_serializer = WellKnownLCSerializer()
-        self.enable_feedback_endpoint = enable_feedback_endpoint
-        self.stream_log_name_allow_list = stream_log_name_allow_list
+        self._config_keys = config_keys
+        self._path = path
+        self._complete_path = base_url + path
+        self._include_callback_events = include_callback_events
+        self._per_req_config_modifier = per_req_config_modifier
+        self._serializer = WellKnownLCSerializer()
+        self._enable_feedback_endpoint = enable_feedback_endpoint
+        self._stream_log_name_allow_list = stream_log_name_allow_list
 
-        # Please do not change the naming on ls_client. It is used with mocking
-        # in our unit tests for langsmith integrations.
-        self.langsmith_client = (
+        # Client is patched using mock.patch, if changing the names
+        # remember to make relevant updates in the unit tests.
+        self._langsmith_client = (
             ls_client.Client()
             if tracing_is_enabled() and enable_feedback_endpoint
             else None
@@ -479,7 +488,7 @@ class _APIHandler:
         if with_types:
             runnable = runnable.with_types(**with_types)
 
-        self.runnable = runnable
+        self._runnable = runnable
 
         model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
@@ -493,28 +502,28 @@ class _APIHandler:
             model_namespace,
         )
 
-        self.ConfigPayload = _add_namespace_to_model(
+        self._ConfigPayload = _add_namespace_to_model(
             model_namespace, runnable.config_schema(include=config_keys)
         )
 
-        self.InvokeRequest = create_invoke_request_model(
-            model_namespace, input_type_, self.ConfigPayload
+        self._InvokeRequest = create_invoke_request_model(
+            model_namespace, input_type_, self._ConfigPayload
         )
 
-        self.BatchRequest = create_batch_request_model(
-            model_namespace, input_type_, self.ConfigPayload
+        self._BatchRequest = create_batch_request_model(
+            model_namespace, input_type_, self._ConfigPayload
         )
-        self.StreamRequest = create_stream_request_model(
-            model_namespace, input_type_, self.ConfigPayload
+        self._StreamRequest = create_stream_request_model(
+            model_namespace, input_type_, self._ConfigPayload
         )
-        self.StreamLogRequest = create_stream_log_request_model(
-            model_namespace, input_type_, self.ConfigPayload
+        self._StreamLogRequest = create_stream_log_request_model(
+            model_namespace, input_type_, self._ConfigPayload
         )
         # Generate the response models
-        self.InvokeResponse = create_invoke_response_model(
+        self._InvokeResponse = create_invoke_response_model(
             model_namespace, output_type_
         )
-        self.BatchResponse = create_batch_response_model(model_namespace, output_type_)
+        self._BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
         def _route_name(name: str) -> str:
             """Return the route name with the given name."""
@@ -532,6 +541,36 @@ class _APIHandler:
 
         self._route_name_with_config = _route_name_with_config
 
+    @property
+    def InvokeRequest(self) -> Type[BaseModel]:
+        """Return the invoke request model."""
+        return self._InvokeRequest
+
+    @property
+    def BatchRequest(self) -> Type[BaseModel]:
+        """Return the batch request model."""
+        return self._BatchRequest
+
+    @property
+    def StreamRequest(self) -> Type[BaseModel]:
+        """Return the stream request model."""
+        return self._StreamRequest
+
+    @property
+    def StreamLogRequest(self) -> Type[BaseModel]:
+        """Return the stream log request model."""
+        return self._StreamLogRequest
+
+    @property
+    def InvokeResponse(self) -> Type[BaseModel]:
+        """Return the invoke response model."""
+        return self._InvokeResponse
+
+    @property
+    def BatchResponse(self) -> Type[BaseModel]:
+        """Return the batch response model."""
+        return self._BatchResponse
+
     async def _get_config_and_input(
         self, request: Request, config_hash: str, *, endpoint: Optional[str] = None
     ) -> Tuple[RunnableConfig, Any]:
@@ -547,18 +586,18 @@ class _APIHandler:
             user_provided_config = _unpack_request_config(
                 config_hash,
                 body.config,
-                config_keys=self.config_keys,
-                model=self.ConfigPayload,
+                config_keys=self._config_keys,
+                model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self.per_req_config_modifier,
+                per_req_config_modifier=self._per_req_config_modifier,
             )
             config = _update_config_with_defaults(
-                self.path, user_provided_config, request, endpoint=endpoint
+                self._path, user_provided_config, request, endpoint=endpoint
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
             # using configuration.
-            schema = self.runnable.with_config(config).input_schema
+            schema = self._runnable.with_config(config).input_schema
             input_ = schema.validate(body.input)
             return config, _unpack_input(input_)
         except ValidationError as e:
@@ -578,9 +617,9 @@ class _APIHandler:
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_callbacks(config, [event_aggregator])
-        output = await self.runnable.ainvoke(input_, config=config)
+        output = await self._runnable.ainvoke(input_, config=config)
 
-        if self.include_callback_events:
+        if self._include_callback_events:
             callback_events = [
                 _scrub_exceptions_in_event(event)
                 for event in event_aggregator.callback_events
@@ -589,8 +628,8 @@ class _APIHandler:
             callback_events = []
 
         return _json_encode_response(
-            self.InvokeResponse(
-                output=self.well_known_lc_serializer.dumpd(output),
+            self._InvokeResponse(
+                output=self._serializer.dumpd(output),
                 # Callbacks are scrubbed and exceptions are converted to
                 # serializable format before returned in the response.
                 callback_events=callback_events,
@@ -628,10 +667,10 @@ class _APIHandler:
                     _unpack_request_config(
                         config_hash,
                         config,
-                        config_keys=self.config_keys,
-                        model=self.ConfigPayload,
+                        config_keys=self._config_keys,
+                        model=self._ConfigPayload,
                         request=request,
-                        per_req_config_modifier=self.per_req_config_modifier,
+                        per_req_config_modifier=self._per_req_config_modifier,
                     )
                     for config in config
                 ]
@@ -639,10 +678,10 @@ class _APIHandler:
                 configs = _unpack_request_config(
                     config_hash,
                     config,
-                    config_keys=self.config_keys,
-                    model=self.ConfigPayload,
+                    config_keys=self._config_keys,
+                    model=self._ConfigPayload,
                     request=request,
-                    per_req_config_modifier=self.per_req_config_modifier,
+                    per_req_config_modifier=self._per_req_config_modifier,
                 )
             else:
                 raise HTTPException(
@@ -655,13 +694,13 @@ class _APIHandler:
         # Since we'll be adding callbacks to the configs.
 
         configs_ = [
-            {k: v for k, v in config_.items() if k in self.config_keys}
+            {k: v for k, v in config_.items() if k in self._config_keys}
             for config_ in get_config_list(configs, len(inputs_))
         ]
 
         inputs = [
             _unpack_input(
-                self.runnable.with_config(config_).input_schema.validate(input_)
+                self._runnable.with_config(config_).input_schema.validate(input_)
             )
             for config_, input_ in zip(configs_, inputs_)
         ]
@@ -674,13 +713,13 @@ class _APIHandler:
             _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
-                    self.path, config_, request, endpoint="batch"
+                    self._path, config_, request, endpoint="batch"
                 )
             )
 
-        output = await self.runnable.abatch(inputs, config=final_configs)
+        output = await self._runnable.abatch(inputs, config=final_configs)
 
-        if self.include_callback_events:
+        if self._include_callback_events:
             callback_events = [
                 # Scrub sensitive information and convert
                 # exceptions to serializable format
@@ -693,8 +732,8 @@ class _APIHandler:
         else:
             callback_events = []
 
-        obj = self.BatchResponse(
-            output=self.well_known_lc_serializer.dumpd(output),
+        obj = self._BatchResponse(
+            output=self._serializer.dumpd(output),
             callback_events=callback_events,
             metadata=BatchResponseMetadata(
                 run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
@@ -753,7 +792,7 @@ class _APIHandler:
                 event_aggregator = AsyncEventAggregatorCallback()
                 _add_callbacks(config_w_callbacks, [event_aggregator])
                 has_sent_metadata = False
-                async for chunk in self.runnable.astream(
+                async for chunk in self._runnable.astream(
                     input_,
                     config=config_w_callbacks,
                 ):
@@ -772,9 +811,7 @@ class _APIHandler:
                         # EventSourceResponse expects a string for data
                         # so after serializing into bytes, we decode into utf-8
                         # to get a string.
-                        "data": self.well_known_lc_serializer.dumps(chunk).decode(
-                            "utf-8"
-                        ),
+                        "data": self._serializer.dumps(chunk).decode("utf-8"),
                         "event": "data",
                     }
                 yield {"event": "end"}
@@ -859,7 +896,7 @@ class _APIHandler:
                     ) from validation_exception
 
             try:
-                async for chunk in self.runnable.astream_log(
+                async for chunk in self._runnable.astream_log(
                     input_,
                     config=config,
                     diff=True,
@@ -875,9 +912,9 @@ class _APIHandler:
                             f"Expected a RunLog instance got {type(chunk)}"
                         )
                     if (
-                        self.stream_log_name_allow_list is None
-                        or self.runnable.config.get("run_name")
-                        in self.stream_log_name_allow_list
+                        self._stream_log_name_allow_list is None
+                        or self._runnable.config.get("run_name")
+                        in self._stream_log_name_allow_list
                     ):
                         data = {
                             "ops": chunk.ops,
@@ -888,9 +925,7 @@ class _APIHandler:
                             # EventSourceResponse expects a string for data
                             # so after serializing into bytes, we decode into utf-8
                             # to get a string.
-                            "data": self.well_known_lc_serializer.dumps(data).decode(
-                                "utf-8"
-                            ),
+                            "data": self._serializer.dumps(data).decode("utf-8"),
                             "event": "data",
                         }
                 yield {"event": "end"}
@@ -913,48 +948,48 @@ class _APIHandler:
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
                 config_hash,
-                config_keys=self.config_keys,
-                model=self.ConfigPayload,
+                config_keys=self._config_keys,
+                model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self.per_req_config_modifier,
+                per_req_config_modifier=self._per_req_config_modifier,
             )
             config = _update_config_with_defaults(
-                self.path, user_provided_config, request
+                self._path, user_provided_config, request
             )
 
-        return self.runnable.get_input_schema(config).schema()
+        return self._runnable.get_input_schema(config).schema()
 
     async def output_schema(self, request: Request, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
                 config_hash,
-                config_keys=self.config_keys,
-                model=self.ConfigPayload,
+                config_keys=self._config_keys,
+                model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self.per_req_config_modifier,
+                per_req_config_modifier=self._per_req_config_modifier,
             )
             config = _update_config_with_defaults(
-                self.path, user_provided_config, request
+                self._path, user_provided_config, request
             )
-        return self.runnable.get_output_schema(config).schema()
+        return self._runnable.get_output_schema(config).schema()
 
     async def config_schema(self, request: Request, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
                 config_hash,
-                config_keys=self.config_keys,
-                model=self.ConfigPayload,
+                config_keys=self._config_keys,
+                model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self.per_req_config_modifier,
+                per_req_config_modifier=self._per_req_config_modifier,
             )
             config = _update_config_with_defaults(
-                self.path, user_provided_config, request
+                self._path, user_provided_config, request
             )
         return (
-            self.runnable.with_config(config)
-            .config_schema(include=self.config_keys)
+            self._runnable.with_config(config)
+            .config_schema(include=self._config_keys)
             .schema()
         )
 
@@ -965,27 +1000,27 @@ class _APIHandler:
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
                 config_hash,
-                config_keys=self.config_keys,
-                model=self.ConfigPayload,
+                config_keys=self._config_keys,
+                model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self.per_req_config_modifier,
+                per_req_config_modifier=self._per_req_config_modifier,
             )
 
             config = _update_config_with_defaults(
-                self.path, user_provided_config, request
+                self._path, user_provided_config, request
             )
 
-        feedback_enabled = tracing_is_enabled() and self.enable_feedback_endpoint
+        feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
 
-        if self.base_url.endswith("/"):
-            playground_url = self.base_url + "playground"
+        if self._complete_path.endswith("/"):
+            playground_url = self._complete_path + "playground"
         else:
-            playground_url = self.base_url + "/playground"
+            playground_url = self._complete_path + "/playground"
 
         return await serve_playground(
-            self.runnable.with_config(config),
-            self.runnable.with_config(config).input_schema,
-            self.config_keys,
+            self._runnable.with_config(config),
+            self._runnable.with_config(config).input_schema,
+            self._config_keys,
             playground_url,
             file_path,
             feedback_enabled,
@@ -1002,14 +1037,14 @@ class _APIHandler:
         unauthenticated or invalid by the server.
         """
 
-        if not tracing_is_enabled() or not self.enable_feedback_endpoint:
+        if not tracing_is_enabled() or not self._enable_feedback_endpoint:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server.",
             )
 
-        feedback_from_langsmith = self.langsmith_client.create_feedback(
+        feedback_from_langsmith = self._langsmith_client.create_feedback(
             feedback_create_req.run_id,
             feedback_create_req.key,
             score=feedback_create_req.score,
@@ -1037,7 +1072,7 @@ class _APIHandler:
 
     async def check_feedback_enabled(self, config_hash: str = "") -> None:
         """Check if feedback is enabled for the runnable."""
-        if not tracing_is_enabled() or not self.enable_feedback_endpoint:
+        if not tracing_is_enabled() or not self._enable_feedback_endpoint:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
