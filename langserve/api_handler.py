@@ -396,7 +396,7 @@ class _APIHandler:
         runnable: Runnable,
         *,
         path: str = "",
-        base_url: str = "",
+        prefix: str = "",
         input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         config_keys: Sequence[str] = ("configurable",),
@@ -417,7 +417,7 @@ class _APIHandler:
         Args:
             runnable: The runnable to serve.
             path: The path to serve the runnable under.
-            base_url: Any prefix that may need to be added to the path
+            prefix: Any prefix that may need to be added to the path
                 to get the full URL for the runnable.
                 This is relevant when the runnable is added to an APIRouter.
             input_type: type to use for input validation.
@@ -463,7 +463,7 @@ class _APIHandler:
 
         self._config_keys = config_keys
         self._path = path
-        self._complete_path = base_url + path
+        self._base_url = prefix + path
         self._include_callback_events = include_callback_events
         self._per_req_config_modifier = per_req_config_modifier
         self._serializer = WellKnownLCSerializer()
@@ -1012,10 +1012,10 @@ class _APIHandler:
 
         feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
 
-        if self._complete_path.endswith("/"):
-            playground_url = self._complete_path + "playground"
+        if self._base_url.endswith("/"):
+            playground_url = self._base_url + "playground"
         else:
-            playground_url = self._complete_path + "/playground"
+            playground_url = self._base_url + "/playground"
 
         return await serve_playground(
             self._runnable.with_config(config),
