@@ -274,6 +274,9 @@ def add_routes(
             for example, if the user wants to pass in a header containing credentials
             to a runnable. The RunnableConfig is presented in its dictionary form.
             Note that only keys in `config_keys` will be modifiable by this function.
+            As of 0.0.37, this function is only called for the invoke, batch, stream,
+            and stream_log endpoints. This function is not called for the playground,
+            input_schema, output_schema, and config_schema endpoints etc.
         enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
