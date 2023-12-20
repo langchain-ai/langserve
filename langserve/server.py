@@ -711,13 +711,14 @@ def add_routes(
 
                 The events that the endpoint uses are the following:
                 * "data" -- used for streaming the output of the runnale
-                * "error" -- used for signaling an error in the stream, also ends the stream.
+                * "error" -- signaling an error while streaming and ends the stream.
                 * "end" -- used for signaling the end of the stream
                 * "metadata" -- used for sending metadata about the run; e.g., run id.
 
                 The event type is in the "event" field of the event.
-                The payload associated with the event is in the "data" field of the event,
-                and it is JSON encoded.
+                The payload associated with the event is in the "data" field
+                of the event, and it is JSON encoded.
+
 
                 Here are some examples of events that the endpoint can send:
 
