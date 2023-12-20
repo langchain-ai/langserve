@@ -1778,9 +1778,7 @@ async def test_enforce_trailing_slash_in_client() -> None:
     assert r.url == "nosuchurl/"
 
 
-async def test_per_request_config_modifier(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> None:
     """Test updating the config based on the raw request object."""
 
     async def add_one(x: int) -> int:
@@ -1809,6 +1807,57 @@ async def test_per_request_config_modifier(
         path="/add_one",
         per_req_config_modifier=header_passthru_modifier,
     )
+
+    # this test verifies that per request modifier is only
+    # applied for the expected endpoints
+    def buggy_modifier(config: Dict[str, Any], request: Request) -> Dict[str, Any]:
+        """Update the config"""
+        raise ValueError("oops I did it again")
+
+    add_routes(
+        app,
+        server_runnable,
+        path="/with_buggy_modifier",
+        per_req_config_modifier=buggy_modifier,
+    )
+
+    async with get_async_test_client(
+        app,
+        raise_app_exceptions=False,
+    ) as async_client:
+        endpoints_to_test = (
+            "invoke",
+            "batch",
+            "stream",
+            "stream_log",
+            "input_schema",
+            "output_schema",
+            "config_schema",
+            "playground/index.html",
+        )
+
+        for endpoint in endpoints_to_test:
+            url = "/with_buggy_modifier/" + endpoint
+
+            if endpoint == "batch":
+                payload = {"inputs": [1, 2]}
+                response = await async_client.post(url, json=payload)
+            elif endpoint in {"invoke", "stream", "stream_log"}:
+                payload = {"input": 1}
+                response = await async_client.post(url, json=payload)
+            elif endpoint in {"input_schema", "output_schema", "config_schema"}:
+                response = await async_client.get(url)
+            elif endpoint == "playground/index.html":
+                response = await async_client.get(url)
+            else:
+                raise ValueError(f"Unknown endpoint {endpoint}")
+
+            if endpoint in {"invoke", "batch"}:
+                assert response.status_code == 500
+            elif endpoint in {"stream", "stream_log"}:
+                assert '"status_code": 500' in response.text
+            else:
+                assert response.status_code != 500
 
 
 async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
