@@ -707,21 +707,29 @@ def add_routes(
                 https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
                 Important: Set the "text/event-stream" media type for request headers if
-                           not using an existing SDK.
+                    not using an existing SDK.
 
-                This endpoint uses two different types of events:
+                The events that the endpoint uses are the following:
+                * "data" -- used for streaming the output of the runnale
+                * "error" -- used for signaling an error in the stream, also ends the stream.
+                * "end" -- used for signaling the end of the stream
+                * "metadata" -- used for sending metadata about the run; e.g., run id.
 
-                * data - for streaming the output of the runnable
+                The event type is in the "event" field of the event.
+                The payload associated with the event is in the "data" field of the event,
+                and it is JSON encoded.
 
-                    {
-                        "event": "data",
-                        "data": {
+                Here are some examples of events that the endpoint can send:
+
+                Regular streaming event:
+                {
+                    "event": "data",
+                    "data": {
                         ...
-                        }
                     }
+                }
 
-                * error - for signaling an error in the stream, also ends the stream.
-
+                Internal server error:
                 {
                     "event": "error",
                     "data": {
@@ -730,14 +738,10 @@ def add_routes(
                     }
                 }
 
-                * end - for signaling the end of the stream.
-
-                    This helps the client to know when to stop listening for events and
-                    know that the streaming has ended successfully.
-
-                    {
-                        "event": "end",
-                    }
+                Streaming ended so client should stop listening for events:
+                {
+                    "event": "end",
+                }
                 """
                 raise AssertionError("This endpoint should not be reachable.")
 
