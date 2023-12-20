@@ -604,6 +604,7 @@ class APIHandler:
     async def invoke(
         self,
         request: Request,
+        *,
         config_hash: str = "",
     ) -> Response:
         """Invoke the runnable with the given input and config."""
@@ -640,6 +641,7 @@ class APIHandler:
     async def batch(
         self,
         request: Request,
+        *,
         config_hash: str = "",
     ) -> Response:
         """Invoke the runnable with the given inputs and config."""
@@ -742,6 +744,7 @@ class APIHandler:
     async def stream(
         self,
         request: Request,
+        *,
         config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
@@ -830,6 +833,7 @@ class APIHandler:
     async def stream_log(
         self,
         request: Request,
+        *,
         config_hash: str = "",
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
@@ -941,7 +945,7 @@ class APIHandler:
 
         return EventSourceResponse(_stream_log())
 
-    async def input_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def input_schema(self, request: Request, *, config_hash: str = "") -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
@@ -957,7 +961,7 @@ class APIHandler:
 
         return self._runnable.get_input_schema(config).schema()
 
-    async def output_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def output_schema(self, request: Request, *, config_hash: str = "") -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
@@ -972,7 +976,7 @@ class APIHandler:
             )
         return self._runnable.get_output_schema(config).schema()
 
-    async def config_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def config_schema(self, request: Request, *, config_hash: str = "") -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
