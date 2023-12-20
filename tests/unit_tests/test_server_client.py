@@ -1836,8 +1836,6 @@ async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> Non
             "playground/index.html",
         )
 
-        expected_modified = ("invoke", "batch", "stream", "stream_log")
-
         for endpoint in endpoints_to_test:
             url = "/with_buggy_modifier/" + endpoint
 
