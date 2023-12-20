@@ -88,15 +88,37 @@ PerRequestConfigModifier = Callable[[Dict[str, Any], Request], Dict[str, Any]]
 
 
 def _unpack_request_config(
-    *configs: Union[BaseModel, Mapping, str],
+    *client_sent_configs: Union[BaseModel, Mapping, str],
     config_keys: Sequence[str],
     model: Type[BaseModel],
     request: Request,
     per_req_config_modifier: Optional[PerRequestConfigModifier],
+    server_config: Optional[RunnableConfig],
 ) -> Dict[str, Any]:
-    """Merge configs, and project the given keys from the merged dict."""
+    """Merge configs, and project the given keys from the merged dict.
+
+    Args:
+        client_sent_configs: configs sent by the client. These will be
+            merged together with last writer wins semantics.
+            Each of these configs will be validated.
+        config_keys: keys to project from the merged config.
+            Used to make sure that a client can't override any configuration
+            that the server doesn't want to allow overriding.
+        model: pydantic model to use for validation of the client sent configs.
+        request: The request object.
+        server_config: optional server configuration that will be merged
+           into the configuration sent by the client. It's written after
+           any client configuration, and can override any client configuration.
+           This runs before the per_req_config_modifier.
+        per_req_config_modifier: optional function that can be used to update the
+            RunnableConfig for a given run based on the raw request. This is useful,
+            for example, if the user wants to pass in a header containing
+            credentials to a runnable. The RunnableConfig is presented in its
+            dictionary form. Note that only keys in `config_keys` will be
+            modifiable by this function.
+    """
     config_dicts = []
-    for config in configs:
+    for config in client_sent_configs:
         if isinstance(config, str):
             config_dicts.append(model(**_config_from_hash(config)).dict())
         elif isinstance(config, BaseModel):
@@ -115,6 +137,13 @@ def _unpack_request_config(
                 "of `config_keys` argument in `add_routes`",
             )
     projected_config = {k: config[k] for k in config_keys if k in config}
+
+    if server_config:
+        # Merge the server provided config last, so that it overrides any
+        # client provided config.
+        projected_config = merge_configs(projected_config, server_config)
+
+    # Finally apply the per_req_config_modifier if it was provided.
     return (
         per_req_config_modifier(projected_config, request)
         if per_req_config_modifier
@@ -381,7 +410,14 @@ def _add_callbacks(
     config["callbacks"].extend(callbacks)
 
 
-class _APIHandler:
+_MODEL_REGISTRY = {}
+_SEEN_NAMES = set()
+
+
+# PUBLIC API
+
+
+class APIHandler:
     """Implementation of the various API endpoints for a runnable server.
 
     This is a private class whose API is expected to change.
@@ -395,7 +431,9 @@ class _APIHandler:
         self,
         runnable: Runnable,
         *,
-        path: str = "",
+        # Named arguments below to make it easier to do gracious deprecation
+        # of features in the future if need be.
+        path: str,
         prefix: str = "",
         input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
@@ -461,7 +499,14 @@ class _APIHandler:
                 "Cannot configure run_name. Please remove it from config_keys."
             )
 
+        if path and not path.startswith("/"):
+            raise ValueError(
+                f"Got an invalid path: {path}. "
+                f"If specifying path please start it with a `/`"
+            )
+
         self._config_keys = config_keys
+
         self._path = path
         self._base_url = prefix + path
         self._include_callback_events = include_callback_events
@@ -525,22 +570,6 @@ class _APIHandler:
         )
         self._BatchResponse = create_batch_response_model(model_namespace, output_type_)
 
-        def _route_name(name: str) -> str:
-            """Return the route name with the given name."""
-            return f"{path.strip('/')} {name}" if path else name
-
-        self._route_name = _route_name
-
-        def _route_name_with_config(name: str) -> str:
-            """Return the route name with the given name."""
-            return (
-                f"{path.strip('/')} {name} with config"
-                if path
-                else f"{name} with config"
-            )
-
-        self._route_name_with_config = _route_name_with_config
-
     @property
     def InvokeRequest(self) -> Type[BaseModel]:
         """Return the invoke request model."""
@@ -572,7 +601,12 @@ class _APIHandler:
         return self._BatchResponse
 
     async def _get_config_and_input(
-        self, request: Request, config_hash: str, *, endpoint: Optional[str] = None
+        self,
+        request: Request,
+        config_hash: str,
+        *,
+        endpoint: Optional[str] = None,
+        server_config: Optional[RunnableConfig] = None,
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -590,9 +624,13 @@ class _APIHandler:
                 model=self._ConfigPayload,
                 request=request,
                 per_req_config_modifier=self._per_req_config_modifier,
+                server_config=server_config,
             )
             config = _update_config_with_defaults(
-                self._path, user_provided_config, request, endpoint=endpoint
+                self._path,
+                user_provided_config,
+                request,
+                endpoint=endpoint,
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -606,13 +644,27 @@ class _APIHandler:
     async def invoke(
         self,
         request: Request,
+        *,
         config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
     ) -> Response:
-        """Invoke the runnable with the given input and config."""
+        """Invoke the runnable with the given input and config.
+
+        Args:
+            request: The request object.
+            config_hash: A compressed representation of a config. Optionally
+                         sent from the client side. This config must be validated.
+            server_config: optional server configuration that will be merged
+                with any other configuration. It's the last to be written, so
+                it will override any other configuration.
+        """
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
         config, input_ = await self._get_config_and_input(
-            request, config_hash, endpoint="invoke"
+            request,
+            config_hash,
+            endpoint="invoke",
+            server_config=server_config,
         )
 
         event_aggregator = AsyncEventAggregatorCallback()
@@ -642,9 +694,20 @@ class _APIHandler:
     async def batch(
         self,
         request: Request,
+        *,
         config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
     ) -> Response:
-        """Invoke the runnable with the given inputs and config."""
+        """Invoke the runnable with the given inputs and config.
+
+        Args:
+            request: The request object.
+            config_hash: A compressed representation of a config.
+                Originates from the client side. This config must be validated.
+            server_config: optional server configuration that will be merged
+                with any other configuration. It's the last to be written, so
+                it will override any other configuration.
+        """
         try:
             body = await request.json()
         except json.JSONDecodeError:
@@ -671,6 +734,7 @@ class _APIHandler:
                         model=self._ConfigPayload,
                         request=request,
                         per_req_config_modifier=self._per_req_config_modifier,
+                        server_config=server_config,
                     )
                     for config in config
                 ]
@@ -682,6 +746,7 @@ class _APIHandler:
                     model=self._ConfigPayload,
                     request=request,
                     per_req_config_modifier=self._per_req_config_modifier,
+                    server_config=server_config,
                 )
             else:
                 raise HTTPException(
@@ -744,18 +809,69 @@ class _APIHandler:
     async def stream(
         self,
         request: Request,
+        *,
         config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
     ) -> EventSourceResponse:
         """Invoke the runnable stream the output.
 
-        See documentation for endpoint at the end of the file.
-        It's attached to _stream_docs endpoint.
+        This endpoint allows to stream the output of the runnable.
+
+        The endpoint uses a server sent event stream to stream the output.
+
+        https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+        Important: Set the "text/event-stream" media type for request headers if
+            not using an existing SDK.
+
+        The events that the endpoint uses are the following:
+        * "data" -- used for streaming the output of the runnale
+        * "error" -- used for signaling an error in the stream, also ends the stream.
+        * "end" -- used for signaling the end of the stream
+        * "metadata" -- used for sending metadata about the run; e.g., run id.
+
+        The event type is in the "event" field of the event.
+        The payload associated with the event is in the "data" field of the event,
+        and it is JSON encoded.
+
+        Here are some examples of events that the endpoint can send:
+
+        Regular streaming event:
+        {
+            "event": "data",
+            "data": {
+                ...
+            }
+        }
+
+        Internal server error:
+        {
+            "event": "error",
+            "data": {
+                "status_code": 500,
+                "message": "Internal Server Error"
+            }
+        }
+
+        Streaming ended so client should stop listening for events:
+        {
+            "event": "end",
+        }
+
+        Args:
+            request: The request object.
+            config_hash: A compressed representation of a config.
+                Originates from the client side. This config must be validated.
+            server_config: optional server configuration that will be merged
         """
         err_event = {}
         validation_exception: Optional[BaseException] = None
         try:
             config, input_ = await self._get_config_and_input(
-                request, config_hash, endpoint="stream"
+                request,
+                config_hash,
+                endpoint="stream",
+                server_config=server_config,
             )
         except BaseException as e:
             validation_exception = e
@@ -832,7 +948,9 @@ class _APIHandler:
     async def stream_log(
         self,
         request: Request,
+        *,
         config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
     ) -> EventSourceResponse:
         """Invoke the runnable stream_log the output.
 
@@ -843,7 +961,10 @@ class _APIHandler:
         validation_exception: Optional[BaseException] = None
         try:
             config, input_ = await self._get_config_and_input(
-                request, config_hash, endpoint="stream_log"
+                request,
+                config_hash,
+                endpoint="stream_log",
+                server_config=server_config,
             )
         except BaseException as e:
             validation_exception = e
@@ -943,7 +1064,13 @@ class _APIHandler:
 
         return EventSourceResponse(_stream_log())
 
-    async def input_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def input_schema(
+        self,
+        request: Request,
+        *,
+        config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
+    ) -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
@@ -952,6 +1079,7 @@ class _APIHandler:
                 model=self._ConfigPayload,
                 request=request,
                 per_req_config_modifier=self._per_req_config_modifier,
+                server_config=server_config,
             )
             config = _update_config_with_defaults(
                 self._path, user_provided_config, request
@@ -959,7 +1087,13 @@ class _APIHandler:
 
         return self._runnable.get_input_schema(config).schema()
 
-    async def output_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def output_schema(
+        self,
+        request: Request,
+        *,
+        config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
+    ) -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
@@ -968,13 +1102,20 @@ class _APIHandler:
                 model=self._ConfigPayload,
                 request=request,
                 per_req_config_modifier=self._per_req_config_modifier,
+                server_config=server_config,
             )
             config = _update_config_with_defaults(
                 self._path, user_provided_config, request
             )
         return self._runnable.get_output_schema(config).schema()
 
-    async def config_schema(self, request: Request, config_hash: str = "") -> Any:
+    async def config_schema(
+        self,
+        request: Request,
+        *,
+        config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
+    ) -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
             user_provided_config = _unpack_request_config(
@@ -983,6 +1124,7 @@ class _APIHandler:
                 model=self._ConfigPayload,
                 request=request,
                 per_req_config_modifier=self._per_req_config_modifier,
+                server_config=server_config,
             )
             config = _update_config_with_defaults(
                 self._path, user_provided_config, request
@@ -994,7 +1136,12 @@ class _APIHandler:
         )
 
     async def playground(
-        self, file_path: str, request: Request, config_hash: str = ""
+        self,
+        file_path: str,
+        request: Request,
+        *,
+        config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
     ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
@@ -1004,6 +1151,7 @@ class _APIHandler:
                 model=self._ConfigPayload,
                 request=request,
                 per_req_config_modifier=self._per_req_config_modifier,
+                server_config=server_config,
             )
 
             config = _update_config_with_defaults(
@@ -1074,7 +1222,6 @@ class _APIHandler:
         """Check if feedback is enabled for the runnable.
 
         This endpoint is private since it will be deprecated in the future.
-
         """
         if not (await self.check_feedback_enabled(config_hash)):
             raise HTTPException(
@@ -1086,7 +1233,3 @@ class _APIHandler:
     async def check_feedback_enabled(self, config_hash: str = "") -> bool:
         """Check if feedback is enabled for the runnable."""
         return self._enable_feedback_endpoint or not tracing_is_enabled()
-
-
-_MODEL_REGISTRY = {}
-_SEEN_NAMES = set()

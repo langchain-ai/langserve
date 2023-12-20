@@ -161,6 +161,7 @@ def test_invoke_request_with_runnables() -> None:
             model=config,
             request=MagicMock(Request),
             per_req_config_modifier=lambda x, y: x,
+            server_config=None,
         )
         == {}
     )
@@ -188,6 +189,7 @@ def test_invoke_request_with_runnables() -> None:
         model=config,
         request=MagicMock(Request),
         per_req_config_modifier=lambda x, y: x,
+        server_config=None,
     ) == {
         "configurable": {"template": "goodbye {name}"},
     }
