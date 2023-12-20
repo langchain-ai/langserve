@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langchain.chat_models.openai import ChatOpenAI
 from langchain.document_loaders.blob_loaders import Blob
 from langchain.document_loaders.parsers.pdf import PDFMinerParser
 from langchain.pydantic_v1 import BaseModel, Field
@@ -13,9 +14,12 @@ from langchain.schema.messages import (
     AIMessage,
     BaseMessage,
     FunctionMessage,
+    HumanMessage,
 )
 from langchain.schema.runnable import RunnableLambda
+from langchain_core.runnables import RunnableParallel
 
+from langserve import CustomUserType
 from langserve.server import add_routes
 
 app = FastAPI(
@@ -35,8 +39,11 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Example 1: Chat Widget
+# This shows how to create a chat widget.
 
-class ChatHistory(BaseModel):
+
+class ChatHistory(CustomUserType):
     chat_history: List[Tuple[str, str]] = Field(
         ...,
         examples=[[("a", "aa")]],
@@ -45,25 +52,41 @@ class ChatHistory(BaseModel):
     question: str
 
 
+def _format_to_messages(input: ChatHistory) -> List[BaseMessage]:
+    """Format the input to a list of messages."""
+    history = input.chat_history
+    user_input = input.question
+
+    messages = []
+
+    for human, ai in history:
+        messages.append(HumanMessage(content=human))
+        messages.append(AIMessage(content=ai))
+    messages.append(HumanMessage(content=user_input))
+    return messages
+
+
+model = ChatOpenAI()
+chat_model = RunnableParallel({"answer": (RunnableLambda(_format_to_messages) | model)})
+add_routes(
+    app,
+    chat_model.with_types(input_type=ChatHistory),
+    config_keys=["configurable"],
+    path="/chat",
+)
+
+
+# Example 2: Chat Widget with History
+# This one isn't hooked up toa model. It just shows that FunctionMessages can be used
+# surfaced as well in the playground.
+
+
 class ChatHistoryMessage(BaseModel):
     chat_history: List[BaseMessage] = Field(
         ...,
         extra={"widget": {"type": "chat", "input": "location"}},
     )
     location: str
-
-
-class FileProcessingRequest(BaseModel):
-    file: bytes = Field(..., extra={"widget": {"type": "base64file"}})
-    num_chars: int = 100
-
-
-def chat_with_bot(input: Dict[str, Any]) -> Dict[str, Any]:
-    """Bot that repeats the question twice."""
-    return {
-        "answer": input["question"] * 2,
-        "woof": "its so bad to woof, meow is better",
-    }
 
 
 def chat_message_bot(input: Dict[str, Any]) -> List[BaseMessage]:
@@ -83,6 +106,21 @@ def chat_message_bot(input: Dict[str, Any]) -> List[BaseMessage]:
     ]
 
 
+add_routes(
+    app,
+    RunnableLambda(chat_message_bot).with_types(input_type=ChatHistoryMessage),
+    config_keys=["configurable"],
+    path="/chat_message",
+)
+
+# Example 3: File Processing Widget
+
+
+class FileProcessingRequest(BaseModel):
+    file: bytes = Field(..., extra={"widget": {"type": "base64file"}})
+    num_chars: int = 100
+
+
 def process_file(input: Dict[str, Any]) -> str:
     """Extract the text from the first page of the PDF."""
     content = base64.decodebytes(input["file"])
@@ -94,25 +132,10 @@ def process_file(input: Dict[str, Any]) -> str:
 
 add_routes(
     app,
-    RunnableLambda(chat_with_bot).with_types(input_type=ChatHistory),
-    config_keys=["configurable"],
-    path="/chat",
-)
-
-add_routes(
-    app,
     RunnableLambda(process_file).with_types(input_type=FileProcessingRequest),
     config_keys=["configurable"],
     path="/pdf",
 )
-
-add_routes(
-    app,
-    RunnableLambda(chat_message_bot).with_types(input_type=ChatHistoryMessage),
-    config_keys=["configurable"],
-    path="/chat_message",
-)
-
 
 if __name__ == "__main__":
     import uvicorn
