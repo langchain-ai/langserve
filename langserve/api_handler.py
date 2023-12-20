@@ -430,8 +430,10 @@ class APIHandler:
     def __init__(
         self,
         runnable: Runnable,
-        path: str,  # The path under which the runnable is served.
         *,
+        # Named arguments below to make it easier to do gracious deprecation
+        # of features in the future if need be.
+        path: str,
         prefix: str = "",
         input_type: Union[Type, Literal["auto"], BaseModel] = "auto",
         output_type: Union[Type, Literal["auto"], BaseModel] = "auto",
