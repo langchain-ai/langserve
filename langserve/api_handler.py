@@ -1078,7 +1078,12 @@ class APIHandler:
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self._per_req_config_modifier,
+                # Do not use per request config modifier for output schema
+                # since it's unclear why it would make sense to modify
+                # this using a per request config modifier.
+                # If this is needed, for some reason please file an issue explaining
+                # the user case.
+                per_req_config_modifier=None,
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
@@ -1101,7 +1106,12 @@ class APIHandler:
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self._per_req_config_modifier,
+                # Do not use per request config modifier for output schema
+                # since it's unclear why it would make sense to modify
+                # this using a per request config modifier.
+                # If this is needed, for some reason please file an issue explaining
+                # the user case.
+                per_req_config_modifier=None,
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
@@ -1123,7 +1133,12 @@ class APIHandler:
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self._per_req_config_modifier,
+                # Do not use per request config modifier for output schema
+                # since it's unclear why it would make sense to modify
+                # this using a per request config modifier.
+                # If this is needed, for some reason please file an issue explaining
+                # the user case.
+                per_req_config_modifier=None,
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
@@ -1150,7 +1165,12 @@ class APIHandler:
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
                 request=request,
-                per_req_config_modifier=self._per_req_config_modifier,
+                # Do not use per request config modifier for output schema
+                # since it's unclear why it would make sense to modify
+                # this using a per request config modifier.
+                # If this is needed, for some reason please file an issue explaining
+                # the user case.
+                per_req_config_modifier=None,
                 server_config=server_config,
             )
 
