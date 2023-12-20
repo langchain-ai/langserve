@@ -594,29 +594,13 @@ def add_routes(
             )(playground)
 
     if enable_feedback_endpoint:
-        create_feedback = app.post(
+        app.post(
             namespace + "/feedback",
         )(api_handler.create_feedback)
 
-        if endpoint_configuration.is_config_hash_enabled:
-            app.post(
-                namespace + "/c/{config_hash}/feedback",
-            )(create_feedback)
-
-        check_feedback_enabled = app.head(
+        app.head(
             namespace + "/feedback",
         )(api_handler._check_feedback_enabled)
-
-        # Add get version which returns True/False for flow control
-        # instead of 200/400 for flow control
-        app.get(
-            namespace + "/feedback",
-        )(api_handler.check_feedback_enabled)
-
-        if endpoint_configuration.is_config_hash_enabled:  # Is this needed?
-            app.head(
-                namespace + "/c/{config_hash}/feedback",
-            )(check_feedback_enabled)
 
     #######################################
     # Documentation variants of end points.

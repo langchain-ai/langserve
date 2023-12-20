@@ -1175,7 +1175,7 @@ class APIHandler:
         )
 
     async def create_feedback(
-        self, feedback_create_req: FeedbackCreateRequest, config_hash: str = ""
+        self, feedback_create_req: FeedbackCreateRequest
     ) -> Feedback:
         """Send feedback on an individual run to langsmith
 
@@ -1218,18 +1218,18 @@ class APIHandler:
             comment=feedback_from_langsmith.comment,
         )
 
-    async def _check_feedback_enabled(self, config_hash: str = "") -> None:
+    async def _check_feedback_enabled(self) -> None:
         """Check if feedback is enabled for the runnable.
 
         This endpoint is private since it will be deprecated in the future.
         """
-        if not (await self.check_feedback_enabled(config_hash)):
+        if not (await self.check_feedback_enabled()):
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server.",
             )
 
-    async def check_feedback_enabled(self, config_hash: str = "") -> bool:
+    async def check_feedback_enabled(self) -> bool:
         """Check if feedback is enabled for the runnable."""
         return self._enable_feedback_endpoint or not tracing_is_enabled()
