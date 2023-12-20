@@ -34,7 +34,7 @@ def add_one(x: int) -> int:
 
 chain = RunnableLambda(add_one)
 
-api_handler = APIHandler(chain, "/simple")
+api_handler = APIHandler(chain, path="/simple")
 
 
 # First register the endpoints without documentation
@@ -96,7 +96,7 @@ else:
 # Uses FastAPI Depends get a ready API handler.
 async def _get_api_handler() -> APIHandler:
     """Prepare a RunnableLambda."""
-    return APIHandler(RunnableLambda(add_one), "/v2")
+    return APIHandler(RunnableLambda(add_one), path="/v2")
 
 
 @app.post("/v2/invoke")
