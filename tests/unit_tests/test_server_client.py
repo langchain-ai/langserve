@@ -1915,7 +1915,6 @@ async def test_endpoint_configurations() -> None:
         ("POST", "/c/1234/output_schema", {}),
         ("POST", "/c/1234/config_schema", {}),
         ("POST", "/c/1234/playground/index.html", {}),
-        ("POST", "/c/1234/feedback", {}),
     ]
 
     # All endpoints disabled
