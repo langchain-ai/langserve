@@ -173,14 +173,17 @@ def _update_config_with_defaults(
 
     if _is_hosted():
         hosted_metadata = {
-            "__langserve_hosted_git_commit_sha": os.environ.get(
-                "HOSTED_LANGSERVE_GIT_COMMIT", ""
+            "__langserve_hosted_git_ref": os.environ.get(
+                "HOSTED_LANGSERVE_GIT_REF", ""
             ),
             "__langserve_hosted_repo_subdirectory_path": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO_PATH", ""
             ),
             "__langserve_hosted_repo_url": os.environ.get(
                 "HOSTED_LANGSERVE_GIT_REPO", ""
+            ),
+            "__langserve_hosted_revision_id": os.environ.get(
+                "HOSTED_LANGSERVE_REVISION_ID", ""
             ),
             "__langserve_hosted_is_hosted": "true",
         }
