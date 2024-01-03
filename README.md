@@ -430,6 +430,19 @@ type Widget = {
 };
 ```
 
+### Available Widgets
+
+There are only two widgets that the user can specify manually right now:
+
+1. File Upload Widget
+2. Chat History Widget
+
+See below more information about these widgets.
+
+All other widgets on the playground UI are created and managed automatically by the UI
+based on the config schema of the Runnable. When you create Configurable Runnables,
+the playground should create appropriate widgets for you to control the behavior.
+
 #### File Upload Widget
 
 Allows creation of a file upload input in the UI playground for files
@@ -464,6 +477,57 @@ Example widget:
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/52199e46-9464-4c2e-8be8-222250e08c3f" width="50%"/>
 </p>
 
+### Chat Widget
+
+Look at [widget example](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py).
+
+To define a chat widget, make sure that you pass "type": "chat".
+
+* "input" is JSONPath to the field in the *Request* that has the new input message.
+* "output" is JSONPath to the field in the *Response* that has new output message(s).
+* Don't specify these fields if the entire input or output should be used as they are (e.g., if the output is a list of chat messages.)
+
+Here's a snippet:
+
+```python
+
+class ChatHistory(CustomUserType):
+    chat_history: List[Tuple[str, str]] = Field(
+        ...,
+        examples=[[("human input", "ai response")]],
+        extra={"widget": {"type": "chat", "input": "question", "output": "answer"}},
+    )
+    question: str
+
+
+def _format_to_messages(input: ChatHistory) -> List[BaseMessage]:
+    """Format the input to a list of messages."""
+    history = input.chat_history
+    user_input = input.question
+
+    messages = []
+
+    for human, ai in history:
+        messages.append(HumanMessage(content=human))
+        messages.append(AIMessage(content=ai))
+    messages.append(HumanMessage(content=user_input))
+    return messages
+
+
+model = ChatOpenAI()
+chat_model = RunnableParallel({"answer": (RunnableLambda(_format_to_messages) | model)})
+add_routes(
+    app,
+    chat_model.with_types(input_type=ChatHistory),
+    config_keys=["configurable"],
+    path="/chat",
+)
+```
+
+Example widget:
+<p align="center">
+<img src="https://github.com/langchain-ai/langserve/assets/3205522/a71ff37b-a6a9-4857-a376-cf27c41d3ca4" width="50%"/>
+</p>
 
 
 ### Enabling / Disabling Endpoints (LangServe >=0.0.33)
