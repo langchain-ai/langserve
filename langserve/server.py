@@ -26,7 +26,7 @@ from langserve.pydantic_v1 import (
 )
 
 try:
-    from fastapi import APIRouter, FastAPI, Request, Response
+    from fastapi import APIRouter, Depends, FastAPI, Request, Response
 except ImportError:
     # [server] extra not installed
     APIRouter = FastAPI = Request = Response = Any
@@ -233,6 +233,7 @@ def add_routes(
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
+    dependencies: Optional[Sequence[Depends]] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -326,8 +327,9 @@ def add_routes(
             ```
         stream_log_name_allow_list: list of run names that the client can
             stream as intermediate steps
-
-    """
+        dependencies: list of dependencies to be applied to the *path operation*.
+            See [FastAPI docs for Dependencies in path operation decorators](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/).
+    """  # noqa: E501
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
         disabled_endpoints=disabled_endpoints,
@@ -434,7 +436,9 @@ def add_routes(
 
     if endpoint_configuration.is_invoke_enabled:
 
-        @app.post(f"{namespace}/invoke", include_in_schema=False)
+        @app.post(
+            f"{namespace}/invoke", include_in_schema=False, dependencies=dependencies
+        )
         async def invoke(request: Request) -> Response:
             """Handle a request."""
             # The API Handler validates the parts of the request
@@ -443,7 +447,11 @@ def add_routes(
 
         if endpoint_configuration.is_config_hash_enabled:
 
-            @app.post(namespace + "/c/{config_hash}/invoke", include_in_schema=False)
+            @app.post(
+                namespace + "/c/{config_hash}/invoke",
+                include_in_schema=False,
+                dependencies=dependencies,
+            )
             async def invoke_with_config(
                 request: Request, config_hash: str = ""
             ) -> Response:
@@ -454,7 +462,9 @@ def add_routes(
 
     if endpoint_configuration.is_batch_enabled:
 
-        @app.post(f"{namespace}/batch", include_in_schema=False)
+        @app.post(
+            f"{namespace}/batch", include_in_schema=False, dependencies=dependencies
+        )
         async def batch(request: Request) -> Response:
             """Handle a request."""
             # The API Handler validates the parts of the request
@@ -463,7 +473,11 @@ def add_routes(
 
         if endpoint_configuration.is_config_hash_enabled:
 
-            @app.post(namespace + "/c/{config_hash}/batch", include_in_schema=False)
+            @app.post(
+                namespace + "/c/{config_hash}/batch",
+                include_in_schema=False,
+                dependencies=dependencies,
+            )
             async def batch_with_config(
                 request: Request, config_hash: str = ""
             ) -> Response:
@@ -474,7 +488,9 @@ def add_routes(
 
     if endpoint_configuration.is_stream_enabled:
 
-        @app.post(f"{namespace}/stream", include_in_schema=False)
+        @app.post(
+            f"{namespace}/stream", include_in_schema=False, dependencies=dependencies
+        )
         async def stream(request: Request) -> EventSourceResponse:
             """Handle a request."""
             # The API Handler validates the parts of the request
@@ -483,7 +499,11 @@ def add_routes(
 
         if endpoint_configuration.is_config_hash_enabled:
 
-            @app.post(namespace + "/c/{config_hash}/stream", include_in_schema=False)
+            @app.post(
+                namespace + "/c/{config_hash}/stream",
+                include_in_schema=False,
+                dependencies=dependencies,
+            )
             async def stream_with_config(
                 request: Request, config_hash: str = ""
             ) -> EventSourceResponse:
@@ -494,7 +514,11 @@ def add_routes(
 
     if endpoint_configuration.is_stream_log_enabled:
 
-        @app.post(f"{namespace}/stream_log", include_in_schema=False)
+        @app.post(
+            f"{namespace}/stream_log",
+            include_in_schema=False,
+            dependencies=dependencies,
+        )
         async def stream_log(request: Request) -> EventSourceResponse:
             """Handle a request."""
             # The API Handler validates the parts of the request
@@ -504,7 +528,9 @@ def add_routes(
         if endpoint_configuration.is_config_hash_enabled:
 
             @app.post(
-                namespace + "/c/{config_hash}/stream_log", include_in_schema=False
+                namespace + "/c/{config_hash}/stream_log",
+                include_in_schema=False,
+                dependencies=dependencies,
             )
             async def stream_log_with_config(
                 request: Request, config_hash: str = ""
@@ -520,6 +546,7 @@ def add_routes(
             f"{namespace}/input_schema",
             name=_route_name("input_schema"),
             tags=route_tags,
+            dependencies=dependencies,
         )
         async def input_schema(request: Request) -> Response:
             """Return the input schema."""
@@ -531,6 +558,7 @@ def add_routes(
                 namespace + "/c/{config_hash}/input_schema",
                 name=_route_name_with_config("input_schema"),
                 tags=route_tags_with_config,
+                dependencies=dependencies,
             )
             async def input_schema_with_config(
                 request: Request, config_hash: str = ""
@@ -544,6 +572,7 @@ def add_routes(
             f"{namespace}/output_schema",
             name=_route_name("output_schema"),
             tags=route_tags,
+            dependencies=dependencies,
         )
         async def output_schema(request: Request) -> Response:
             """Return the output schema."""
@@ -555,6 +584,7 @@ def add_routes(
                 namespace + "/c/{config_hash}/output_schema",
                 name=_route_name_with_config("output_schema"),
                 tags=route_tags_with_config,
+                dependencies=dependencies,
             )
             async def output_schema_with_config(
                 request: Request, config_hash: str = ""
@@ -568,6 +598,7 @@ def add_routes(
             f"{namespace}/config_schema",
             name=_route_name("config_schema"),
             tags=route_tags,
+            dependencies=dependencies,
         )
         async def config_schema(request: Request) -> Response:
             """Return the config schema."""
@@ -579,6 +610,7 @@ def add_routes(
                 namespace + "/c/{config_hash}/config_schema",
                 name=_route_name_with_config("config_schema"),
                 tags=route_tags_with_config,
+                dependencies=dependencies,
             )
             async def config_schema_with_config(
                 request: Request, config_hash: str = ""
@@ -587,22 +619,25 @@ def add_routes(
                 return await api_handler.config_schema(request, config_hash=config_hash)
 
     if endpoint_configuration.is_playground_enabled:
-        playground = app.get(namespace + "/playground/{file_path:path}")(
-            api_handler.playground
-        )
+        playground = app.get(
+            namespace + "/playground/{file_path:path}", dependencies=dependencies
+        )(api_handler.playground)
 
         if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/playground/{file_path:path}",
+                dependencies=dependencies,
             )(playground)
 
     if enable_feedback_endpoint:
         app.post(
             namespace + "/feedback",
+            dependencies=dependencies,
         )(api_handler.create_feedback)
 
         app.head(
             namespace + "/feedback",
+            dependencies=dependencies,
         )(api_handler._check_feedback_enabled)
 
     #######################################
@@ -631,6 +666,7 @@ def add_routes(
                 response_model=api_handler.InvokeResponse,
                 tags=route_tags,
                 name=_route_name("invoke"),
+                dependencies=dependencies,
             )(_invoke_docs)
 
             if endpoint_configuration.is_config_hash_enabled:
@@ -639,6 +675,7 @@ def add_routes(
                     response_model=api_handler.InvokeResponse,
                     tags=route_tags_with_config,
                     name=_route_name_with_config("invoke"),
+                    dependencies=dependencies,
                     description=(
                         "This endpoint is to be used with share links generated by the "
                         "LangServe playground. "
@@ -662,6 +699,7 @@ def add_routes(
                 response_model=BatchResponse,
                 tags=route_tags,
                 name=_route_name("batch"),
+                dependencies=dependencies,
             )(_batch_docs)
 
             if endpoint_configuration.is_config_hash_enabled:
@@ -670,6 +708,7 @@ def add_routes(
                     response_model=BatchResponse,
                     tags=route_tags_with_config,
                     name=_route_name_with_config("batch"),
+                    dependencies=dependencies,
                     description=(
                         "This endpoint is to be used with share links generated by the "
                         "LangServe playground. "
@@ -738,6 +777,12 @@ def add_routes(
                 include_in_schema=True,
                 tags=route_tags,
                 name=_route_name("stream"),
+                description=(
+                    "This endpoint allows to stream the output of the runnable. "
+                    "The endpoint uses a server sent event stream to stream the "
+                    "output. "
+                    "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+                ),
             )(_stream_docs)
 
             if endpoint_configuration.is_config_hash_enabled:
@@ -746,6 +791,7 @@ def add_routes(
                     include_in_schema=True,
                     tags=route_tags_with_config,
                     name=_route_name_with_config("stream"),
+                    dependencies=dependencies,
                     description=(
                         "This endpoint is to be used with share links generated by the "
                         "LangServe playground. "
@@ -810,6 +856,7 @@ def add_routes(
                 include_in_schema=True,
                 tags=route_tags,
                 name=_route_name("stream_log"),
+                dependencies=dependencies,
             )(_stream_log_docs)
 
             if endpoint_configuration.is_config_hash_enabled:
@@ -825,4 +872,5 @@ def add_routes(
                         "For regular use cases, use the /stream_log endpoint without "
                         "the `c/{config_hash}` path parameter."
                     ),
+                    dependencies=dependencies,
                 )(_stream_log_docs)
