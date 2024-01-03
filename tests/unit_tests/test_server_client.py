@@ -6,7 +6,6 @@ from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
 from typing import (
-    Annotated,
     Any,
     Dict,
     Iterable,
@@ -35,7 +34,7 @@ from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
-from typing_extensions import TypedDict
+from typing_extensions import Annotated, TypedDict
 
 from langserve import api_handler
 from langserve.api_handler import (
