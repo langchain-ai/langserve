@@ -306,14 +306,17 @@ If you need to add authentication to your server, please read Fast API's documen
 
 #### Using add_routes
 
-If you're using `add_routes`, you can use any of the following methods (see examples [here](https://github.com/langchain-ai/langserve/tree/main/examples/auth)):
+If you're using `add_routes`, see examples [here](https://github.com/langchain-ai/langserve/tree/main/examples/auth).
 
-* [global dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/)
-* [path dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/)
-* [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/)
-* Specify `per_req_config_modifier` when using `add_routes`. Use a callable receives the raw `Request` object and can extract relevant information from it for authentication and authorization purposes.
+The above examples use FastAPI's: [global dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/), [path dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/).
 
 Using global dependencies and path dependencies has the advantage that auth will be properly supported in the OpenAPI docs page.
+
+Alternatively, you can use FastAPI's [middleware](https://fastapi.tiangolo.com/tutorial/middleware/).
+
+**Per User** 
+
+If you need authorization or logic that is user dependent, specify `per_req_config_modifier` when using `add_routes`. Use a callable receives the raw `Request` object and can extract relevant information from it for authentication and authorization purposes.
 
 #### Using APIHandler
 
