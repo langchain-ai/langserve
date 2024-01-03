@@ -13,7 +13,7 @@ See:
 * https://fastapi.tiangolo.com/tutorial/security/
 """
 
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import Depends, FastAPI, Header, HTTPException
 from langchain_core.runnables import RunnableLambda
 from typing_extensions import Annotated
 
