@@ -2103,9 +2103,10 @@ async def test_path_dependencies() -> None:
         for method, endpoint, payload in endpoints_with_payload:
             response = await async_client.request(method, endpoint, json=payload)
             # Missing required header
-            assert (
-                response.status_code == 422
-            ), f"Should fail on {endpoint} since we are missing the header. Test case: ({method}, {endpoint}, {payload}) with {response.text}"
+            assert response.status_code == 422, (
+                f"Should fail on {endpoint} since we are missing the header. "
+                f"Test case: ({method}, {endpoint}, {payload}) with {response.text}"
+            )
 
             response = await async_client.request(
                 method, endpoint, json=payload, headers={"X-Token": "secret-token"}
