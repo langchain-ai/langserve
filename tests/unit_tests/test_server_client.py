@@ -1992,7 +1992,10 @@ async def test_endpoint_configurations() -> None:
             # It may still be 4xx due to incorrect payload etc, but
             # we don't care, we just want to make sure that the endpoint
             # is enabled.
-            assert response.status_code != 404, f"endpoint {endpoint} should be on"
+            assert response.status_code not in {
+                404,
+                405,
+            }, f"endpoint {endpoint} should be on"
 
     # Config disabled
     async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
@@ -2008,7 +2011,10 @@ async def test_endpoint_configurations() -> None:
                 response = await async_client.request(
                     method, "/config_off" + endpoint, json=payload
                 )
-                assert response.status_code != 404, f"endpoint {endpoint} should be on"
+                assert response.status_code not in {
+                    404,
+                    405,
+                }, f"endpoint {endpoint} should be on"
 
     with pytest.raises(ValueError):
         # Passing "invoke" instead of ["invoke"]
@@ -2095,7 +2101,7 @@ async def test_path_dependencies() -> None:
             response = await async_client.request(
                 method, endpoint, json=payload, headers={"X-Token": "secret-token"}
             )
-            assert response.status_code != 422, (
+            assert response.status_code not in {422, 405, 404}, (
                 f"Failed test case: ({method}, {endpoint}, {payload}) "
                 f"with {response.text}. "
                 f"Should not return 422 status code since we are passing the header."
