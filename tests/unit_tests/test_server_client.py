@@ -1992,10 +1992,16 @@ async def test_endpoint_configurations() -> None:
             # It may still be 4xx due to incorrect payload etc, but
             # we don't care, we just want to make sure that the endpoint
             # is enabled.
-            assert response.status_code not in {
-                404,
-                405,
-            }, f"endpoint {endpoint} should be on"
+            if "feedback" in endpoint:
+                # Feedback returns 405 if tracing is disabled
+                error_codes = {404}
+            else:
+                error_codes = {404, 405}
+            if response.status_code in error_codes:
+                raise AssertionError(
+                    f"Endpoint {endpoint} should be on. "
+                    f"Test case: ({method}, {endpoint}, {payload}) with {response.text}"
+                )
 
     # Config disabled
     async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
@@ -2011,10 +2017,14 @@ async def test_endpoint_configurations() -> None:
                 response = await async_client.request(
                     method, "/config_off" + endpoint, json=payload
                 )
-                assert response.status_code not in {
-                    404,
-                    405,
-                }, f"endpoint {endpoint} should be on"
+                if endpoint == "/feedback":
+                    # Feedback returns 405 if tracing is disabled
+                    error_codes = {404}
+                else:
+                    error_codes = {404, 405}
+                assert (
+                    response.status_code not in error_codes
+                ), f"endpoint {endpoint} should be on"
 
     with pytest.raises(ValueError):
         # Passing "invoke" instead of ["invoke"]
@@ -2101,7 +2111,7 @@ async def test_path_dependencies() -> None:
             response = await async_client.request(
                 method, endpoint, json=payload, headers={"X-Token": "secret-token"}
             )
-            assert response.status_code not in {422, 405, 404}, (
+            assert response.status_code not in {404, 405, 422}, (
                 f"Failed test case: ({method}, {endpoint}, {payload}) "
                 f"with {response.text}. "
                 f"Should not return 422 status code since we are passing the header."
