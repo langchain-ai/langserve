@@ -300,12 +300,24 @@ Except for these limitations, we expect the API endpoints, the playground and an
 
 ## Advanced
 
-## Handling Authentication
+### Handling Authentication
 
-If you need to add authentication to your server,
-please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
-and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
+If you need to add authentication to your server, please read Fast API's documentation about [dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/) and [security](https://fastapi.tiangolo.com/tutorial/security/).
 
+#### Using add_routes
+
+If you're using `add_routes`, you can use any of the following methods (see examples [here](https://github.com/langchain-ai/langserve/tree/main/examples/auth)):
+
+* [global dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/)
+* [path dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/)
+* [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/)
+* Specify `per_req_config_modifier` when using `add_routes`. Use a callable receives the raw `Request` object and can extract relevant information from it for authentication and authorization purposes.
+
+##### Using APIHandler
+
+If you feel comfortable with FastAPI / python and need acess to lower building blocks, you can use LangServe's [APIHandler](https://github.com/langchain-ai/langserve/blob/main/examples/api_handler_examples/server.py) directly instead of using `add_routes`. 
+
+It's a bit more work, but gives you complete control over the endpoint definitions, so you can do whatever custom logic you need for auth.
 
 ### Files
 
