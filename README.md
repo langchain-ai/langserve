@@ -313,7 +313,7 @@ If you're using `add_routes`, you can use any of the following methods (see exam
 * [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/)
 * Specify `per_req_config_modifier` when using `add_routes`. Use a callable receives the raw `Request` object and can extract relevant information from it for authentication and authorization purposes.
 
-##### Using APIHandler
+#### Using APIHandler
 
 If you feel comfortable with FastAPI / python and need acess to lower building blocks, you can use LangServe's [APIHandler](https://github.com/langchain-ai/langserve/blob/main/examples/api_handler_examples/server.py) directly instead of using `add_routes`. 
 
