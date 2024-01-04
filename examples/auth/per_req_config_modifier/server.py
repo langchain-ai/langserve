@@ -32,7 +32,7 @@ be able to help with authentication. This is currently a limitation
 if using `add_routes`. If you need this functionality, you can use
 the underlying `APIHandler` class directly, which affords maximal flexibility.
 """
-from typing import Dict, Union, Optional, List
+from typing import Dict, List, Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -40,9 +40,9 @@ from langchain_community.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.runnables import (
-    RunnableSerializable,
-    RunnableConfig,
     ConfigurableField,
+    RunnableConfig,
+    RunnableSerializable,
 )
 from langchain_core.vectorstores import VectorStore
 from typing_extensions import Annotated
