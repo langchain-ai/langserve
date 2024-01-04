@@ -250,15 +250,15 @@ def test_server(app: FastAPI) -> None:
     # Test schema
     input_schema = sync_client.get("/input_schema").json()
     assert isinstance(input_schema, dict)
-    assert input_schema["title"] == "RunnableLambdaInput"
+    assert input_schema["title"] == "add_one_or_passthrough_input"
     #
     output_schema = sync_client.get("/output_schema").json()
     assert isinstance(output_schema, dict)
-    assert output_schema["title"] == "RunnableLambdaOutput"
+    assert output_schema["title"] == "add_one_or_passthrough_output"
 
     output_schema = sync_client.get("/config_schema").json()
     assert isinstance(output_schema, dict)
-    assert output_schema["title"] == "RunnableBindingConfig"
+    assert output_schema["title"] == "add_one_or_passthrough_config"
 
     # TODO(Team): Fix test. Issue with eventloops right now when using sync client
     # # Test stream
@@ -1320,10 +1320,10 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
         # input schema
         response = await async_client.get("/add_one/input_schema")
-        assert response.json() == {"title": "RunnableLambdaInput", "type": "integer"}
+        assert response.json() == {"title": "add_one_input", "type": "integer"}
 
         response = await async_client.get("/add_two_custom/input_schema")
-        assert response.json() == {"title": "RunnableBindingInput", "type": "number"}
+        assert response.json() == {"title": "add_two_input", "type": "number"}
 
         response = await async_client.get("/prompt_1/input_schema")
         assert response.json() == {
@@ -1342,12 +1342,12 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         # output schema
         response = await async_client.get("/add_one/output_schema")
         assert response.json() == {
-            "title": "RunnableLambdaOutput",
+            "title": "add_one_output",
             "type": "integer",
         }
 
         response = await async_client.get("/add_two_custom/output_schema")
-        assert response.json() == {"title": "RunnableBindingOutput", "type": "number"}
+        assert response.json() == {"title": "add_two_output", "type": "number"}
 
         # Just verify that the schema is not empty (it's pretty long)
         # and the actual value should be tested in LangChain
@@ -1361,7 +1361,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_one/config_schema")
         assert response.json() == {
             "properties": {},
-            "title": "RunnableBindingConfig",
+            "title": "add_one_config",
             "type": "object",
         }
 
@@ -1370,7 +1370,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
             },
-            "title": "RunnableBindingConfig",
+            "title": "add_two_config",
             "type": "object",
         }
 
@@ -1394,7 +1394,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 "configurable": {"$ref": "#/definitions/Configurable"},
                 "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
             },
-            "title": "RunnableBindingConfig",
+            "title": "RunnableConfigurableFieldsConfig",
             "type": "object",
         }
 
@@ -1430,7 +1430,7 @@ async def test_input_schema_typed_dict() -> None:
                     "type": "object",
                 }
             },
-            "title": "RunnableBindingInput",
+            "title": "passthrough_dict_input",
         }
 
 
