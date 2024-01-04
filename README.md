@@ -23,7 +23,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Efficient `/invoke/`, `/batch/` and `/stream/` endpoints with support for many concurrent requests on a single server
 - `/stream_log/` endpoint for streaming all (or some) intermediate steps from your chain/agent
 - Playground page at `/playground/` with streaming output and intermediate steps
-- Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
+- Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/))
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
 - [LangServe Hub](https://github.com/langchain-ai/langchain/blob/master/templates/README.md)
