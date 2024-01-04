@@ -1787,10 +1787,18 @@ async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> Non
 
     app = FastAPI()
 
-    def header_passthru_modifier(
+    async def header_passthru_modifier(
         config: Dict[str, Any], request: Request
     ) -> Dict[str, Any]:
         """Update the config"""
+        # Make sure we can access the request body if we need to
+        body = await request.json()
+        # Hard-codes the expected body just for the test
+        # This is tested with just the version
+        assert body == {
+            "input": 1,
+        }
+
         config = config.copy()
         if "metadata" in config:
             config["metadata"] = config["metadata"].copy()
@@ -1808,10 +1816,31 @@ async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> Non
         per_req_config_modifier=header_passthru_modifier,
     )
 
+    async with get_async_test_client(app) as async_client:
+        response = await async_client.post("/add_one/invoke", json={"input": 1})
+        assert response.json()["output"] == 2
+
+
+async def test_per_request_config_modifier_endpoints(
+    event_loop: AbstractEventLoop,
+) -> None:
+    """Verify that per request modifier is only applied for the expected endpoints."""
+
     # this test verifies that per request modifier is only
     # applied for the expected endpoints
-    def buggy_modifier(config: Dict[str, Any], request: Request) -> Dict[str, Any]:
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    app = FastAPI()
+    server_runnable = RunnableLambda(add_one)
+
+    async def buggy_modifier(
+        config: Dict[str, Any], request: Request
+    ) -> Dict[str, Any]:
         """Update the config"""
+        body = await request.json()  # Make sure we can access the request body always.
+        assert isinstance(body, dict)
         raise ValueError("oops I did it again")
 
     add_routes(
