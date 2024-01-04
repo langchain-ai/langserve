@@ -5,14 +5,23 @@ import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Union,
+)
 from unittest.mock import MagicMock, patch
 from uuid import UUID
 
 import httpx
 import pytest
 import pytest_asyncio
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
@@ -25,7 +34,7 @@ from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
-from typing_extensions import TypedDict
+from typing_extensions import Annotated, TypedDict
 
 from langserve import api_handler
 from langserve.api_handler import (
@@ -1960,10 +1969,10 @@ async def test_endpoint_configurations() -> None:
         ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
         ("POST", "/c/1234/stream", {"input": 1}),
         ("POST", "/c/1234/stream_log", {"input": 1}),
-        ("POST", "/c/1234/input_schema", {}),
-        ("POST", "/c/1234/output_schema", {}),
-        ("POST", "/c/1234/config_schema", {}),
-        ("POST", "/c/1234/playground/index.html", {}),
+        ("GET", "/c/1234/input_schema", {}),
+        ("GET", "/c/1234/output_schema", {}),
+        ("GET", "/c/1234/config_schema", {}),
+        ("GET", "/c/1234/playground/index.html", {}),
     ]
 
     # All endpoints disabled
@@ -1982,7 +1991,16 @@ async def test_endpoint_configurations() -> None:
             # It may still be 4xx due to incorrect payload etc, but
             # we don't care, we just want to make sure that the endpoint
             # is enabled.
-            assert response.status_code != 404, f"endpoint {endpoint} should be on"
+            if "feedback" in endpoint:
+                # Feedback returns 405 if tracing is disabled
+                error_codes = {404}
+            else:
+                error_codes = {404, 405}
+            if response.status_code in error_codes:
+                raise AssertionError(
+                    f"Endpoint {endpoint} should be on. "
+                    f"Test case: ({method}, {endpoint}, {payload}) with {response.text}"
+                )
 
     # Config disabled
     async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
@@ -1998,7 +2016,14 @@ async def test_endpoint_configurations() -> None:
                 response = await async_client.request(
                     method, "/config_off" + endpoint, json=payload
                 )
-                assert response.status_code != 404, f"endpoint {endpoint} should be on"
+                if endpoint == "/feedback":
+                    # Feedback returns 405 if tracing is disabled
+                    error_codes = {404}
+                else:
+                    error_codes = {404, 405}
+                assert (
+                    response.status_code not in error_codes
+                ), f"endpoint {endpoint} should be on"
 
     with pytest.raises(ValueError):
         # Passing "invoke" instead of ["invoke"]
@@ -2028,3 +2053,66 @@ async def test_endpoint_configurations() -> None:
             enable_feedback_endpoint=True,
             path="/config_off",
         )
+
+
+async def test_path_dependencies() -> None:
+    """Test path dependencies."""
+
+    def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    async def verify_token(x_token: Annotated[str, Header()]) -> None:
+        """Verify the token is valid."""
+        # Replace this with your actual authentication logic
+        if x_token != "secret-token":
+            raise HTTPException(status_code=400, detail="X-Token header invalid")
+
+    app = FastAPI()
+
+    add_routes(
+        app,
+        RunnableLambda(add_one),
+        dependencies=[Depends(verify_token)],
+        enable_feedback_endpoint=True,
+    )
+
+    endpoints_with_payload = [
+        ("POST", "/invoke", {"input": 1}),
+        ("POST", "/batch", {"inputs": [1, 2]}),
+        ("POST", "/stream", {"input": 1}),
+        ("POST", "/stream_log", {"input": 1}),
+        ("GET", "/input_schema", {}),
+        ("GET", "/output_schema", {}),
+        ("GET", "/config_schema", {}),
+        ("GET", "/playground/index.html", {}),
+        # ("HEAD", "/feedback", {}),
+        # ("GET", "/feedback", {}),
+        # Check config hashes
+        ("POST", "/c/1234/invoke", {"input": 1}),
+        ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
+        ("POST", "/c/1234/stream", {"input": 1}),
+        ("POST", "/c/1234/stream_log", {"input": 1}),
+        ("GET", "/c/1234/input_schema", {}),
+        ("GET", "/c/1234/output_schema", {}),
+        ("GET", "/c/1234/config_schema", {}),
+        ("GET", "/c/1234/playground/index.html", {}),
+    ]
+
+    async with get_async_test_client(app, raise_app_exceptions=False) as async_client:
+        for method, endpoint, payload in endpoints_with_payload:
+            response = await async_client.request(method, endpoint, json=payload)
+            # Missing required header
+            assert response.status_code == 422, (
+                f"Should fail on {endpoint} since we are missing the header. "
+                f"Test case: ({method}, {endpoint}, {payload}) with {response.text}"
+            )
+
+            response = await async_client.request(
+                method, endpoint, json=payload, headers={"X-Token": "secret-token"}
+            )
+            assert response.status_code not in {404, 405, 422}, (
+                f"Failed test case: ({method}, {endpoint}, {payload}) "
+                f"with {response.text}. "
+                f"Should not return 422 status code since we are passing the header."
+            )
