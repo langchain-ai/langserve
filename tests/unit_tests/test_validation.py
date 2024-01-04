@@ -140,7 +140,7 @@ def test_validation(test_case) -> None:
             model(**test_case)
 
 
-def test_invoke_request_with_runnables() -> None:
+async def test_invoke_request_with_runnables() -> None:
     """Test that the invoke request model is created correctly."""
     runnable = PromptTemplate.from_template("say hello to {name}").configurable_fields(
         template=ConfigurableField(
@@ -153,7 +153,7 @@ def test_invoke_request_with_runnables() -> None:
     Model = create_invoke_request_model("", runnable.input_schema, config)
 
     assert (
-        _unpack_request_config(
+        await _unpack_request_config(
             Model(
                 input={"name": "bob"},
             ).config,
@@ -183,7 +183,7 @@ def test_invoke_request_with_runnables() -> None:
         "template": "goodbye {name}",
     }
 
-    assert _unpack_request_config(
+    assert await _unpack_request_config(
         request.config,
         config_keys=["configurable"],
         model=config,
