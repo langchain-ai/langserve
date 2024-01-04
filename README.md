@@ -23,7 +23,7 @@ A javascript client is available in [LangChainJS](https://js.langchain.com/docs/
 - Efficient `/invoke/`, `/batch/` and `/stream/` endpoints with support for many concurrent requests on a single server
 - `/stream_log/` endpoint for streaming all (or some) intermediate steps from your chain/agent
 - Playground page at `/playground/` with streaming output and intermediate steps
-- Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/)])
+- Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just add your API key (see [Instructions](https://docs.smith.langchain.com/))
 - All built with battle-tested open-source Python libraries like FastAPI, Pydantic, uvloop and asyncio.
 - Use the client SDK to call a LangServe server as if it was a Runnable running locally (or call the HTTP API directly)
 - [LangServe Hub](https://github.com/langchain-ai/langchain/blob/master/templates/README.md)
@@ -310,12 +310,29 @@ Except for these limitations, we expect the API endpoints, the playground and an
 
 ## Advanced
 
-## Handling Authentication
+### Handling Authentication
 
-If you need to add authentication to your server,
-please reference FastAPI's [security documentation](https://fastapi.tiangolo.com/tutorial/security/)
-and [middleware documentation](https://fastapi.tiangolo.com/tutorial/middleware/).
+If you need to add authentication to your server, please read Fast API's documentation about [dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/) and [security](https://fastapi.tiangolo.com/tutorial/security/).
 
+#### Using add_routes
+
+If you're using `add_routes`, see examples [here](https://github.com/langchain-ai/langserve/tree/main/examples/auth).
+
+The above examples use FastAPI's: [global dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/), [path dependencies](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/).
+
+Using global dependencies and path dependencies has the advantage that auth will be properly supported in the OpenAPI docs page.
+
+Alternatively, you can use FastAPI's [middleware](https://fastapi.tiangolo.com/tutorial/middleware/).
+
+**Per User** 
+
+If you need authorization or logic that is user dependent, specify `per_req_config_modifier` when using `add_routes`. Use a callable receives the raw `Request` object and can extract relevant information from it for authentication and authorization purposes.
+
+#### Using APIHandler
+
+If you feel comfortable with FastAPI / python and need acess to lower building blocks, you can use LangServe's [APIHandler](https://github.com/langchain-ai/langserve/blob/main/examples/api_handler_examples/server.py) directly instead of using `add_routes`. 
+
+It's a bit more work, but gives you complete control over the endpoint definitions, so you can do whatever custom logic you need for auth.
 
 ### Files
 
