@@ -1,5 +1,6 @@
 import contextlib
 import importlib
+import inspect
 import json
 import os
 import re
@@ -7,6 +8,7 @@ from inspect import isclass
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
     Callable,
     Dict,
     Generator,
@@ -84,10 +86,15 @@ def _config_from_hash(config_hash: str) -> Dict[str, Any]:
         raise HTTPException(400, "Invalid config hash")
 
 
-PerRequestConfigModifier = Callable[[Dict[str, Any], Request], Dict[str, Any]]
+# Per request modifier
+PerRequestConfigModifier = Union[
+    Callable[[Dict[str, Any], Request], Dict[str, Any]],
+    # Async version is needed to access information in the request.
+    Callable[[Dict[str, Any], Request], Awaitable[Dict[str, Any]]],
+]
 
 
-def _unpack_request_config(
+async def _unpack_request_config(
     *client_sent_configs: Union[BaseModel, Mapping, str],
     config_keys: Sequence[str],
     model: Type[BaseModel],
@@ -144,11 +151,13 @@ def _unpack_request_config(
         projected_config = merge_configs(projected_config, server_config)
 
     # Finally apply the per_req_config_modifier if it was provided.
-    return (
-        per_req_config_modifier(projected_config, request)
-        if per_req_config_modifier
-        else projected_config
-    )
+    if per_req_config_modifier:
+        if inspect.iscoroutinefunction(per_req_config_modifier):
+            projected_config = await per_req_config_modifier(projected_config, request)
+        else:
+            projected_config = per_req_config_modifier(projected_config, request)
+
+    return projected_config
 
 
 def _update_config_with_defaults(
@@ -620,7 +629,7 @@ class APIHandler:
             body = InvokeRequestShallowValidator.validate(body)
 
             # Merge the config from the path with the config from the body.
-            user_provided_config = _unpack_request_config(
+            user_provided_config = await _unpack_request_config(
                 config_hash,
                 body.config,
                 config_keys=self._config_keys,
@@ -730,7 +739,7 @@ class APIHandler:
                     )
 
                 configs = [
-                    _unpack_request_config(
+                    await _unpack_request_config(
                         config_hash,
                         config,
                         config_keys=self._config_keys,
@@ -742,7 +751,7 @@ class APIHandler:
                     for config in config
                 ]
             elif isinstance(config, dict):
-                configs = _unpack_request_config(
+                configs = await _unpack_request_config(
                     config_hash,
                     config,
                     config_keys=self._config_keys,
@@ -1076,7 +1085,7 @@ class APIHandler:
     ) -> Any:
         """Return the input schema of the runnable."""
         with _with_validation_error_translation():
-            user_provided_config = _unpack_request_config(
+            user_provided_config = await _unpack_request_config(
                 config_hash,
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
@@ -1104,7 +1113,7 @@ class APIHandler:
     ) -> Any:
         """Return the output schema of the runnable."""
         with _with_validation_error_translation():
-            user_provided_config = _unpack_request_config(
+            user_provided_config = await _unpack_request_config(
                 config_hash,
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
@@ -1131,7 +1140,7 @@ class APIHandler:
     ) -> Any:
         """Return the config schema of the runnable."""
         with _with_validation_error_translation():
-            user_provided_config = _unpack_request_config(
+            user_provided_config = await _unpack_request_config(
                 config_hash,
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
@@ -1163,7 +1172,7 @@ class APIHandler:
     ) -> Any:
         """Return the playground of the runnable."""
         with _with_validation_error_translation():
-            user_provided_config = _unpack_request_config(
+            user_provided_config = await _unpack_request_config(
                 config_hash,
                 config_keys=self._config_keys,
                 model=self._ConfigPayload,
