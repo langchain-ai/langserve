@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a conversational retrieval chain."""
+from typing import Any
+
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, tool
 from langchain.agents.format_scratchpad import format_to_openai_functions
@@ -67,7 +69,7 @@ class Input(BaseModel):
 
 
 class Output(BaseModel):
-    output: str
+    output: Any
 
 
 # Adds routes to the app for using the chain under:
