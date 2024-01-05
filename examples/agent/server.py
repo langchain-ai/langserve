@@ -10,6 +10,7 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.pydantic_v1 import BaseModel
 from langchain.tools.render import format_tool_to_openai_function
 from langchain.vectorstores import FAISS
+from langchain_core.runnables import ConfigurableField
 
 from langserve import add_routes
 
@@ -35,7 +36,19 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-llm = ChatOpenAI()
+
+llm = ChatOpenAI(temperature=0.5).configurable_alternatives(
+    ConfigurableField(
+        id="llm",
+        name="LLM",
+        description=(
+            "Decide whether to use a high or a low temperature parameter for the LLM."
+        ),
+    ),
+    high_temp=ChatOpenAI(temperature=0.9),
+    low_temp=ChatOpenAI(temperature=0.1),
+    default_key="medium_temp",
+)
 
 llm_with_tools = llm.bind(functions=[format_tool_to_openai_function(t) for t in tools])
 
@@ -75,6 +88,7 @@ class Output(BaseModel):
 # /batch
 # /stream
 add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output))
+add_routes(app, llm, path='/llms')
 
 if __name__ == "__main__":
     import uvicorn
