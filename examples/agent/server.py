@@ -1,5 +1,16 @@
 #!/usr/bin/env python
-"""Example LangChain server exposes a conversational retrieval chain."""
+"""Example LangChain server exposes a conversational retrieval chain.
+
+Please see documentation for custom agent streaming here:
+
+https://python.langchain.com/docs/modules/agents/how_to/streaming#stream-tokens
+
+**ATTENTION**
+To support streaming individual tokens you will need to manually set the streaming=True
+on the LLM and use the stream_log endpoint rather than stream endpoint.
+"""
+from typing import Any
+
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, tool
 from langchain.agents.format_scratchpad import format_to_openai_functions
@@ -35,7 +46,10 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-llm = ChatOpenAI()
+# We need to set streaming=True on the LLM to support streaming individual tokens.
+# when using the stream_log endpoint.
+# .stream for agents streams action observation pairs not individual tokens.
+llm = ChatOpenAI(streaming=True)
 
 llm_with_tools = llm.bind(functions=[format_tool_to_openai_function(t) for t in tools])
 
@@ -67,7 +81,7 @@ class Input(BaseModel):
 
 
 class Output(BaseModel):
-    output: str
+    output: Any
 
 
 # Adds routes to the app for using the chain under:
