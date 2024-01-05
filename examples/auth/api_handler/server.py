@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-"""Example that shows how to use `per_req_config_modifier`.
+"""Example that shows how to use the underlying APIHandler class directly with Auth.
 
-This is a simple example that shows how to use configurable runnables with
-per request configuration modification to achieve behavior that's different
-depending on the user.
+This example shows how to apply logic based on the user's identity.
 
 You can build on these concepts to implement a more complex app:
 * Add endpoints that allow users to manage their documents.
@@ -32,9 +30,10 @@ be able to help with authentication. This is currently a limitation
 if using `add_routes`. If you need this functionality, you can use
 the underlying `APIHandler` class directly, which affords maximal flexibility.
 """
-from typing import Any, Dict, List, Optional, Union
+from importlib import metadata
+from typing import Any, List, Optional, Union
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from langchain_community.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.chroma import Chroma
@@ -47,7 +46,7 @@ from langchain_core.runnables import (
 from langchain_core.vectorstores import VectorStore
 from typing_extensions import Annotated
 
-from langserve import add_routes
+from langserve import APIHandler
 from langserve.pydantic_v1 import BaseModel
 
 
@@ -122,9 +121,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     return {"access_token": user.username, "token_type": "bearer"}
 
 
-async def get_current_active_user_from_request(request: Request) -> User:
-    """Get the current active user from the request."""
-    token = await oauth2_scheme(request)
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     user = _fake_decode_token(token)
     if not user:
         raise HTTPException(
@@ -132,9 +129,15 @@ async def get_current_active_user_from_request(request: Request) -> User:
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
     return user
+
+
+async def get_current_active_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    if current_user.disabled:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
 
 
 class PerUserVectorstore(RunnableSerializable):
@@ -170,16 +173,6 @@ class PerUserVectorstore(RunnableSerializable):
     ) -> List[Document]:
         """Add one to an integer."""
         return self._call_with_config(self._invoke, input, config, **kwargs)
-
-
-async def per_req_config_modifier(config: Dict, request: Request) -> Dict:
-    """Modify the config for each request."""
-    user = await get_current_active_user_from_request(request)
-    config["configurable"] = {}
-    # Attention: Make sure that the user ID is over-ridden for each request.
-    # We should not be accepting a user ID from the user in this case!
-    config["configurable"]["user_id"] = user.username
-    return config
 
 
 vectorstore = Chroma(
@@ -229,12 +222,61 @@ per_user_retriever = PerUserVectorstore(
     )
 )
 
-add_routes(
-    app,
+
+# Let's define the API Handler
+api_handler = APIHandler(
     per_user_retriever,
-    per_req_config_modifier=per_req_config_modifier,
-    enabled_endpoints=["invoke"],
+    # Namespace for the runnable.
+    # Endpoints like batch / invoke should be under /my_runnable/invoke
+    # and /my_runnable/batch etc.
+    path="/my_runnable",
 )
+
+
+PYDANTIC_VERSION = metadata.version("pydantic")
+_PYDANTIC_MAJOR_VERSION: int = int(PYDANTIC_VERSION.split(".")[0])
+
+
+# **ATTENTION** Your code does not need to include both versions.
+# Use whichever version is appropriate given the pydantic version you are using.
+# Both versions are included here for demonstration purposes.
+#
+# If using pydantic <2, everything works as expected.
+# However, when using pydantic >=2 is installed, things are a bit
+# more complicated because LangChain uses the pydantic.v1 namespace
+# But the pydantic.v1 namespace is not supported by FastAPI.
+# See this issue: https://github.com/tiangolo/fastapi/issues/10360
+# So when using pydantic >=2, we need to use a vanilla starlette request
+# and response, and we will not have documentation.
+# Or we can create custom models for the request and response.
+# The underlying API Handler will still validate the request
+# correctly even if vanilla requests are used.
+if _PYDANTIC_MAJOR_VERSION == 1:
+
+    @app.post("/my_runnable/invoke")
+    async def invoke_with_auth(
+        # Included for documentation purposes
+        invoke_request: api_handler.InvokeRequest,
+        request: Request,
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> Response:
+        """Handle a request."""
+        # The API Handler validates the parts of the request
+        # that are used by the runnnable (e.g., input, config fields)
+        config = {"configurable": {"user_id": current_user.username}}
+        return await api_handler.invoke(request, server_config=config)
+else:
+
+    @app.post("/my_runnable/invoke")
+    async def invoke_with_auth(
+        request: Request,
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> Response:
+        """Handle a request."""
+        # The API Handler validates the parts of the request
+        # that are used by the runnnable (e.g., input, config fields)
+        config = {"configurable": {"user_id": current_user.username}}
+        return await api_handler.invoke(request, server_config=config)
 
 
 if __name__ == "__main__":

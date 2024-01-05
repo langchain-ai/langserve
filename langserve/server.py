@@ -399,7 +399,7 @@ def add_routes(
             # When using pydantic v2, we cannot generate openapi docs for
             # the invoke/batch/stream/stream_log endpoints since the underlying
             # models are from the pydantic.v1 namespace and cannot be supported
-            # by fastapi's.
+            # by FastAPI's.
             # https://github.com/tiangolo/fastapi/issues/10360
             default_endpoint_tags = {
                 "name": route_tags[0] if route_tags else "default",
