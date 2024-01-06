@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Example LangChain server exposes a conversational retrieval chain.
+"""Example LangChain server exposes a conversational retrieval agent.
 
 Please see documentation for custom agent streaming here:
 
