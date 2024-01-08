@@ -519,6 +519,16 @@ class APIHandler:
 
         self._config_keys = config_keys
 
+        if not isinstance(runnable, Runnable):
+            raise TypeError(
+                f"Expected a Runnable got {type(runnable)} which does not "
+                "inherit from Runnable. It looks like you're trying to use a "
+                "an object which is not a runnable as a runnable, which will "
+                "not work. You could try using a RunnableLambda to create "
+                "a runnable for your code or else create a Runnable subclass and"
+                "place the appropriate logic there."
+            )
+
         self._path = path
         self._base_url = prefix + path
         self._include_callback_events = include_callback_events
