@@ -69,16 +69,16 @@ export function CorrectnessFeedback(props: { runId: string }) {
         type="button"
         className={cn(
           "border focus-within:border-ls-blue focus-within:outline-none bg-background rounded p-1 border-divider-700 hover:bg-divider-500/50 active:bg-divider-500",
-          score.mutation.data?.score === -1 && "text-red-500"
+          score.mutation.data?.score === 0 && "text-red-500"
         )}
         disabled={score.mutation.isMutating}
         onClick={() => {
-          if (score.mutation.data?.score !== -1) {
-            score.mutation.trigger({ key: "correctness", score: -1 });
+          if (score.mutation.data?.score !== 0) {
+            score.mutation.trigger({ key: "correctness", score: 0 });
           }
         }}
       >
-        {score.lastArg?.score === -1 ? (
+        {score.lastArg?.score === 0 ? (
           <CircleSpinIcon className="animate-spin w-4 h-4 text-white/50 fill-white" />
         ) : (
           <ThumbsDownIcon className="w-4 h-4" />
