@@ -656,7 +656,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "exclude_types": exclude_types,
             "exclude_tags": exclude_tags,
         }
-        endpoint = urljoin(self.url, "stream_log")
+        endpoint = urljoin(self._enforce_trailing_slash(self.url), "stream_log")
 
         try:
             from httpx_sse import aconnect_sse
