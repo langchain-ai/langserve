@@ -22,7 +22,7 @@ uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
 In addition, it provides a client that can be used to call into runnables deployed on a
 server.
 A javascript client is available
-in [LangChainJS](https://js.langchain.com/docs/api/runnables_remote/classes/RemoteRunnable).
+in [LangChainJS](https://api.js.langchain.com/classes/langchain_runnables_remote.RemoteRunnable.html).
 
 ## Features
 
@@ -110,7 +110,7 @@ directory.
 | **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                             | 
 | **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.)                                                                                 | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb)     | 
 | **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)                             | 
-| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/client.ipynb)                                               | 
+| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py)                                               | 
 | **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               | 
 
 ## Sample Application
