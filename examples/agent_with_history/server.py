@@ -1,13 +1,17 @@
 #!/usr/bin/env python
-"""Example LangChain server exposes and agent that has history.
+"""Example LangChain server exposes and agent that has conversation history.
 
-Please see documentation for custom agent streaming here:
+In this example, the history is stored entirely on the client's side.
 
-https://python.langchain.com/docs/modules/agents/how_to/streaming#stream-tokens
+Please see other examples in LangServe on how to use RunnableWithHistory to
+store history on the server side.
 
-**ATTENTION**
-To support streaming individual tokens you will need to manually set the streaming=True
-on the LLM and use the stream_log endpoint rather than stream endpoint.
+In addition, see agent documentation in LangChain:
+
+https://python.langchain.com/docs/modules/agents/how_to/custom_agent
+
+**ATTENTION** This exampl does not truncate message history, so it will crash
+if you send too many messages (exceed token length).
 """
 from typing import Any, List, Union
 
@@ -60,6 +64,20 @@ tools = [word_length]
 
 llm_with_tools = llm.bind(tools=[format_tool_to_openai_tool(tool) for tool in tools])
 
+# ATTENTION: For production use case, it's a good idea to trim the prompt to avoid
+#            exceeding the context window length used by the model.
+#
+# To fix that simply adjust the chain to trim the prompt in whatever way
+# is appropriate for your use case.
+# For example, you may want to keep the system message and the last 10 messages.
+# Or you may want to trim based on the number of tokens.
+# Or you may want to also summarize the messages to keep information about things
+# that were learned about the user.
+#
+# def prompt_trimmer(messages: List[Union[HumanMessage, AIMessage, FunctionMessage]]):
+#     '''Trims the prompt to a reasonable length.'''
+#     # Keep in mind that when trimming you may want to keep the system message!
+#     return messages[-10:] # Keep last 10 messages.
 
 agent = (
     {
@@ -70,6 +88,7 @@ agent = (
         "chat_history": lambda x: x["chat_history"],
     }
     | prompt
+    # | prompt_trimmer # See comment above.
     | llm_with_tools
     | OpenAIToolsAgentOutputParser()
 )
