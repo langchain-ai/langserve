@@ -57,6 +57,7 @@ from langserve.validation import (
     create_batch_response_model,
     create_invoke_request_model,
     create_invoke_response_model,
+    create_stream_events_request_model,
     create_stream_log_request_model,
     create_stream_request_model,
 )
@@ -591,7 +592,7 @@ class APIHandler:
             model_namespace, input_type_, self._ConfigPayload
         )
 
-        self._StreamEventsRequest = create_stream_log_request_model(
+        self._StreamEventsRequest = create_stream_events_request_model(
             model_namespace, input_type_, self._ConfigPayload
         )
         # Generate the response models
