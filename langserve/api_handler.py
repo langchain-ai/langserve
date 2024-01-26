@@ -95,8 +95,11 @@ PerRequestConfigModifier = Union[
 ]
 
 
-def _strip_standard_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """Strip standard metadata from the given metadata dict."""
+def _strip_internal_keys(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip out internal metadata keys that should not be sent to the client.
+
+    These keys are defined to be any key that starts with "__".
+    """
     return {k: v for k, v in metadata.items() if not k.startswith("__")}
 
 
@@ -1177,7 +1180,7 @@ class APIHandler:
                         in self._names_in_stream_allow_list
                     ):
                         # Strip internal metadata from the event
-                        event["metadata"] = _strip_standard_metadata(event["metadata"])
+                        event["metadata"] = _strip_internal_keys(event["metadata"])
                         yield {
                             # EventSourceResponse expects a string for data
                             # so after serializing into bytes, we decode into utf-8
