@@ -57,6 +57,7 @@ from langserve.validation import (
     create_batch_response_model,
     create_invoke_request_model,
     create_invoke_response_model,
+    create_stream_events_request_model,
     create_stream_log_request_model,
     create_stream_request_model,
 )
@@ -590,6 +591,10 @@ class APIHandler:
         self._StreamLogRequest = create_stream_log_request_model(
             model_namespace, input_type_, self._ConfigPayload
         )
+
+        self._StreamEventsRequest = create_stream_events_request_model(
+            model_namespace, input_type_, self._ConfigPayload
+        )
         # Generate the response models
         self._InvokeResponse = create_invoke_response_model(
             model_namespace, output_type_
@@ -615,6 +620,11 @@ class APIHandler:
     def StreamLogRequest(self) -> Type[BaseModel]:
         """Return the stream log request model."""
         return self._StreamLogRequest
+
+    @property
+    def StreamEventsRequest(self) -> Type[BaseModel]:
+        """Return the stream events request model."""
+        return self._StreamEventsRequest
 
     @property
     def InvokeResponse(self) -> Type[BaseModel]:

@@ -195,6 +195,64 @@ def create_stream_log_request_model(
     return stream_log_request
 
 
+def create_stream_events_request_model(
+    namespace: str,
+    input_type: Validator,
+    config: Type[BaseModel],
+) -> Type[BaseModel]:
+    """Create a pydantic model for the stream events request."""
+    stream_events_request = create_model(
+        f"{namespace}StreamEventsRequest",
+        input=(input_type, ...),
+        config=(config, Field(default_factory=dict)),
+        include_names=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, filter to runnables with matching names",
+            ),
+        ),
+        include_types=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, filter to runnables with matching types",
+            ),
+        ),
+        include_tags=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, filter to runnables with matching tags",
+            ),
+        ),
+        exclude_names=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, exclude runnables with matching names",
+            ),
+        ),
+        exclude_types=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, exclude runnables with matching types",
+            ),
+        ),
+        exclude_tags=(
+            Optional[Sequence[str]],
+            Field(
+                None,
+                description="If specified, exclude runnables with matching tags",
+            ),
+        ),
+        kwargs=(dict, Field(default_factory=dict)),
+    )
+    stream_events_request.update_forward_refs()
+    return stream_events_request
+
+
 class InvokeBaseResponse(BaseModel):
     """Base class for invoke request."""
 
