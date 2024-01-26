@@ -983,10 +983,10 @@ def add_routes(
                 raise AssertionError("This endpoint should not be reachable.")
 
             app.post(
-                f"{namespace}/stream_log",
+                f"{namespace}/stream_events",
                 include_in_schema=True,
                 tags=route_tags,
-                name=_route_name("stream_log"),
+                name=_route_name("stream_events"),
                 dependencies=dependencies,
             )(_stream_events_docs)
 
