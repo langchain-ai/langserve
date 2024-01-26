@@ -937,9 +937,21 @@ def add_routes(
                 This endpoint allows to stream events from the runnable, including
                 events from all intermediate steps.
 
-                This is a new endpoint that only works for langchain-core >= 0.1.14.
+                **Attention**
 
-                It belongs to a Beta API that may change in the future.
+                    This is a new endpoint that only works for langchain-core >= 0.1.14.
+
+                    It belongs to a Beta API that may change in the future.
+
+                **Important**
+                    Specify filters to the events you want to receive by setting
+                    the appropriate filters in the request body.
+
+                    This will help avoid sending too much data over the network.
+
+                    It will also prevent serialization issues with
+                    any unsupported types since it won't need to serialize events
+                    that aren't transmitted.
 
                 The endpoint uses a server sent event stream to stream the output.
 
