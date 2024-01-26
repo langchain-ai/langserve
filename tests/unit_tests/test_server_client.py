@@ -51,7 +51,8 @@ try:
 except ImportError:
     from pydantic import BaseModel, Field
 from langserve.server import add_routes
-from tests.unit_tests.utils import FakeListLLM, FakeTracer
+from tests.unit_tests.utils.tracer import FakeTracer
+from tests.unit_tests.utils.llms import FakeListLLM
 
 
 def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
