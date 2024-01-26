@@ -38,6 +38,8 @@ from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.outputs import ChatGenerationChunk, LLMResult
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import ConfigurableFieldSpec
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
@@ -2292,6 +2294,25 @@ def _clean_up_events(events: List[Dict[str, Any]]) -> None:
             assert not k.startswith("__")
         assert "metadata" in event
         del event["metadata"]
+
+
+async def test_serialization_of_config():
+    """Test serialization of config."""
+    app = FastAPI()
+
+    def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    runnable = RunnableLambda(add_one)
+    add_routes(app, runnable)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as client:
+        r = client.with_config({"configurable": {"messages": [HumanMessage(content="hello")]}})
+        result = await client.ainvoke(1)
+        assert result == []
+
 
 
 async def test_astream_events_with_serialization(
