@@ -4,6 +4,7 @@ import datetime
 import json
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
+from dataclasses import dataclass
 from enum import Enum
 from typing import (
     Any,
@@ -31,6 +32,7 @@ from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
+from langchain_core.documents import Document
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
@@ -817,7 +819,6 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
         }
 
 
-@pytest.mark.asyncio
 async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
     """Test async stream with an allowlist."""
 
@@ -2157,8 +2158,11 @@ async def test_endpoint_configurations() -> None:
         )
 
 
-async def test_astream_events(async_remote_runnable: RemoteRunnable) -> None:
-    """Test astream events implementation."""
+async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> None:
+    """Test astream events using a simple chain.
+
+    This test should not involve any complex serialization logic.
+    """
 
     app = FastAPI()
 
@@ -2267,6 +2271,207 @@ async def test_astream_events(async_remote_runnable: RemoteRunnable) -> None:
                 "tags": [],
             },
         ]
+
+
+def _clean_up_events(events: List[Dict[str, Any]]) -> None:
+    """Clean up events to make it easy to compare them."""
+    for event in events:
+        assert "run_id" in event
+        del event["run_id"]
+        # Assert that we don't include any "internal" metadata
+        # in the events
+        for k, v in event["metadata"].items():
+            assert not k.startswith("__")
+        assert "metadata" in event
+        del event["metadata"]
+
+
+async def test_astream_events_with_serialization(
+    async_remote_runnable: RemoteRunnable,
+) -> None:
+    """Test serialization logic in astream events.
+
+    Intermediate steps in the chain may involve arbitrary types.
+
+    Let's check that we can serialize some of the well known types.
+    """
+
+    app = FastAPI()
+
+    def to_document(query: str) -> List[Document]:
+        """Convert a query to a document"""
+        return [
+            Document(page_content=query, metadata={"a": "b"}),
+            Document(page_content=query[::-1]),
+        ]
+
+    def from_document(documents: List[Document]) -> str:
+        """Convert a document to a string"""
+        return documents[0].page_content
+
+    # This should work since we have built in serializers for Document
+    chain = RunnableLambda(to_document) | RunnableLambda(from_document)
+    add_routes(app, chain, path="/doc_types")
+
+    # Add a test case for serialization of a dataclass
+    # This will be serialized using FastAPI's built in serializer for dataclasses
+    # It will not however be decoded properly into a dataclass on the client side
+    # since the client side does not have enough information to do so.
+    @dataclass
+    class Pet:
+        name: str
+        age: int
+
+    def get_pets(query: str) -> List[Pet]:
+        """Get pets"""
+        return [
+            Pet(name="foo", age=1),
+            Pet(name="bar", age=2),
+        ]
+
+    # Works because of built-in serializer for dataclass from fast api
+    # But it will not deserialize correctly into a dataclass (this is OK)
+    add_routes(app, RunnableLambda(get_pets), path="/get_pets")
+
+    class NotSerializable:
+        def __init__(self, foo: int) -> None:
+            """Create a non-serializable class"""
+            self.foo = foo
+
+    def into_non_serializable(query: str) -> List[NotSerializable]:
+        """Return non serializable data"""
+        return [NotSerializable(foo=1)]
+
+    def back_to_serializable(inputs) -> str:
+        """Return non serializable data"""
+        return "hello"
+
+    # Works because of built-in serializer for dataclass from fast api
+    # But it will not deserialize correctly into a dataclass (this is OK)
+    chain = RunnableLambda(into_non_serializable) | RunnableLambda(back_to_serializable)
+    add_routes(app, chain, path="/break")
+
+    # Invoke request
+    async with get_async_remote_runnable(
+        app, raise_app_exceptions=False, path="/doc_types"
+    ) as runnable:
+        # Test good requests
+        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        _clean_up_events(events)
+
+        assert events == [
+            {
+                "data": {"input": "foo"},
+                "event": "on_chain_start",
+                "name": "/doc_types",
+                "tags": [],
+            },
+            {
+                "data": {},
+                "event": "on_chain_start",
+                "name": "to_document",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {
+                    "chunk": [
+                        Document(page_content="foo", metadata={"a": "b"}),
+                        Document(page_content="oof"),
+                    ]
+                },
+                "event": "on_chain_stream",
+                "name": "to_document",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {},
+                "event": "on_chain_start",
+                "name": "from_document",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {
+                    "input": "foo",
+                    "output": [
+                        Document(page_content="foo", metadata={"a": "b"}),
+                        Document(page_content="oof"),
+                    ],
+                },
+                "event": "on_chain_end",
+                "name": "to_document",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {"chunk": "foo"},
+                "event": "on_chain_stream",
+                "name": "from_document",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"chunk": "foo"},
+                "event": "on_chain_stream",
+                "name": "/doc_types",
+                "tags": [],
+            },
+            {
+                "data": {
+                    "input": [
+                        Document(page_content="foo", metadata={"a": "b"}),
+                        Document(page_content="oof"),
+                    ],
+                    "output": "foo",
+                },
+                "event": "on_chain_end",
+                "name": "from_document",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"output": "foo"},
+                "event": "on_chain_end",
+                "name": "/doc_types",
+                "tags": [],
+            },
+        ]
+
+    async with get_async_remote_runnable(
+        app, raise_app_exceptions=False, path="/get_pets"
+    ) as runnable:
+        # Test good requests
+        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        _clean_up_events(events)
+        assert events == [
+            {
+                "data": {"input": "foo"},
+                "event": "on_chain_start",
+                "name": "/get_pets",
+                "tags": [],
+            },
+            {
+                "data": {
+                    "chunk": [{"age": 1, "name": "foo"}, {"age": 2, "name": "bar"}]
+                },
+                "event": "on_chain_stream",
+                "name": "/get_pets",
+                "tags": [],
+            },
+            {
+                "data": {
+                    "output": [{"age": 1, "name": "foo"}, {"age": 2, "name": "bar"}]
+                },
+                "event": "on_chain_end",
+                "name": "/get_pets",
+                "tags": [],
+            },
+        ]
+
+    async with get_async_remote_runnable(
+        app, raise_app_exceptions=False, path="/break"
+    ) as runnable:
+        # Test good requests
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            async for event in runnable.astream_events("foo", version="v1"):
+                pass
+        assert cb.value.response.status_code == 500
 
 
 async def test_path_dependencies() -> None:
