@@ -95,6 +95,11 @@ PerRequestConfigModifier = Union[
 ]
 
 
+def _strip_standard_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip standard metadata from the given metadata dict."""
+    return {k: v for k, v in metadata.items() if not k.startswith("__")}
+
+
 async def _unpack_request_config(
     *client_sent_configs: Union[BaseModel, Mapping, str],
     config_keys: Sequence[str],
@@ -1171,7 +1176,8 @@ class APIHandler:
                         or self._runnable.config.get("run_name")
                         in self._names_in_stream_allow_list
                     ):
-                        # Temporary adapter
+                        # Strip internal metadata from the event
+                        event['metadata'] = _strip_standard_metadata(event['metadata'])
                         yield {
                             # EventSourceResponse expects a string for data
                             # so after serializing into bytes, we decode into utf-8
