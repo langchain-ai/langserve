@@ -2204,6 +2204,10 @@ async def test_astream_events(async_remote_runnable: RemoteRunnable) -> None:
         for event in events:
             assert "run_id" in event
             del event["run_id"]
+            # Assert that we don't include any "internal" metadata
+            # in the events
+            for k, v in event["metadata"].items():
+                assert not k.startswith("__")
             assert "metadata" in event
             del event["metadata"]
 
