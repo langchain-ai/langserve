@@ -33,6 +33,7 @@ in [LangChainJS](https://api.js.langchain.com/classes/langchain_runnables_remote
   concurrent requests on a single server
 - `/stream_log/` endpoint for streaming all (or some) intermediate steps from your
   chain/agent
+- **new** as of 0.0.40, supports `astream_events` to make it easier to stream without needing to parse the output of `stream_log`.
 - Playground page at `/playground/` with streaming output and intermediate steps
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just
   add your API key (see [Instructions](https://docs.smith.langchain.com/))
@@ -277,6 +278,8 @@ adds of these endpoints to the server:
 - `POST /my_runnable/stream` - invoke on a single input and stream the output
 - `POST /my_runnable/stream_log` - invoke on a single input and stream the output,
   including output of intermediate steps as it's generated
+- `POST /my_runnable/astream_events` - invoke on a single input and stream events as they are generated,
+ including from intermediate steps.
 - `GET /my_runnable/input_schema` - json schema for input to the runnable
 - `GET /my_runnable/output_schema` - json schema for output of the runnable
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
