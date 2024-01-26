@@ -1177,7 +1177,7 @@ class APIHandler:
                         in self._names_in_stream_allow_list
                     ):
                         # Strip internal metadata from the event
-                        event['metadata'] = _strip_standard_metadata(event['metadata'])
+                        event["metadata"] = _strip_standard_metadata(event["metadata"])
                         yield {
                             # EventSourceResponse expects a string for data
                             # so after serializing into bytes, we decode into utf-8
