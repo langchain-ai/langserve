@@ -456,6 +456,18 @@ async def test_server_astream_events(app: FastAPI) -> None:
             {"type": "end"},
         ]
 
+    # test stream_events with bad requests
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        response = await async_client.post("/stream_events", data="bad json []")
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
+        response = await async_client.post("/stream_events", json={})
+        stream_events = _decode_eventstream(response.text)
+        assert stream_events[0]["type"] == "error"
+        assert stream_events[0]["data"]["status_code"] == 422
+
 
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
@@ -2143,6 +2155,114 @@ async def test_endpoint_configurations() -> None:
             enable_feedback_endpoint=True,
             path="/config_off",
         )
+
+
+async def test_astream_events(async_remote_runnable: RemoteRunnable) -> None:
+    """Test astream events implementation."""
+
+    app = FastAPI()
+
+    def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    def mul_two(y: int) -> int:
+        """Add one to simulate a valid function"""
+        return y * 2
+
+    runnable = RunnableLambda(add_one) | RunnableLambda(mul_two)
+    add_routes(app, runnable)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as runnable:
+        # Test bad requests
+        # test client side error
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            # Invalid input type (expected string but got int)
+            async for _ in runnable.astream_events("foo", version="v1"):
+                pass
+
+        # Verify that this is a 422 error
+        assert cb.value.response.status_code == 422
+
+        with pytest.raises(httpx.HTTPStatusError) as cb:
+            # Invalid input type (expected string but got int)
+            # include names should not be a list of lists
+            async for _ in runnable.astream_events(1, include_names=[[]], version="v1"):
+                pass
+
+        # Verify that this is a 422 error
+        assert cb.value.response.status_code == 422
+
+        # Test good requests
+        events = []
+
+        async for event in runnable.astream_events(1, version="v1"):
+            events.append(event)
+
+        # validate events
+        for event in events:
+            assert "run_id" in event
+            del event["run_id"]
+            assert "metadata" in event
+            del event["metadata"]
+
+        assert events == [
+            {
+                "data": {"input": 1},
+                "event": "on_chain_start",
+                "name": "RunnableSequence",
+                "tags": [],
+            },
+            {
+                "data": {},
+                "event": "on_chain_start",
+                "name": "add_one",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {"chunk": 2},
+                "event": "on_chain_stream",
+                "name": "add_one",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {},
+                "event": "on_chain_start",
+                "name": "mul_two",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"input": 1, "output": 2},
+                "event": "on_chain_end",
+                "name": "add_one",
+                "tags": ["seq:step:1"],
+            },
+            {
+                "data": {"chunk": 4},
+                "event": "on_chain_stream",
+                "name": "mul_two",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"chunk": 4},
+                "event": "on_chain_stream",
+                "name": "RunnableSequence",
+                "tags": [],
+            },
+            {
+                "data": {"input": 2, "output": 4},
+                "event": "on_chain_end",
+                "name": "mul_two",
+                "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"output": 4},
+                "event": "on_chain_end",
+                "name": "RunnableSequence",
+                "tags": [],
+            },
+        ]
 
 
 async def test_path_dependencies() -> None:

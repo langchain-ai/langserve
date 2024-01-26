@@ -36,6 +36,8 @@ from langchain.schema.runnable.config import (
     get_callback_manager_for_config,
 )
 from langchain.schema.runnable.utils import AddableDict, Input, Output
+from langchain_core.runnables.schema import StreamEvent
+from typing_extensions import Literal
 
 from langserve.callbacks import CallbackEventDict, ahandle_callbacks, handle_callbacks
 from langserve.serialization import (
@@ -699,3 +701,102 @@ class RemoteRunnable(Runnable[Input, Output]):
             raise
         else:
             await run_manager.on_chain_end(final_output)
+
+    async def astream_events(
+        self,
+        input: Any,
+        config: Optional[RunnableConfig] = None,
+        *,
+        version: Literal["v1"],
+        include_names: Optional[Sequence[str]] = None,
+        include_types: Optional[Sequence[str]] = None,
+        include_tags: Optional[Sequence[str]] = None,
+        exclude_names: Optional[Sequence[str]] = None,
+        exclude_types: Optional[Sequence[str]] = None,
+        exclude_tags: Optional[Sequence[str]] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream events from the server runnable.
+
+        **Attention**: This method is using a beta API and may change slightly.
+
+        This method can stream events from any step used in the runnable exposed
+        on the server. This includes all inner runs of LLMs, Retrievers, Tools, etc.
+
+        **Recommended**: Only ask for the data you need. This can significantly
+        reduce the amount of data sent over the wire.
+
+        Args:
+            input: The input to the runnable
+            config: The config to use for the runnable
+            version: The version of the astream_events to use.
+                     Currently only "v1" is supported.
+            include_names: The names of the events to include
+            include_types: The types of the events to include
+            include_tags: The tags of the events to include
+            exclude_names: The names of the events to exclude
+            exclude_types: The types of the events to exclude
+            exclude_tags: The tags of the events to exclude
+        """
+        if version != "v1":
+            raise ValueError(f"Unsupported version: {version}. Use 'v1'")
+
+        # Create a stream handler that will emit Log objects
+        config = ensure_config(config)
+        callback_manager = get_async_callback_manager_for_config(config)
+
+        events = []
+
+        run_manager = await callback_manager.on_chain_start(
+            dumpd(self),
+            self._lc_serializer.dumpd(input),
+            name=config.get("run_name"),
+        )
+        data = {
+            "input": self._lc_serializer.dumpd(input),
+            "config": _without_callbacks(config),
+            "kwargs": kwargs,
+            "include_names": include_names,
+            "include_types": include_types,
+            "include_tags": include_tags,
+            "exclude_names": exclude_names,
+            "exclude_types": exclude_types,
+            "exclude_tags": exclude_tags,
+        }
+        endpoint = urljoin(self.url, "stream_events")
+
+        try:
+            from httpx_sse import aconnect_sse
+        except ImportError:
+            raise ImportError("You must install `httpx_sse` to use the stream method.")
+
+        try:
+            async with aconnect_sse(
+                self.async_client, "POST", endpoint, json=data
+            ) as event_source:
+                async for sse in event_source.aiter_sse():
+                    if sse.event == "data":
+                        event = self._lc_serializer.loads(sse.data)
+                        # Create a copy of the data to yield since underlying
+                        # code is using jsonpatch which does some stuff in-place
+                        # that can cause unexpected consequences.
+                        yield event
+                        events.append(event)
+                    elif sse.event == "error":
+                        # This can only be a server side error
+                        _raise_exception_from_data(
+                            sse.data, httpx.Request(method="POST", url=endpoint)
+                        )
+                    elif sse.event == "end":
+                        break
+                    else:
+                        _log_error_message_once(
+                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Try upgrading the remote client to the latest version."
+                            f"Ignoring events of type `{sse.event}`."
+                        )
+        except BaseException as e:
+            await run_manager.on_chain_error(e)
+            raise
+        else:
+            await run_manager.on_chain_end(events)
