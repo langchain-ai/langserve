@@ -308,6 +308,17 @@ class StreamLogParameters(BaseModel):
     exclude_tags: Optional[Sequence[str]] = None
 
 
+class StreamEventsParameters(BaseModel):
+    """Shallow validator for Stream Events Request."""
+
+    include_names: Optional[Sequence[str]] = None
+    include_types: Optional[Sequence[str]] = None
+    include_tags: Optional[Sequence[str]] = None
+    exclude_names: Optional[Sequence[str]] = None
+    exclude_types: Optional[Sequence[str]] = None
+    exclude_tags: Optional[Sequence[str]] = None
+
+
 # Pydantic validators for callback events
 # These objects may have a slightly different shape than the callback events
 # used internally in langchain because they represent a serialized version

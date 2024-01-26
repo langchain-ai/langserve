@@ -406,6 +406,57 @@ async def test_server_async(app: FastAPI) -> None:
         assert stream_events[0]["data"]["status_code"] == 422
 
 
+async def test_server_astream_events(app: FastAPI) -> None:
+    """Test the server directly via HTTP requests.
+
+    Here we test just astream_events server side without a Remote Client.
+    """
+    async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
+        # Test invoke
+        # Test stream
+        response = await async_client.post("/stream_events", json={"input": 1})
+        # Decode the event stream using plain json de-serialization
+        events = _decode_eventstream(response.text)
+
+        for event in events:
+            if "data" in event:
+                assert "run_id" in event["data"]
+                del event["data"]["run_id"]
+                assert "metadata" in event["data"]
+                del event["data"]["metadata"]
+
+        assert events == [
+            {
+                "data": {
+                    "data": {"input": 1},
+                    "event": "on_chain_start",
+                    "name": "add_one_or_passthrough",
+                    "tags": [],
+                },
+                "type": "data",
+            },
+            {
+                "data": {
+                    "data": {"chunk": 2},
+                    "event": "on_chain_stream",
+                    "name": "add_one_or_passthrough",
+                    "tags": [],
+                },
+                "type": "data",
+            },
+            {
+                "data": {
+                    "data": {"output": 2},
+                    "event": "on_chain_end",
+                    "name": "add_one_or_passthrough",
+                    "tags": [],
+                },
+                "type": "data",
+            },
+            {"type": "end"},
+        ]
+
+
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
@@ -661,6 +712,8 @@ async def test_astream_log_diff_no_effect(
                     "id": uuid,
                     "logs": {},
                     "streamed_output": [],
+                    "type": "chain",
+                    "name": "add_one_or_passthrough",
                 },
             }
         ],
@@ -674,6 +727,8 @@ async def test_astream_log_diff_no_effect(
         "id": uuid,
         "logs": {},
         "streamed_output": [2],
+        "type": "chain",
+        "name": "add_one_or_passthrough",
     }
 
 
@@ -729,6 +784,8 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
                         "id": uuid,
                         "logs": {},
                         "streamed_output": [],
+                        "type": "chain",
+                        "name": "add_one",
                     },
                 }
             ],
@@ -743,6 +800,8 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
             "id": uuid,
             "logs": {},
             "streamed_output": [2],
+            "type": "chain",
+            "name": "add_one",
         }
 
 
@@ -922,6 +981,8 @@ async def test_invoke_as_part_of_sequence_async(
             "id": first_op["value"]["id"],
             "logs": {},
             "streamed_output": [],
+            "type": "chain",
+            "name": "RunnableSequence",
         },
     }
 

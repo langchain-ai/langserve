@@ -32,8 +32,6 @@ def add_one(x: int) -> int:
     return x + 1
 
 
-chain = RunnableLambda(add_one)
-
 api_handler = APIHandler(chain, path="/simple")
 
 

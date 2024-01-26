@@ -51,6 +51,7 @@ from langserve.validation import (
     BatchRequestShallowValidator,
     InvokeBaseResponse,
     InvokeRequestShallowValidator,
+    StreamEventsParameters,
     StreamLogParameters,
     create_batch_request_model,
     create_batch_response_model,
@@ -498,6 +499,11 @@ class APIHandler:
                 credentials to a runnable. The RunnableConfig is presented in its
                 dictionary form. Note that only keys in `config_keys` will be
                 modifiable by this function.
+            stream_log_name_allow_list: optional list of names of logs that can be
+                streamed by the stream_log endpoint.
+                If not provided, then all logs will be allowed to be streamed.
+                Use to also limit the events that can be streamed by the stream_events.
+                TODO: Introduce deprecation for this parameter to rename it
         """
         if importlib.util.find_spec("sse_starlette") is None:
             raise ImportError(
@@ -525,7 +531,7 @@ class APIHandler:
         self._per_req_config_modifier = per_req_config_modifier
         self._serializer = WellKnownLCSerializer()
         self._enable_feedback_endpoint = enable_feedback_endpoint
-        self._stream_log_name_allow_list = stream_log_name_allow_list
+        self._names_in_stream_allow_list = stream_log_name_allow_list
 
         # Client is patched using mock.patch, if changing the names
         # remember to make relevant updates in the unit tests.
@@ -1045,9 +1051,9 @@ class APIHandler:
                             f"Expected a RunLog instance got {type(chunk)}"
                         )
                     if (
-                        self._stream_log_name_allow_list is None
+                        self._names_in_stream_allow_list is None
                         or self._runnable.config.get("run_name")
-                        in self._stream_log_name_allow_list
+                        in self._names_in_stream_allow_list
                     ):
                         data = {
                             "ops": chunk.ops,
@@ -1075,6 +1081,118 @@ class APIHandler:
                 raise
 
         return EventSourceResponse(_stream_log())
+
+    async def astream_events(
+        self,
+        request: Request,
+        *,
+        config_hash: str = "",
+        server_config: Optional[RunnableConfig] = None,
+    ) -> EventSourceResponse:
+        """Stream events from the runnable."""
+        err_event = {}
+        validation_exception: Optional[BaseException] = None
+        try:
+            config, input_ = await self._get_config_and_input(
+                request,
+                config_hash,
+                endpoint="stream_events",
+                server_config=server_config,
+            )
+        except BaseException as e:
+            validation_exception = e
+            if isinstance(e, RequestValidationError):
+                err_event = {
+                    "event": "error",
+                    "data": json.dumps(
+                        {"status_code": 422, "message": repr(e.errors())}
+                    ),
+                }
+            else:
+                err_event = {
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
+                }
+
+        try:
+            body = await request.json()
+            with _with_validation_error_translation():
+                stream_events_request = StreamEventsParameters(**body)
+        except json.JSONDecodeError:
+            # Body as text
+            validation_exception = RequestValidationError(errors=["Invalid JSON body"])
+            err_event = {
+                "event": "error",
+                "data": json.dumps(
+                    {"status_code": 422, "message": "Invalid JSON body"}
+                ),
+            }
+        except RequestValidationError as e:
+            validation_exception = e
+            err_event = {
+                "event": "error",
+                "data": json.dumps({"status_code": 422, "message": repr(e.errors())}),
+            }
+
+        async def _stream_events() -> AsyncIterator[dict]:
+            """Stream the output of the runnable."""
+            if not hasattr(self._runnable, "astream_events"):
+                raise NotImplementedError(
+                    "Please upgrade langchain-core>=0.1.14 to use astream_events"
+                )
+
+            if validation_exception:
+                yield err_event
+                if isinstance(validation_exception, RequestValidationError):
+                    return
+                else:
+                    raise AssertionError(
+                        "Internal server error"
+                    ) from validation_exception
+
+            try:
+                async for event in self._runnable.astream_events(
+                    input_,
+                    config=config,
+                    include_names=stream_events_request.include_names,
+                    include_types=stream_events_request.include_types,
+                    include_tags=stream_events_request.include_tags,
+                    exclude_names=stream_events_request.exclude_names,
+                    exclude_types=stream_events_request.exclude_types,
+                    exclude_tags=stream_events_request.exclude_tags,
+                    version="v1",
+                ):
+                    if (
+                        self._names_in_stream_allow_list is None
+                        or self._runnable.config.get("run_name")
+                        in self._names_in_stream_allow_list
+                    ):
+                        # Temporary adapter
+                        yield {
+                            # EventSourceResponse expects a string for data
+                            # so after serializing into bytes, we decode into utf-8
+                            # to get a string.
+                            "data": self._serializer.dumps(event).decode("utf-8"),
+                            "event": "data",
+                        }
+                yield {"event": "end"}
+            except BaseException:
+                yield {
+                    "event": "error",
+                    # Do not expose the error message to the client since
+                    # the message may contain sensitive information.
+                    # We'll add client side errors for validation as well.
+                    "data": json.dumps(
+                        {"status_code": 500, "message": "Internal Server Error"}
+                    ),
+                }
+                raise
+
+        return EventSourceResponse(_stream_events())
 
     async def input_schema(
         self,
