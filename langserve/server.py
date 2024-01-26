@@ -104,11 +104,13 @@ def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
         _APP_TO_PATHS[app] = {path}
 
 
+# This is the type annotation
 EndpointName = Literal[
     "invoke",
     "batch",
     "stream",
     "stream_log",
+    "stream_events",
     "playground",
     "feedback",
     "input_schema",
@@ -117,11 +119,14 @@ EndpointName = Literal[
     "config_hashes",
 ]
 
+# Contains same information as EndpointName but as a set.
+# Used for run-time validation and displaying configuration errors.
 KNOWN_ENDPOINTS = {
     "invoke",
     "batch",
     "stream",
     "stream_log",
+    "stream_events",
     "playground",
     "feedback",
     "input_schema",
@@ -167,6 +172,7 @@ class _EndpointConfiguration:
                 is_batch_enabled = True
                 is_stream_enabled = True
                 is_stream_log_enabled = True
+                is_stream_events_enabled = True
                 is_playground_enabled = True
                 is_input_schema_enabled = True
                 is_output_schema_enabled = True
@@ -183,6 +189,7 @@ class _EndpointConfiguration:
                 is_batch_enabled = "batch" not in disabled_endpoints_
                 is_stream_enabled = "stream" not in disabled_endpoints_
                 is_stream_log_enabled = "stream_log" not in disabled_endpoints_
+                is_stream_events_enabled = "stream_events" not in disabled_endpoints_
                 is_playground_enabled = "playground" not in disabled_endpoints_
                 is_input_schema_enabled = "input_schema" not in disabled_endpoints_
                 is_output_schema_enabled = "output_schema" not in disabled_endpoints_
@@ -198,6 +205,7 @@ class _EndpointConfiguration:
             is_batch_enabled = "batch" in enabled_endpoints_
             is_stream_enabled = "stream" in enabled_endpoints_
             is_stream_log_enabled = "stream_log" in enabled_endpoints_
+            is_stream_events_enabled = "stream_events" in enabled_endpoints_
             is_playground_enabled = "playground" in enabled_endpoints_
             is_input_schema_enabled = "input_schema" in enabled_endpoints_
             is_output_schema_enabled = "output_schema" in enabled_endpoints_
@@ -208,6 +216,7 @@ class _EndpointConfiguration:
         self.is_batch_enabled = is_batch_enabled
         self.is_stream_enabled = is_stream_enabled
         self.is_stream_log_enabled = is_stream_log_enabled
+        self.is_stream_events_enabled = is_stream_events_enabled
         self.is_playground_enabled = is_playground_enabled
         self.is_input_schema_enabled = is_input_schema_enabled
         self.is_output_schema_enabled = is_output_schema_enabled
@@ -539,6 +548,36 @@ def add_routes(
                 # The API Handler validates the parts of the request
                 # that are used by the runnnable (e.g., input, config fields)
                 return await api_handler.stream_log(request, config_hash=config_hash)
+
+    if endpoint_configuration.is_stream_events_enabled:
+
+        @app.post(
+            f"{namespace}/stream_events",
+            include_in_schema=False,
+            dependencies=dependencies,
+        )
+        async def stream_events(request: Request) -> EventSourceResponse:
+            """Handle a request."""
+            # The API Handler validates the parts of the request
+            # that are used by the runnnable (e.g., input, config fields)
+            return await api_handler.astream_events(request)
+
+        if endpoint_configuration.is_config_hash_enabled:
+
+            @app.post(
+                namespace + "/c/{config_hash}/stream_events",
+                include_in_schema=False,
+                dependencies=dependencies,
+            )
+            async def stream_events_with_config(
+                request: Request, config_hash: str = ""
+            ) -> EventSourceResponse:
+                """Handle a request."""
+                # The API Handler validates the parts of the request
+                # that are used by the runnnable (e.g., input, config fields)
+                return await api_handler.astream_events(
+                    request, config_hash=config_hash
+                )
 
     if endpoint_configuration.is_input_schema_enabled:
 
