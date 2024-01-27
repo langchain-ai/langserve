@@ -33,11 +33,13 @@ from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
 from langchain.schema.runnable.base import RunnableLambda
 from langchain.schema.runnable.utils import ConfigurableField, Input, Output
+from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.documents import Document
-from langchain_core.messages import AIMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.outputs import ChatGenerationChunk, LLMResult
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
@@ -2719,3 +2721,68 @@ async def test_path_dependencies() -> None:
                 f"with {response.text}. "
                 f"Should not return 422 status code since we are passing the header."
             )
+
+
+async def test_remote_configurable_remote_runnable() -> None:
+    """Test that a configurable a client runnable that's configurable works.
+
+    Here, we wrap the client runnable in a RunnableWithMessageHistory.
+
+    The test verifies that the extra information populated by RunnableWithMessageHistory
+    does not interfere with the serialization logic.
+    """
+    app = FastAPI()
+
+    class InMemoryHistory(BaseChatMessageHistory, BaseModel):
+        """In memory implementation of chat message history."""
+
+        messages: List[BaseMessage] = Field(default_factory=list)
+
+        def add_message(self, message: BaseMessage) -> None:
+            """Add a self-created message to the store"""
+            self.messages.append(message)
+
+        def clear(self) -> None:
+            self.messages = []
+
+    # Here we use a global variable to store the chat message history.
+    # This will make it easier to inspect it to see the underlying results.
+    store = {}
+
+    def get_by_session_id(session_id: str) -> BaseChatMessageHistory:
+        if session_id not in store:
+            store[session_id] = InMemoryHistory()
+        return store[session_id]
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", "You're an assistant who's good at {ability}"),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{question}"),
+        ]
+    )
+
+    model = GenericFakeChatModel(messages=cycle([AIMessage(content="Hello World!")]))
+    chain = prompt | model
+
+    add_routes(app, chain)
+
+    # Invoke request
+    async with get_async_remote_runnable(app, raise_app_exceptions=False) as client:
+        chain_with_history = RunnableWithMessageHistory(
+            client,
+            # Uses the get_by_session_id function defined in the example
+            # above.
+            get_by_session_id,
+            input_messages_key="question",
+            history_messages_key="history",
+        )
+        result = await chain_with_history.ainvoke(
+            {"question": "hi"}, {"configurable": {"session_id": "1"}}
+        )
+        assert result == AIMessage(content="Hello World!")
+        assert store == {
+            "1": InMemoryHistory(
+                messages=[HumanMessage(content="hi"), AIMessage(content="Hello World!")]
+            )
+        }

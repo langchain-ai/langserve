@@ -49,10 +49,68 @@ from langserve.serialization import (
 logger = logging.getLogger(__name__)
 
 
-def _without_callbacks(config: Optional[RunnableConfig]) -> RunnableConfig:
-    """Evict callbacks from the config since those are definitely not supported."""
+def _is_json_serializable(obj: Any) -> bool:
+    """Return True if the object is json serializable."""
+    if isinstance(obj, (tuple, list, dict, str, int, float, bool, type(None))):
+        return True
+    else:
+        return False
+
+
+def _keep_json_serializable(obj: Any) -> Any:
+    """Traverse the object recursively and removes non-json serializable objects."""
+    if isinstance(obj, dict):
+        return {
+            k: _keep_json_serializable(v)
+            for k, v in obj.items()
+            if isinstance(k, str) and _is_json_serializable(v)
+        }
+    elif isinstance(obj, (list, tuple)):
+        return [_keep_json_serializable(v) for v in obj if _is_json_serializable(v)]
+    elif _is_json_serializable(obj):
+        return obj
+    else:
+        raise AssertionError("This code should not be reachable. If it's reached")
+
+
+def _prepare_config_for_server(
+    config: Optional[RunnableConfig], *, ignore_unserializable: bool = True
+) -> RunnableConfig:
+    """Evict information from the config that should not be sent to the server.
+
+    This includes:
+    - callbacks: Callbacks are handled separately
+    - non-json serializable objects: We cannot serialize then the correct behavior
+        these appear frequently in the config of the runnable but are only needed
+        in the local scope of the config (they do not need to be sent to the server).
+        An example are the write / read channel objects populated by langgraph,
+        or the 'messages' field in configurable populated by RunnableWithMessageHistory.
+
+    Args:
+        config: The config to clean up
+        ignore_unserializable: If True, will ignore non-json serializable objects
+            found in the 'configurable' field of the config.
+            This is expected to be the safe default to use since the server
+            should not be specifying configurable objects that are not json
+            serializable. This logic is expected mostly to with non serializable
+            content that was created for local use by the runnable, and
+            is not needed by the server.
+            If False, will raise an error if a non-json serializable object is found.
+
+    Returns:
+        A cleaned up version of the config that can be sent to the server.
+    """
     _config = config or {}
-    return {k: v for k, v in _config.items() if k != "callbacks"}
+    without_callbacks = {k: v for k, v in _config.items() if k != "callbacks"}
+    if "configurable" in without_callbacks:
+        # Get a version of
+
+        if ignore_unserializable:
+            without_callbacks["configurable"] = _keep_json_serializable(
+                without_callbacks["configurable"]
+            )
+
+    return without_callbacks
 
 
 @lru_cache(maxsize=1_000)  # Will accommodate up to 1_000 different error messages
@@ -277,7 +335,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "/invoke",
             json={
                 "input": self._lc_serializer.dumpd(input),
-                "config": _without_callbacks(config),
+                "config": _prepare_config_for_server(config),
                 "kwargs": kwargs,
             },
         )
@@ -308,7 +366,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "/invoke",
             json={
                 "input": self._lc_serializer.dumpd(input),
-                "config": _without_callbacks(config),
+                "config": _prepare_config_for_server(config),
                 "kwargs": kwargs,
             },
         )
@@ -343,9 +401,9 @@ class RemoteRunnable(Runnable[Input, Output]):
             )
 
         if isinstance(config, list):
-            _config = [_without_callbacks(c) for c in config]
+            _config = [_prepare_config_for_server(c) for c in config]
         else:
-            _config = _without_callbacks(config)
+            _config = _prepare_config_for_server(config)
 
         response = self.sync_client.post(
             "/batch",
@@ -396,9 +454,9 @@ class RemoteRunnable(Runnable[Input, Output]):
             )
 
         if isinstance(config, list):
-            _config = [_without_callbacks(c) for c in config]
+            _config = [_prepare_config_for_server(c) for c in config]
         else:
-            _config = _without_callbacks(config)
+            _config = _prepare_config_for_server(config)
 
         response = await self.async_client.post(
             "/batch",
@@ -460,7 +518,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _without_callbacks(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
         }
         endpoint = urljoin(self.url, "stream")
@@ -546,7 +604,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _without_callbacks(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
         }
         endpoint = urljoin(self.url, "stream")
@@ -648,7 +706,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _without_callbacks(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
             "diff": True,
             "include_names": include_names,
@@ -754,7 +812,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _without_callbacks(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
             "include_names": include_names,
             "include_types": include_types,
