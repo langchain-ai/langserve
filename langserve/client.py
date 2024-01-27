@@ -73,7 +73,7 @@ def _keep_json_serializable(obj: Any) -> Any:
         raise AssertionError("This code should not be reachable. If it's reached")
 
 
-def _clean_up_config(
+def _prepare_config_for_server(
     config: Optional[RunnableConfig], *, ignore_unserializable: bool = True
 ) -> RunnableConfig:
     """Evict information from the config that should not be sent to the server.
@@ -335,7 +335,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "/invoke",
             json={
                 "input": self._lc_serializer.dumpd(input),
-                "config": _clean_up_config(config),
+                "config": _prepare_config_for_server(config),
                 "kwargs": kwargs,
             },
         )
@@ -366,7 +366,7 @@ class RemoteRunnable(Runnable[Input, Output]):
             "/invoke",
             json={
                 "input": self._lc_serializer.dumpd(input),
-                "config": _clean_up_config(config),
+                "config": _prepare_config_for_server(config),
                 "kwargs": kwargs,
             },
         )
@@ -401,9 +401,9 @@ class RemoteRunnable(Runnable[Input, Output]):
             )
 
         if isinstance(config, list):
-            _config = [_clean_up_config(c) for c in config]
+            _config = [_prepare_config_for_server(c) for c in config]
         else:
-            _config = _clean_up_config(config)
+            _config = _prepare_config_for_server(config)
 
         response = self.sync_client.post(
             "/batch",
@@ -454,9 +454,9 @@ class RemoteRunnable(Runnable[Input, Output]):
             )
 
         if isinstance(config, list):
-            _config = [_clean_up_config(c) for c in config]
+            _config = [_prepare_config_for_server(c) for c in config]
         else:
-            _config = _clean_up_config(config)
+            _config = _prepare_config_for_server(config)
 
         response = await self.async_client.post(
             "/batch",
@@ -518,7 +518,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _clean_up_config(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
         }
         endpoint = urljoin(self.url, "stream")
@@ -604,7 +604,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _clean_up_config(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
         }
         endpoint = urljoin(self.url, "stream")
@@ -706,7 +706,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _clean_up_config(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
             "diff": True,
             "include_names": include_names,
@@ -812,7 +812,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         )
         data = {
             "input": self._lc_serializer.dumpd(input),
-            "config": _clean_up_config(config),
+            "config": _prepare_config_for_server(config),
             "kwargs": kwargs,
             "include_names": include_names,
             "include_types": include_types,
