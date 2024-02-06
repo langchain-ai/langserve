@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 """Example LangChain server exposes and agent that has conversation history.
 
+This example shows how to create completely custom streaming for an agent using
+astream events.
+
+This keeps all the customization logic on the server side, allowing for the
+client to be more ignorant of LangChain's streaming API etc.
+
+This example re-uses the `agent_with_history` example and just shows
+how to customize the server side to support streaming individual tokens.
+
 In this example, the history is stored entirely on the client's side.
 
 Please see other examples in LangServe on how to use RunnableWithHistory to
@@ -23,7 +32,7 @@ Relevant LangChain documentation:
    events by wrapping it within another runnable.
 4. See the client notebook it has an example of how to use stream_events client side!
 """  # noqa: E501
-from typing import Any, List, Union
+from typing import Any, AsyncIterator, List, Union
 
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, tool
@@ -35,6 +44,7 @@ from langchain.prompts import MessagesPlaceholder
 from langchain_community.tools.convert_to_openai import format_tool_to_openai_tool
 from langchain_core.messages import AIMessage, FunctionMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
@@ -109,8 +119,9 @@ agent = (
     | llm_with_tools
     | OpenAIToolsAgentOutputParser()
 )
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True).with_config(
+    {"run_name": "agent"}
+)
 
 app = FastAPI(
     title="LangChain Server",
@@ -129,10 +140,60 @@ class Input(BaseModel):
     # Keep in mind that playground support for agents is not great at the moment.
     # To get a better experience, you'll need to customize the streaming output
     # for now.
-    chat_history: List[Union[HumanMessage, AIMessage, FunctionMessage]] = Field(
-        ...,
-        extra={"widget": {"type": "chat", "input": "input", "output": "output"}},
-    )
+    chat_history: List[Union[HumanMessage, AIMessage, FunctionMessage]]
+
+
+async def custom_stream(input: Input) -> AsyncIterator[str]:
+    """Stream the agent's output."""
+    async for event in agent_executor.astream_events(
+        {
+            "input": input["input"],
+            "chat_history": input["chat_history"],
+        },
+        version="v1",
+    ):
+        kind = event["event"]
+        if kind == "on_chain_start":
+            if (
+                event["name"] == "agent"
+            ):  # matches `.with_config({"run_name": "Agent"})` in agent_executor
+                yield "\n"
+                yield (
+                    f"Starting agent: {event['name']} "
+                    f"with input: {event['data'].get('input')}"
+                )
+                yield "\n"
+        elif kind == "on_chain_end":
+            if (
+                event["name"] == "agent"
+            ):  # matches `.with_config({"run_name": "Agent"})` in agent_executor
+                yield "\n"
+                yield (
+                    f"Done agent: {event['name']} "
+                    f"with output: {event['data'].get('output')['output']}"
+                )
+                yield "\n"
+        if kind == "on_chat_model_stream":
+            content = event["data"]["chunk"].content
+            if content:
+                # Empty content in the context of OpenAI means
+                # that the model is asking for a tool to be invoked.
+                # So we only print non-empty content
+                yield content
+        elif kind == "on_tool_start":
+            yield "\n"
+            yield (
+                f"Starting tool: {event['name']} "
+                f"with inputs: {event['data'].get('input')}"
+            )
+            yield "\n"
+        elif kind == "on_tool_end":
+            yield "\n"
+            yield (
+                f"Done tool: {event['name']} "
+                f"with output: {event['data'].get('output')}"
+            )
+            yield "\n"
 
 
 class Output(BaseModel):
@@ -146,9 +207,7 @@ class Output(BaseModel):
 # /stream_events
 add_routes(
     app,
-    agent_executor.with_types(input_type=Input, output_type=Output).with_config(
-        {"run_name": "agent"}
-    ),
+    RunnableLambda(custom_stream),
 )
 
 if __name__ == "__main__":
