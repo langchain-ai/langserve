@@ -6,13 +6,22 @@ In this example, the history is stored entirely on the client's side.
 Please see other examples in LangServe on how to use RunnableWithHistory to
 store history on the server side.
 
-In addition, see agent documentation in LangChain:
+Relevant LangChain documentation:
 
-https://python.langchain.com/docs/modules/agents/how_to/custom_agent
+* Creating a custom agent: https://python.langchain.com/docs/modules/agents/how_to/custom_agent
+* Streaming with agents: https://python.langchain.com/docs/modules/agents/how_to/streaming#custom-streaming-with-events
+* General streaming documentation: https://python.langchain.com/docs/expression_language/streaming
 
-**ATTENTION** This exampl does not truncate message history, so it will crash
-if you send too many messages (exceed token length).
-"""
+**ATTENTION**
+1. To support streaming individual tokens you will need to use the astream events
+   endpoint rather than the streaming endpoint.
+2. This example does not truncate message history, so it will crash if you
+   send too many messages (exceed token length).
+3. The playground at the moment does not render agent output well! If you want to
+   use the playground you need to customize it's output server side using astream
+   events by wrapping it within another runnable.
+4. See the client notebook it has an example of how to use stream_events client side!
+""" # noqa: E501
 from typing import Any, List, Union
 
 from fastapi import FastAPI
@@ -30,9 +39,6 @@ from langchain_openai import ChatOpenAI
 from langserve import add_routes
 from langserve.pydantic_v1 import BaseModel
 
-MEMORY_KEY = "chat_history"
-
-
 prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -41,7 +47,15 @@ prompt = ChatPromptTemplate.from_messages(
             "Talk with the user as normal. "
             "If they ask you to calculate the length of a word, use a tool",
         ),
-        MessagesPlaceholder(variable_name=MEMORY_KEY),
+        # Please note the ordering of the fields in the prompt!
+        # The correct ordering is:
+        # 1. history - the past messages between the user and the agent
+        # 2. user - the user's current input
+        # 3. agent_scratchpad - the agent's working space for thinking and
+        #    invoking tools to respond to the user's input.
+        # If you change the ordering, the agent will not work correctly since
+        # the messages will be shown to the underlying LLM in the wrong order.
+        MessagesPlaceholder(variable_name="chat_history"),
         ("user", "{input}"),
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ]
@@ -54,10 +68,7 @@ def word_length(word: str) -> int:
     return len(word)
 
 
-# We need to set streaming=True on the LLM to support streaming individual tokens.
-# when using the stream_log endpoint.
-# .stream for agents streams action observation pairs not individual tokens.
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True)
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 tools = [word_length]
 
@@ -98,7 +109,7 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
-    description="Spin up a simple api server using Langchain's Runnable interfaces",
+    description="Spin up a simple api server using LangChain's Runnable interfaces",
 )
 
 
@@ -117,6 +128,7 @@ class Output(BaseModel):
 # /invoke
 # /batch
 # /stream
+# /stream_events
 add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output))
 
 if __name__ == "__main__":
