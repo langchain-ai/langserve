@@ -1,16 +1,23 @@
 #!/usr/bin/env python
-"""Example LangChain server exposes and agent that has conversation history.
+"""Example LangChain server that shows how to customize streaming for an agent.
 
-This example shows how to create completely custom streaming for an agent using
-astream events.
+Example uses a RunnableLambda that:
 
-This keeps all the customization logic on the server side, allowing for the
-client to be more ignorant of LangChain's streaming API etc.
+1) Instantiates an agent with custom tools (based on the user request).
+2) Uses an agent with a chat history with history stored on the client side.
+3) Uses the agent's astream events method to create a custom streaming API endpoint.
 
-This example re-uses the `agent_with_history` example and just shows
-how to customize the server side to support streaming individual tokens.
+In this example, we kept things simple and simply output strings from the streaming
+endpoint. 
 
-In this example, the history is stored entirely on the client's side.
+Please customize the streaming output to your use case!
+
+Please note that we configure the agent using the `tools` field in the input rather
+than using configurable fields. Using custom runnables and configurable fields
+is another option to customize the agent. 
+
+Please see configurable_agent_executor: https://github.com/langchain-ai/langserve/blob/main/examples/configurable_agent_executor/server.py
+for an example that uses a custom runnable with configurable fields.
 
 Please see other examples in LangServe on how to use RunnableWithHistory to
 store history on the server side.
@@ -23,16 +30,14 @@ Relevant LangChain documentation:
 * Message History: https://python.langchain.com/docs/expression_language/how_to/message_history
 
 **ATTENTION**
-1. To support streaming individual tokens you will need to use the astream events
-   endpoint rather than the streaming endpoint.
-2. This example does not truncate message history, so it will crash if you
+1. This example does not truncate message history, so it will crash if you
    send too many messages (exceed token length).
-3. The playground at the moment does not render agent output well! If you want to
+2. The playground at the moment does not render agent output well! If you want to
    use the playground you need to customize it's output server side using astream
    events by wrapping it within another runnable.
-4. See the client notebook it has an example of how to use stream_events client side!
+3. See the client notebook to see how .stream() behaves!
 """  # noqa: E501
-from typing import Any, AsyncIterator, List, Union
+from typing import Any, AsyncIterator, List, Union, Literal
 
 from fastapi import FastAPI
 from langchain.agents import AgentExecutor, tool
@@ -48,7 +53,7 @@ from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel, Field
+from langserve.pydantic_v1 import BaseModel
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -78,6 +83,13 @@ def word_length(word: str) -> int:
     """Returns a counter word"""
     return len(word)
 
+@tool
+def favorite_animal(name: str) -> int:
+    """Get the favorite animal of the person with the given name"""
+    if name.lower().strip() == "eugene":
+        return "cat"
+    return "dog"
+
 
 # We need to set streaming=True on the LLM to support streaming individual tokens.
 # Tokens will be available when using the stream_log / stream events endpoints,
@@ -86,48 +98,65 @@ def word_length(word: str) -> int:
 # See the client notebook that shows how to use the stream events endpoint.
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True)
 
-tools = [word_length]
+TOOL_MAPPING = {
+    "word_length": word_length,
+    "favorite_animal": favorite_animal,
+}
+KnownTool = Literal["word_length", "favorite_animal"]
 
+def _create_agent_with_tools(requested_tools: List[KnownTool]) -> AgentExecutor:
+    """Create an agent with custom tools."""
+    tools = []
 
-llm_with_tools = llm.bind(tools=[format_tool_to_openai_tool(tool) for tool in tools])
+    for tool in requested_tools:
+        if tool not in TOOL_MAPPING:
+            raise ValueError(f"Unknown tool: {tool}")
+        tools.append(TOOL_MAPPING[tool])
 
-# ATTENTION: For production use case, it's a good idea to trim the prompt to avoid
-#            exceeding the context window length used by the model.
-#
-# To fix that simply adjust the chain to trim the prompt in whatever way
-# is appropriate for your use case.
-# For example, you may want to keep the system message and the last 10 messages.
-# Or you may want to trim based on the number of tokens.
-# Or you may want to also summarize the messages to keep information about things
-# that were learned about the user.
-#
-# def prompt_trimmer(messages: List[Union[HumanMessage, AIMessage, FunctionMessage]]):
-#     '''Trims the prompt to a reasonable length.'''
-#     # Keep in mind that when trimming you may want to keep the system message!
-#     return messages[-10:] # Keep last 10 messages.
+    if tools:
+        llm_with_tools = llm.bind(tools=[format_tool_to_openai_tool(tool) for tool in tools])
+    else:
+        llm_with_tools = llm
 
-agent = (
-    {
-        "input": lambda x: x["input"],
-        "agent_scratchpad": lambda x: format_to_openai_tool_messages(
-            x["intermediate_steps"]
-        ),
-        "chat_history": lambda x: x["chat_history"],
-    }
-    | prompt
-    # | prompt_trimmer # See comment above.
-    | llm_with_tools
-    | OpenAIToolsAgentOutputParser()
-)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True).with_config(
-    {"run_name": "agent"}
-)
+    # ATTENTION: For production use case, it's a good idea to trim the prompt to avoid
+    #            exceeding the context window length used by the model.
+    #
+    # To fix that simply adjust the chain to trim the prompt in whatever way
+    # is appropriate for your use case.
+    # For example, you may want to keep the system message and the last 10 messages.
+    # Or you may want to trim based on the number of tokens.
+    # Or you may want to also summarize the messages to keep information about things
+    # that were learned about the user.
+    #
+    # def prompt_trimmer(messages: List[Union[HumanMessage, AIMessage, FunctionMessage]]):
+    #     '''Trims the prompt to a reasonable length.'''
+    #     # Keep in mind that when trimming you may want to keep the system message!
+    #     return messages[-10:] # Keep last 10 messages.
+
+    agent = (
+        {
+            "input": lambda x: x["input"],
+            "agent_scratchpad": lambda x: format_to_openai_tool_messages(
+                x["intermediate_steps"]
+            ),
+            "chat_history": lambda x: x["chat_history"],
+        }
+        | prompt
+        # | prompt_trimmer # See comment above.
+        | llm_with_tools
+        | OpenAIToolsAgentOutputParser()
+    )
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True).with_config(
+        {"run_name": "agent"}
+    )
+    return agent_executor
 
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
     description="Spin up a simple api server using LangChain's Runnable interfaces",
 )
+
 
 
 # We need to add these input/output schemas because the current AgentExecutor
@@ -141,10 +170,22 @@ class Input(BaseModel):
     # To get a better experience, you'll need to customize the streaming output
     # for now.
     chat_history: List[Union[HumanMessage, AIMessage, FunctionMessage]]
+    tools: List[KnownTool]
+
 
 
 async def custom_stream(input: Input) -> AsyncIterator[str]:
-    """Stream the agent's output."""
+    """A custom runnable that can stream content.
+
+    Args:
+        input: The input to the agent. See the Input model for more details.
+
+    Yields:
+        strings that are streamed to the client.
+
+        The strings were chosen for simplicity, feel free to adapt to your use case.
+    """
+    agent_executor = _create_agent_with_tools(input['tools'])
     async for event in agent_executor.astream_events(
         {
             "input": input["input"],
