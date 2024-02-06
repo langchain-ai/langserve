@@ -6,8 +6,13 @@ Please see documentation for custom agent streaming here:
 https://python.langchain.com/docs/modules/agents/how_to/streaming#stream-tokens
 
 **ATTENTION**
-To support streaming individual tokens you will need to manually set the streaming=True
-on the LLM and use the stream_log endpoint rather than stream endpoint.
+1. To support streaming individual tokens you will need to manually set the
+    streaming=True
+   on the LLM and use the stream events endpoint rather than stream endpoint.
+2. The playground at the moment does not render agent output well! If you want to
+   use the playground you need to customize it's output server side using astream
+   events by wrapping it within another runnable.
+3. See the client notebook it has an example of how to use stream_events client side!
 """
 from typing import Any
 
@@ -88,7 +93,13 @@ class Output(BaseModel):
 # /invoke
 # /batch
 # /stream
-add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output))
+# /stream_events
+add_routes(
+    app,
+    agent_executor.with_types(input_type=Input, output_type=Output).with_config(
+        {"run_name": "agent"}
+    ),
+)
 
 if __name__ == "__main__":
     import uvicorn
