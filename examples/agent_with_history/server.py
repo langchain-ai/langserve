@@ -37,7 +37,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel
+from langserve.pydantic_v1 import BaseModel, Field
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -122,7 +122,16 @@ app = FastAPI(
 # is lacking in schemas.
 class Input(BaseModel):
     input: str
-    chat_history: List[Union[HumanMessage, AIMessage, FunctionMessage]]
+    # The field extra defines a chat widget.
+    # Please see documentation about widgets in the main README.
+    # The widget is used in the playground.
+    # Keep in mind that playground support for agents is not great at the moment.
+    # To get a better experience, you'll need to customize the streaming output
+    # for now.
+    chat_history: List[Union[HumanMessage, AIMessage, FunctionMessage]] = Field(
+        ...,
+        extra={"widget": {"type": "chat", "input": "input", "output": "output"}},
+    )
 
 
 class Output(BaseModel):

@@ -18,9 +18,9 @@ from langchain.memory import FileChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from typing_extensions import TypedDict
 
 from langserve import add_routes
+from langserve.pydantic_v1 import BaseModel, Field
 
 
 def _is_valid_identifier(value: str) -> bool:
@@ -79,11 +79,19 @@ prompt = ChatPromptTemplate.from_messages(
 chain = prompt | ChatAnthropic(model="claude-2")
 
 
-class InputChat(TypedDict):
+class InputChat(BaseModel):
     """Input for the chat endpoint."""
 
-    human_input: str
-    """Human input"""
+    # The field extra defines a chat widget.
+    # As of 2024-02-05, this chat widget is not fully supported.
+    # It's included in documentation to show how it should be specified, but
+    # will not work until the widget is fully supported for history persistence
+    # on the backend.
+    human_input: str = Field(
+        ...,
+        description="The human input to the chat system.",
+        extra={"widget": {"type": "chat", "input": "human_input"}},
+    )
 
 
 chain_with_history = RunnableWithMessageHistory(
