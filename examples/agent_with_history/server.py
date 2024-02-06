@@ -11,6 +11,7 @@ Relevant LangChain documentation:
 * Creating a custom agent: https://python.langchain.com/docs/modules/agents/how_to/custom_agent
 * Streaming with agents: https://python.langchain.com/docs/modules/agents/how_to/streaming#custom-streaming-with-events
 * General streaming documentation: https://python.langchain.com/docs/expression_language/streaming
+* Message History: https://python.langchain.com/docs/expression_language/how_to/message_history
 
 **ATTENTION**
 1. To support streaming individual tokens you will need to use the astream events
