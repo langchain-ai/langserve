@@ -68,7 +68,7 @@ def word_length(word: str) -> int:
     return len(word)
 
 
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True)
 
 tools = [word_length]
 
@@ -129,7 +129,9 @@ class Output(BaseModel):
 # /batch
 # /stream
 # /stream_events
-add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output))
+add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output).with_config(
+    {"run_name": "agent"}
+))
 
 if __name__ == "__main__":
     import uvicorn
