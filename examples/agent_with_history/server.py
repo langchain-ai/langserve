@@ -21,7 +21,7 @@ Relevant LangChain documentation:
    use the playground you need to customize it's output server side using astream
    events by wrapping it within another runnable.
 4. See the client notebook it has an example of how to use stream_events client side!
-""" # noqa: E501
+"""  # noqa: E501
 from typing import Any, List, Union
 
 from fastapi import FastAPI
@@ -129,9 +129,12 @@ class Output(BaseModel):
 # /batch
 # /stream
 # /stream_events
-add_routes(app, agent_executor.with_types(input_type=Input, output_type=Output).with_config(
-    {"run_name": "agent"}
-))
+add_routes(
+    app,
+    agent_executor.with_types(input_type=Input, output_type=Output).with_config(
+        {"run_name": "agent"}
+    ),
+)
 
 if __name__ == "__main__":
     import uvicorn
