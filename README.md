@@ -6,13 +6,12 @@
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
 🚩 We will be releasing a hosted version of LangServe for one-click deployments of
-LangChain
-applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2)
+LangChain applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2)
 to get on the waitlist.
 
 ## Overview
 
-`LangServe` helps developers
+[LangServe](https://github.com/langchain-ai/langserve) helps developers
 deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expression_language/)
 as a REST API.
 
