@@ -89,7 +89,7 @@ def word_length(word: str) -> int:
 
 
 @tool
-def favorite_animal(name: str) -> int:
+def favorite_animal(name: str) -> str:
     """Get the favorite animal of the person with the given name"""
     if name.lower().strip() == "eugene":
         return "cat"
@@ -114,10 +114,10 @@ def _create_agent_with_tools(requested_tools: List[KnownTool]) -> AgentExecutor:
     """Create an agent with custom tools."""
     tools = []
 
-    for tool in requested_tools:
-        if tool not in TOOL_MAPPING:
-            raise ValueError(f"Unknown tool: {tool}")
-        tools.append(TOOL_MAPPING[tool])
+    for requested_tool in requested_tools:
+        if requested_tool not in TOOL_MAPPING:
+            raise ValueError(f"Unknown tool: {requested_tool}")
+        tools.append(TOOL_MAPPING[requested_tool])
 
     if tools:
         llm_with_tools = llm.bind(
