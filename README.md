@@ -479,7 +479,7 @@ def func(x: Any) -> int:
 
 
 runnable = RunnableLambda(func).with_types(
-    input_schema=int,
+    input_type=int,
 )
 
 add_routes(app, runnable)
@@ -518,8 +518,8 @@ def func(foo: Foo) -> int:
 # Note that the input and output type are automatically inferred!
 # You do not need to specify them.
 # runnable = RunnableLambda(func).with_types( # <-- Not needed in this case
-#     input_schema=Foo,
-#     output_schema=int,
+#     input_type=Foo,
+#     output_type=int,
 #
 add_routes(app, RunnableLambda(func), path="/foo")
 ```
