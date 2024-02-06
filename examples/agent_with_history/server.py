@@ -68,6 +68,11 @@ def word_length(word: str) -> int:
     return len(word)
 
 
+# We need to set streaming=True on the LLM to support streaming individual tokens.
+# Tokens will be available when using the stream_log / stream events endpoints,
+# but not when using the stream endpoint since the stream implementation for agent
+# streams action observation pairs not individual tokens.
+# See the client notebook that shows how to use the stream events endpoint.
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True)
 
 tools = [word_length]
