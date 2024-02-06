@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a conversational retrieval agent.
 
-Please see documentation for custom agent streaming here:
+Relevant LangChain documentation:
 
-https://python.langchain.com/docs/modules/agents/how_to/streaming#stream-tokens
+* Creating a custom agent: https://python.langchain.com/docs/modules/agents/how_to/custom_agent
+* Streaming with agents: https://python.langchain.com/docs/modules/agents/how_to/streaming#custom-streaming-with-events
+* General streaming documentation: https://python.langchain.com/docs/expression_language/streaming
 
 **ATTENTION**
-1. To support streaming individual tokens you will need to manually set the
-    streaming=True
-   on the LLM and use the stream events endpoint rather than stream endpoint.
-2. The playground at the moment does not render agent output well! If you want to
+1. To support streaming individual tokens you will need to use the astream events
+   endpoint rather than the streaming endpoint.
+2. This example does not truncate message history, so it will crash if you
+   send too many messages (exceed token length).
+3. The playground at the moment does not render agent output well! If you want to
    use the playground you need to customize it's output server side using astream
    events by wrapping it within another runnable.
-3. See the client notebook it has an example of how to use stream_events client side!
+4. See the client notebook it has an example of how to use stream_events client side!
 """
 from typing import Any
 
@@ -46,15 +49,22 @@ tools = [get_eugene_thoughts]
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful assistant."),
+        # Please note that the ordering of the user input vs.
+        # the agent_scratchpad is important.
+        # The agent_scratchpad is a working space for the agent to think,
+        # invoke tools, see tools outputs in order to respond to the given
+        # user input. It has to come AFTER the user input.
         ("user", "{input}"),
         MessagesPlaceholder(variable_name="agent_scratchpad"),
     ]
 )
 
 # We need to set streaming=True on the LLM to support streaming individual tokens.
-# when using the stream_log endpoint.
-# .stream for agents streams action observation pairs not individual tokens.
-llm = ChatOpenAI(streaming=True)
+# Tokens will be available when using the stream_log / stream events endpoints,
+# but not when using the stream endpoint since the stream implementation for agent
+# streams action observation pairs not individual tokens.
+# See the client notebook that shows how to use the stream events endpoint.
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0, streaming=True)
 
 llm_with_tools = llm.bind(functions=[format_tool_to_openai_function(t) for t in tools])
 
@@ -75,7 +85,7 @@ agent_executor = AgentExecutor(agent=agent, tools=tools)
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
-    description="Spin up a simple api server using Langchain's Runnable interfaces",
+    description="Spin up a simple api server using LangChain's Runnable interfaces",
 )
 
 
