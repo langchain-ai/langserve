@@ -84,7 +84,7 @@ installed. You can install it with `pip install -U langchain-cli`.
 langchain app new ../path/to/directory
 ```
 
-## Examples
+## <a name="examples"></a> Examples & Templates
 
 Get your LangServe instance started quickly with
 [LangChain Templates](https://github.com/langchain-ai/langchain/blob/master/templates/README.md).
