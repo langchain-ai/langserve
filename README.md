@@ -16,7 +16,7 @@ deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expr
 as a REST API.
 
 This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and
-uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
+uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.I'll update
 
 In addition, it provides a client that can be used to call into runnables deployed on a
 server.
@@ -657,19 +657,20 @@ Example widget:
 
 ### Enabling / Disabling Endpoints (LangServe >=0.0.33)
 
-You can enable / disable which endpoints are exposed. Use `enabled_endpoints` if you
-want to make sure to never get a new endpoint when upgrading langserve to a newer
+You can enable / disable which endpoints are exposed when adding routes for a given chain.
+
+Use `enabled_endpoints` if you want to make sure to never get a new endpoint when upgrading langserve to a newer
 verison.
 
 Enable: The code below will only enable `invoke`, `batch` and the
 corresponding `config_hash` endpoint variants.
 
 ```python
-add_routes(app, chain, enabled_endpoints=["invoke", "batch", "config_hashes"])
+add_routes(app, chain, enabled_endpoints=["invoke", "batch", "config_hashes"], path="/mychain")
 ```
 
 Disable: The code below will disable the playground for the chain
 
 ```python
-add_routes(app, chain, disabled_endpoints=["playground"])
+add_routes(app, chain, disabled_endpoints=["playground"], path="/mychain")
 ```
