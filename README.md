@@ -16,7 +16,7 @@ deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expr
 as a REST API.
 
 This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and
-uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.I'll update
+uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
 
 In addition, it provides a client that can be used to call into runnables deployed on a
 server.
