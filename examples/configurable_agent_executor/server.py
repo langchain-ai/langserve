@@ -146,7 +146,7 @@ runnable = CustomAgentExecutor()
 add_routes(
     app,
     runnable.with_types(input_type=Input, output_type=Output),
-    enabled_endpoints=["invoke", "stream"],
+    disabled_endpoints=["invoke", "batch"],  # not implemented
 )
 
 if __name__ == "__main__":
