@@ -534,8 +534,8 @@ class APIHandler:
 
         self._config_keys = config_keys
 
-        self._path = path
-        self._base_url = prefix + path
+        self._path = path.rstrip("/")
+        self._base_url = prefix + self._path
         # Setting the run name explicitly
         # the run name is set to the base url, which takes into account
         # the prefix (e.g., if there's an APIRouter used) and the path relative
@@ -1332,15 +1332,15 @@ class APIHandler:
             )
 
             config = _update_config_with_defaults(
-                self._path, user_provided_config, request
+                self._run_name, user_provided_config, request
             )
 
+        playground_url = (
+            request.scope.get("root_path", "").rstrip("/")
+            + self._base_url
+            + "/playground"
+        )
         feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
-
-        if self._base_url.endswith("/"):
-            playground_url = self._base_url + "playground"
-        else:
-            playground_url = self._base_url + "/playground"
 
         return await serve_playground(
             self._runnable.with_config(config),
