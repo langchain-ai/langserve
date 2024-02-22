@@ -171,7 +171,7 @@ async def _unpack_request_config(
 
 
 def _update_config_with_defaults(
-    path: str,
+    run_name: str,
     incoming_config: RunnableConfig,
     request: Request,
     *,
@@ -209,7 +209,7 @@ def _update_config_with_defaults(
         metadata.update(hosted_metadata)
 
     non_overridable_default_config = RunnableConfig(
-        run_name=path,
+        run_name=run_name,
         metadata=metadata,
     )
 
@@ -536,6 +536,14 @@ class APIHandler:
 
         self._path = path
         self._base_url = prefix + path
+        # Setting the run name explicitly
+        # the run name is set to the base url, which takes into account
+        # the prefix (e.g., if there's an APIRouter used) and the path relative
+        # to the router.
+        # If the base path is /foo/bar, the run name will be /foo/bar
+        # and when tracing information is logged, we'll be able to see
+        # traces for the path /foo/bar.
+        self._run_name = self._base_url
         self._include_callback_events = include_callback_events
         self._per_req_config_modifier = per_req_config_modifier
         self._serializer = WellKnownLCSerializer()
@@ -663,7 +671,7 @@ class APIHandler:
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
-                self._path,
+                self._run_name,
                 user_provided_config,
                 request,
                 endpoint=endpoint,
@@ -814,7 +822,7 @@ class APIHandler:
             _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
-                    self._path, config_, request, endpoint="batch"
+                    self._run_name, config_, request, endpoint="batch"
                 )
             )
 
@@ -1236,7 +1244,7 @@ class APIHandler:
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
-                self._path, user_provided_config, request
+                self._run_name, user_provided_config, request
             )
 
         return self._runnable.get_input_schema(config).schema()
@@ -1264,7 +1272,7 @@ class APIHandler:
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
-                self._path, user_provided_config, request
+                self._run_name, user_provided_config, request
             )
         return self._runnable.get_output_schema(config).schema()
 
@@ -1291,7 +1299,7 @@ class APIHandler:
                 server_config=server_config,
             )
             config = _update_config_with_defaults(
-                self._path, user_provided_config, request
+                self._run_name, user_provided_config, request
             )
         return (
             self._runnable.with_config(config)
