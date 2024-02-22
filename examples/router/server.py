@@ -17,11 +17,13 @@ app = FastAPI()
 
 router = APIRouter(prefix="/models")
 
+# Invocations to this router will appear in trace logs as /models/openai
 add_routes(
     router,
     ChatOpenAI(),
     path="/openai",
 )
+# Invocations to this router will appear in trace logs as /models/anthropic
 add_routes(
     router,
     ChatAnthropic(),
