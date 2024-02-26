@@ -53,7 +53,7 @@ in [LangChainJS](https://api.js.langchain.com/classes/langchain_runnables_remote
 
 We will be releasing a hosted version of LangServe for one-click deployments of
 LangChain
-applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2)
+applications. [Sign up here](https://airtable.com/apppQ9p5XuujRl3wJ/shrABpHWdxry8Bacm)
 to get on the waitlist.
 
 ## Security
