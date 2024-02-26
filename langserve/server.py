@@ -826,6 +826,7 @@ def add_routes(
                 include_in_schema=True,
                 tags=route_tags,
                 name=_route_name("stream"),
+                dependencies=dependencies,
                 description=(
                     "This endpoint allows to stream the output of the runnable. "
                     "The endpoint uses a server sent event stream to stream the "
