@@ -6,7 +6,7 @@ from typing import List, Union
 
 from fastapi import FastAPI
 from langchain.chat_models import ChatAnthropic
-from langchain_core.messages import AIMessage, FunctionMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from langserve import add_routes
@@ -33,7 +33,7 @@ chain = prompt | ChatAnthropic(model="claude-2")
 class InputChat(BaseModel):
     """Input for the chat endpoint."""
 
-    messages: List[Union[HumanMessage, AIMessage]] = Field(
+    messages: List[Union[HumanMessage, AIMessage, SystemMessage]] = Field(
         ...,
         description="The chat messages representing the current conversation.",
         extra={"widget": {"type": "chat", "input": "messages"}},
