@@ -49,30 +49,45 @@ export const ChatMessageTuplesControlRenderer = withJsonFormsControlProps(
   (props) => {
     const data: Array<MessageTuple> = props.data ?? [];
 
-    useStreamCallback("onSuccess", (ctx) => {
+    useStreamCallback("onChunk", (_chunk, aggregatedState) => {
       if (!isJsonSchemaExtra(props.schema)) return;
       const widget = props.schema.extra.widget;
       if (!("input" in widget) && !("output" in widget)) return;
 
-      const inputPath = getNormalizedJsonPath(widget.input ?? "");
       const outputPath = getNormalizedJsonPath(widget.output ?? "");
 
       const isSingleOutputKey =
-        ctx.output != null &&
-        Object.keys(ctx.output).length === 1 &&
-        Object.keys(ctx.output)[0] === "output";
+        aggregatedState?.final_output != null &&
+        Object.keys(aggregatedState?.final_output).length === 1 &&
+        Object.keys(aggregatedState?.final_output)[0] === "output";
 
-      const human = traverseNaiveJsonPath(ctx.input, inputPath);
-      let ai = traverseNaiveJsonPath(ctx.output, outputPath);
+      let ai = traverseNaiveJsonPath(aggregatedState?.final_output, outputPath);
 
       if (isSingleOutputKey) {
         ai = traverseNaiveJsonPath(ai, ["output", ...outputPath]) ?? ai;
       }
 
       ai = getMessageContent(ai);
-      if (typeof human === "string" && typeof ai === "string") {
-        props.handleChange(props.path, [...data, [human, ai]]);
+      if (typeof ai === "string") {
+        props.handleChange(props.path, [...data.slice(0, -1), [data[data.length - 1][0], ai]]);
       }
+    });
+
+    useStreamCallback("onStart", (ctx) => {
+      if (!isJsonSchemaExtra(props.schema)) return;
+      const widget = props.schema.extra.widget;
+      if (!("input" in widget) && !("output" in widget)) return;
+
+      const inputPath = getNormalizedJsonPath(widget.input ?? "");
+
+      const human = traverseNaiveJsonPath(ctx.input, inputPath);
+      if (typeof human === "string") {
+        props.handleChange(props.path, [...data, [human, ""]]);
+      }
+    });
+
+    useStreamCallback("onError", () => {
+      props.handleChange(props.path, [...data.slice(0, -1)]);
     });
 
     return (
