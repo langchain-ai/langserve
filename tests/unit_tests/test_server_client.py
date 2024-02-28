@@ -307,6 +307,42 @@ async def test_serve_playground_with_api_router() -> None:
     assert response.status_code == 200
 
 
+async def test_root_path_on_playground(event_loop: AbstractEventLoop) -> None:
+    """Test that the playground respects the root_path for requesting assets"""
+
+    for root_path in ("/home/root", "/home/root/"):
+        app = FastAPI(root_path=root_path)
+        add_routes(
+            app,
+            RunnableLambda(lambda foo: "hello"),
+            path="/chat",
+        )
+
+        router = APIRouter(prefix="/router")
+        add_routes(
+            router,
+            RunnableLambda(lambda foo: "hello"),
+            path="/chat",
+        )
+        app.include_router(router)
+
+        async_client = AsyncClient(app=app, base_url="http://localhost:9999")
+
+        response = await async_client.get("/chat/playground/index.html")
+        assert response.status_code == 200
+        assert (
+            f'src="{root_path.rstrip("/")}/chat/playground/assets/'
+            in response.content.decode()
+        ), "html should contain reference to playground assets with root_path prefix"
+
+        response = await async_client.get("/router/chat/playground/index.html")
+        assert response.status_code == 200
+        assert (
+            f'src="{root_path.rstrip("/")}/router/chat/playground/assets/'
+            in response.content.decode()
+        ), "html should contain reference to playground assets with root_path prefix"
+
+
 async def test_server_async(app: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
