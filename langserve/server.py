@@ -668,13 +668,16 @@ def add_routes(
 
     if endpoint_configuration.is_playground_enabled:
         playground = app.get(
-            namespace + "/playground/{file_path:path}", dependencies=dependencies
+            namespace + "/playground/{file_path:path}",
+            dependencies=dependencies,
+            include_in_schema=False,
         )(api_handler.playground)
 
         if endpoint_configuration.is_config_hash_enabled:
             app.get(
                 namespace + "/c/{config_hash}/playground/{file_path:path}",
                 dependencies=dependencies,
+                include_in_schema=False,
             )(playground)
 
     if enable_feedback_endpoint:
