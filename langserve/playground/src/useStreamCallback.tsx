@@ -10,6 +10,7 @@ import { StreamCallback } from "./types";
 
 export const AppCallbackContext = createContext<MutableRefObject<{
   onStart: Exclude<StreamCallback["onStart"], undefined>[];
+  onChunk: Exclude<StreamCallback["onChunk"], undefined>[];
   onSuccess: Exclude<StreamCallback["onSuccess"], undefined>[];
   onError: Exclude<StreamCallback["onError"], undefined>[];
 }> | null>(null);
@@ -18,13 +19,19 @@ export function useAppStreamCallbacks() {
   // callbacks handling
   const context = useRef<{
     onStart: Exclude<StreamCallback["onStart"], undefined>[];
+    onChunk: Exclude<StreamCallback["onChunk"], undefined>[];
     onSuccess: Exclude<StreamCallback["onSuccess"], undefined>[];
     onError: Exclude<StreamCallback["onError"], undefined>[];
-  }>({ onStart: [], onSuccess: [], onError: [] });
+  }>({ onStart: [], onChunk: [], onSuccess: [], onError: [] });
 
   const callbacks: StreamCallback = {
     onStart(...args) {
       for (const callback of context.current.onStart) {
+        callback(...args);
+      }
+    },
+    onChunk(...args) {
+      for (const callback of context.current.onChunk) {
         callback(...args);
       }
     },
@@ -44,7 +51,7 @@ export function useAppStreamCallbacks() {
 }
 
 export function useStreamCallback<
-  Type extends "onStart" | "onSuccess" | "onError"
+  Type extends "onStart" | "onChunk" | "onSuccess" | "onError"
 >(type: Type, callback: Exclude<StreamCallback[Type], undefined>) {
   type CallbackType = Exclude<StreamCallback[Type], undefined>;
 

@@ -52,6 +52,9 @@ export function useStreamLog(callbacks: StreamCallback = {}) {
   const startRef = useRef(callbacks.onStart);
   startRef.current = callbacks.onStart;
 
+  const chunkRef = useRef(callbacks.onChunk);
+  chunkRef.current = callbacks.onChunk;
+
   const successRef = useRef(callbacks.onSuccess);
   successRef.current = callbacks.onSuccess;
 
@@ -74,6 +77,7 @@ export function useStreamLog(callbacks: StreamCallback = {}) {
         if (msg.event === "data") {
           innerLatest = reducer(innerLatest, JSON.parse(msg.data)?.ops);
           setLatest(innerLatest);
+          chunkRef.current?.(JSON.parse(msg.data), innerLatest);
         }
       },
       openWhenHidden: true,
