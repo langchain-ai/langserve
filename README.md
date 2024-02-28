@@ -111,7 +111,7 @@ directory.
 | **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                             | 
 | **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.)                                                                                 | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb)     | 
 | **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)                             | 
-| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py)                                                                                                                                            | 
+| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py)                                                                                                                                            | 
 | **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               | 
 
 ## Sample Application
@@ -159,6 +159,23 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="localhost", port=8000)
+```
+
+If you intend to call your endpoint from the browser, you will also need to set CORS headers.
+You can use FastAPI's built-in middleware for that:
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 ```
 
 ### Docs
@@ -553,7 +570,7 @@ Here are a few examples:
 
 | Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                                |
 |:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/client.ipynb)                                               | 
+| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/client.ipynb)                                               | 
 | **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               | 
 
 #### Schema
@@ -625,7 +642,7 @@ Example widget:
 ### Chat Widget
 
 Look
-at [widget example](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/server.py).
+at the [widget example](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py).
 
 To define a chat widget, make sure that you pass "type": "chat".
 
@@ -637,7 +654,6 @@ To define a chat widget, make sure that you pass "type": "chat".
 Here's a snippet:
 
 ```python
-
 class ChatHistory(CustomUserType):
     chat_history: List[Tuple[str, str]] = Field(
         ...,
@@ -675,6 +691,37 @@ Example widget:
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/a71ff37b-a6a9-4857-a376-cf27c41d3ca4" width="50%"/>
 </p>
+
+You can also specify a list of messages as your a parameter directly, as shown in this snippet:
+
+```python
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful assisstant named Cob."),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
+
+chain = prompt | ChatAnthropic(model="claude-2")
+
+
+class MessageListInput(BaseModel):
+    """Input for the chat endpoint."""
+    messages: List[Union[HumanMessage, AIMessage]] = Field(
+        ...,
+        description="The chat messages representing the current conversation.",
+        extra={"widget": {"type": "chat", "input": "messages"}},
+    )
+
+
+add_routes(
+    app,
+    chain.with_types(input_type=MessageListInput),
+    path="/chat",
+)
+```
+
+See [this sample file](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/message_list/server.py) for an example.
 
 ### Enabling / Disabling Endpoints (LangServe >=0.0.33)
 
