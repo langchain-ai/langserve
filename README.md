@@ -20,8 +20,8 @@ uses [pydantic](https://docs.pydantic.dev/latest/) for data validation.
 
 In addition, it provides a client that can be used to call into runnables deployed on a
 server.
-A javascript client is available
-in [LangChainJS](https://api.js.langchain.com/classes/langchain_runnables_remote.RemoteRunnable.html).
+A JavaScript client is available
+in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 
 ## Features
 
@@ -223,7 +223,7 @@ chain.batch([{"topic": "parrots"}, {"topic": "cats"}])
 In TypeScript (requires LangChain.js version 0.0.166 or later):
 
 ```typescript
-import {RemoteRunnable} from "langchain/runnables/remote";
+import { RemoteRunnable } from "@langchain/core/runnables/remote";
 
 const chain = new RemoteRunnable({
     url: `http://localhost:8000/joke/`,
