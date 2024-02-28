@@ -79,15 +79,19 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
     useStreamCallback("onChunk", (_chunk, aggregatedState) => {
       if (!isJsonSchemaExtra(props.schema)) return;
       if (props.schema.extra.widget.type !== "chat") return;
-      if (
-        aggregatedState?.final_output !== undefined && 
-        (aggregatedState.final_output as MessageFields)?.type === "AIMessageChunk"
-      ) {
+      if (aggregatedState?.final_output !== undefined) {
         const msgPath = Paths.compose(props.path, `${data.length - 1}`);
-        props.handleChange(
-          Paths.compose(msgPath, "content"),
-          (aggregatedState.final_output as MessageFields)?.content
-        );
+        if ((aggregatedState.final_output as MessageFields)?.type === "AIMessageChunk") {
+          props.handleChange(
+            Paths.compose(msgPath, "content"),
+            (aggregatedState.final_output as MessageFields)?.content
+          );
+        } else if (typeof aggregatedState.final_output === "string") {
+          props.handleChange(
+            Paths.compose(msgPath, "content"),
+            aggregatedState.final_output
+          );
+        }
       }
     });
 

@@ -7,6 +7,7 @@ from typing import List, Union
 from fastapi import FastAPI
 from langchain.chat_models import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from langserve import add_routes
@@ -27,7 +28,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2")
+chain = prompt | ChatAnthropic(model="claude-2") | StrOutputParser()
 
 
 class InputChat(BaseModel):
