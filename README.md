@@ -161,6 +161,23 @@ if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=8000)
 ```
 
+If you intend to call your endpoint from the browser, you will also need to set CORS headers.
+You can use FastAPI's built-in middleware for that:
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+```
+
 ### Docs
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
