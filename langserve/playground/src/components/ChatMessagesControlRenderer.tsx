@@ -101,6 +101,12 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
       props.handleChange(props.path, [...data, { content: "", type: "human" }]);
     });
 
+    useStreamCallback("onError", () => {
+      if (data.length && data[data.length - 1].type === "ai") {
+        props.handleChange(props.path, [...data.slice(0, -1)]);
+      }
+    });
+
     return (
       <div className="control">
         <div className="flex items-center justify-between">
