@@ -54,6 +54,7 @@ async def serve_playground(
     base_url: str,
     file_path: str,
     feedback_enabled: bool,
+    public_trace_link_enabled: bool,
 ) -> Response:
     """Serve the playground."""
     local_file_path = os.path.abspath(
@@ -85,6 +86,9 @@ async def serve_playground(
                     LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
                     LANGSERVE_FEEDBACK_ENABLED=json.dumps(
                         "true" if feedback_enabled else "false"
+                    ),
+                    LANGSERVE_PUBLIC_TRACE_LINK_ENABLED=json.dumps(
+                        "true" if public_trace_link_enabled else "false"
                     ),
                 )
             else:

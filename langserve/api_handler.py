@@ -43,6 +43,8 @@ from langserve.schema import (
     CustomUserType,
     Feedback,
     FeedbackCreateRequest,
+    PublicTraceLink,
+    PublicTraceLinkCreateRequest,
     SingletonResponseMetadata,
 )
 from langserve.serialization import WellKnownLCSerializer
@@ -462,6 +464,7 @@ class APIHandler:
         config_keys: Sequence[str] = ("configurable",),
         include_callback_events: bool = False,
         enable_feedback_endpoint: bool = False,
+        enable_public_trace_link_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
     ) -> None:
@@ -502,6 +505,13 @@ class APIHandler:
                 to LangSmith. Disabled by default. If this flag is disabled or LangSmith
                 tracing is not enabled for the runnable, then 4xx errors will be thrown
                 when accessing the feedback endpoint
+            enable_public_trace_link_endpoint:  Whether to enable an endpoint for
+                end-users to publicly view LangSmith traces of your chain runs.
+                WARNING: THIS WILL EXPOSE THE INTERNAL STATE OF YOUR RUN AND CHAIN AS
+                A PUBLICY ACCESSIBLE LINK.
+                If this flag is disabled or LangSmith tracing is not enabled for
+                the runnable, then 400 errors will be thrown when accessing the
+                endpoint.
             per_req_config_modifier: optional function that can be used to update the
                 RunnableConfig for a given run based on the raw request. This is useful,
                 for example, if the user wants to pass in a header containing
@@ -548,6 +558,7 @@ class APIHandler:
         self._per_req_config_modifier = per_req_config_modifier
         self._serializer = WellKnownLCSerializer()
         self._enable_feedback_endpoint = enable_feedback_endpoint
+        self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
 
         # Client is patched using mock.patch, if changing the names
@@ -1410,3 +1421,44 @@ class APIHandler:
     async def check_feedback_enabled(self) -> bool:
         """Check if feedback is enabled for the runnable."""
         return self._enable_feedback_endpoint or not tracing_is_enabled()
+
+    async def create_public_trace_link(
+        self, public_trace_link_create_req: PublicTraceLinkCreateRequest
+    ) -> PublicTraceLink:
+        """Send feedback on an individual run to langsmith
+
+        Note that a successful response means that feedback was successfully
+        submitted. It does not guarantee that the feedback is recorded by
+        langsmith. Requests may be silently rejected if they are
+        unauthenticated or invalid by the server.
+        """
+        if not tracing_is_enabled() or not self._enable_public_trace_link_endpoint:
+            raise HTTPException(
+                400,
+                "The public trace link endpoint is only accessible when "
+                + "LangSmith is enabled on your LangServe server.\n"
+                + "Please set `enable_public_trace_link_endpoint=True` on your "
+                + "route and set the proper environment variables",
+            )
+        public_url = self._langsmith_client.share_run(
+            public_trace_link_create_req.run_id,
+        )
+        return PublicTraceLink(public_url=public_url)
+
+    async def _check_public_trace_link_enabled(self) -> None:
+        """Check if public trace links are enabled for the runnable.
+
+        This endpoint is private since it will be deprecated in the future.
+        """
+        if not (await self.check_public_trace_link_enabled()):
+            raise HTTPException(
+                400,
+                "The public trace link endpoint is only accessible when "
+                + "LangSmith is enabled on your LangServe server.\n"
+                + "Please set `enable_public_trace_link_endpoint=True` on your "
+                + "route and set the proper environment variables",
+            )
+
+    async def check_public_trace_link_enabled(self) -> bool:
+        """Check if public trace links are enabled for the runnable."""
+        return self._enable_public_trace_link_endpoint or not tracing_is_enabled()
