@@ -113,6 +113,7 @@ EndpointName = Literal[
     "stream_events",
     "playground",
     "feedback",
+    "public_trace_link",
     "input_schema",
     "config_schema",
     "output_schema",
@@ -129,6 +130,7 @@ KNOWN_ENDPOINTS = {
     "stream_events",
     "playground",
     "feedback",
+    "public_trace_link",
     "input_schema",
     "config_schema",
     "output_schema",
@@ -145,6 +147,7 @@ class _EndpointConfiguration:
         enabled_endpoints: Optional[Sequence[EndpointName]] = None,
         disabled_endpoints: Optional[Sequence[EndpointName]] = None,
         enable_feedback_endpoint: bool = False,
+        enable_public_trace_link_endpoint: bool = False,
     ) -> None:
         """Initialize the endpoint configuration."""
         if enabled_endpoints and disabled_endpoints:
@@ -223,6 +226,7 @@ class _EndpointConfiguration:
         self.is_config_schema_enabled = is_config_schema_enabled
         self.is_config_hash_enabled = is_config_hash_enabled
         self.is_feedback_enabled = enable_feedback_endpoint
+        self.is_public_trace_link_enabled = enable_public_trace_link_endpoint
 
 
 # PUBLIC API
@@ -239,6 +243,7 @@ def add_routes(
     include_callback_events: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
     enable_feedback_endpoint: bool = _is_hosted(),
+    enable_public_trace_link_endpoint: bool = False,
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
@@ -290,7 +295,13 @@ def add_routes(
         enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
-            when accessing the feedback endpoint
+            when accessing the feedback endpoint.
+        enable_public_trace_link_endpoint: Whether to enable an endpoint for
+            end-users to publicly view LangSmith traces of your chain runs.
+            WARNING: THIS WILL EXPOSE THE INTERNAL STATE OF YOUR RUN AND CHAIN AS
+            A PUBLICY ACCESSIBLE LINK.
+            If this flag is disabled or LangSmith tracing is not enabled for
+            the runnable, then 400 errors will be thrown when accessing the endpoint.
         enabled_endpoints: A list of endpoints which should be enabled. If not
             specified, all associated endpoints will be enabled. The list can contain
             the following values: *invoke*, *batch*, *stream*, *stream_log*,
@@ -312,8 +323,9 @@ def add_routes(
             )
             ```
 
-            Please note that the feedback endpoint is not included in this list
-            and is controlled by the `enable_feedback_endpoint` flag.
+            Please note that the feedback endpoint and public trace link endpoints
+            are not included in this list and are controlled by their
+            respective flags.
         disabled_endpoints: A list of endpoints which should be disabled. If not
             specified, all associated endpoints will be enabled. The list can contain
             the following values: *invoke*, *batch*, *stream*, *stream_log*,
@@ -343,6 +355,7 @@ def add_routes(
         enabled_endpoints=enabled_endpoints,
         disabled_endpoints=disabled_endpoints,
         enable_feedback_endpoint=enable_feedback_endpoint,
+        enable_public_trace_link_endpoint=enable_public_trace_link_endpoint,
     )
 
     try:
@@ -386,6 +399,7 @@ def add_routes(
         config_keys=config_keys,
         include_callback_events=include_callback_events,
         enable_feedback_endpoint=enable_feedback_endpoint,
+        enable_public_trace_link_endpoint=enable_public_trace_link_endpoint,
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
     )
@@ -690,6 +704,17 @@ def add_routes(
             namespace + "/feedback",
             dependencies=dependencies,
         )(api_handler._check_feedback_enabled)
+
+    if enable_public_trace_link_endpoint:
+        app.put(
+            namespace + "/public_trace_link",
+            dependencies=dependencies,
+        )(api_handler.create_public_trace_link)
+
+        app.head(
+            namespace + "/public_trace_link",
+            dependencies=dependencies,
+        )(api_handler._check_public_trace_link_enabled)
 
     #######################################
     # Documentation variants of end points.
