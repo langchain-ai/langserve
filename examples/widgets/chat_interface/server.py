@@ -56,6 +56,8 @@ class InputChat(BaseModel):
 add_routes(
     app,
     chain.with_types(input_type=InputChat),
+    enable_feedback_endpoint=True,
+    enable_public_trace_link_endpoint=True,
 )
 
 if __name__ == "__main__":

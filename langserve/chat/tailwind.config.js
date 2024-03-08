@@ -13,6 +13,7 @@ export default {
         button: {
           "green": "var(--button-green)",
           "green-disabled": "var(--button-green-disabled)",
+          "inline": "var(--button-inline)"
         },
         ls: {
           blue: "hsl(211.5, 91.8%, 61.8%)",

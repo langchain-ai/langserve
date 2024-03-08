@@ -43,6 +43,7 @@
 
     --button-green: #162E2E;
     --button-green-disabled: rgba(4, 61, 92, 0.20);
+    --button-inline: #006BA41A;
   }
 
   @media (prefers-color-scheme: dark) {

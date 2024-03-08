@@ -1,4 +1,7 @@
 import { useState, useRef } from "react";
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 import { AutosizeTextarea } from "./AutosizeTextarea";
 import { ChatMessage, type ChatMessageType } from "./ChatMessage";
 import { ShareDialog } from "./ShareDialog";
@@ -28,7 +31,7 @@ export function ChatWindow(props: {
     setIsLoading(true);
     const newMessages = [
       ...messages,
-      {role: "human", content: submittedValue} as const
+      { role: "human", content: submittedValue } as const
     ];
     setMessages(newMessages);
     setCurrentInputValue("");
@@ -48,7 +51,7 @@ export function ChatWindow(props: {
     if (typeof finalOutput === "string") {
       setMessages((prevMessages) => [
         ...prevMessages.slice(0, -1),
-        {role: "ai", content: finalOutput}
+        { role: "ai", content: finalOutput, runId: aggregatedState?.id }
       ]); 
     }
   });
@@ -81,7 +84,9 @@ export function ChatWindow(props: {
         {messages.length > 0 ? (
           <div className="flex flex-col-reverse basis-0 overflow-auto flex-re grow max-w-[640px] w-[640px]">
             {messages.map((message, i) => {
-              return (<ChatMessage message={message} key={i}></ChatMessage>)
+              return (
+                <ChatMessage message={message} key={i} isLoading={isLoading} onError={(e: any) => toast(e.message)}></ChatMessage>
+              );
             }).reverse()}
           </div>
         ) : (
@@ -121,6 +126,7 @@ export function ChatWindow(props: {
           </button>
         </div>
       </div>
+      <ToastContainer />
     </div>
   )
 }
