@@ -3,7 +3,10 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { AutosizeTextarea } from "./AutosizeTextarea";
-import { ChatMessage, type ChatMessageType } from "./ChatMessage";
+import {
+  ChatMessage,
+  type ChatMessageType,
+} from "./ChatMessage";
 import { ShareDialog } from "./ShareDialog";
 import { useStreamCallback } from "../useStreamCallback";
 
@@ -11,6 +14,19 @@ import ArrowUp from "../assets/ArrowUp.svg?react";
 import CircleSpinIcon from "../assets/CircleSpinIcon.svg?react";
 import EmptyState from "../assets/EmptyState.svg?react";
 import LangServeLogo from "../assets/LangServeLogo.svg?react";
+
+export type AIMessage = {
+  content: string;
+  type: "AIMessage" | "AIMessageChunk";
+  name?: string;
+  additional_kwargs?: { [key: string]: unknown };
+}
+
+export function isAIMessage(x: unknown): x is AIMessage {
+  return x != null &&
+    typeof (x as AIMessage).content === "string" &&
+    ["AIMessageChunk", "AIMessage"].includes((x as AIMessage).type);
+}
 
 export function ChatWindow(props: {
   startStream: (input: unknown, config: unknown) => Promise<void>;
@@ -53,6 +69,11 @@ export function ChatWindow(props: {
         ...prevMessages.slice(0, -1),
         { role: "ai", content: finalOutput, runId: aggregatedState?.id }
       ]); 
+    } else if (isAIMessage(finalOutput)) {
+      setMessages((prevMessages) => [
+        ...prevMessages.slice(0, -1),
+        { role: "ai", content: finalOutput.content, runId: aggregatedState?.id }
+      ]);
     }
   });
   useStreamCallback("onSuccess", () => {
