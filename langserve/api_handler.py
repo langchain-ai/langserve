@@ -1352,6 +1352,9 @@ class APIHandler:
             + "/playground"
         )
         feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
+        public_trace_link_enabled = (
+            tracing_is_enabled() and self._enable_public_trace_link_endpoint
+        )
 
         return await serve_playground(
             self._runnable.with_config(config),
@@ -1360,6 +1363,7 @@ class APIHandler:
             playground_url,
             file_path,
             feedback_enabled,
+            public_trace_link_enabled,
         )
 
     async def create_feedback(
