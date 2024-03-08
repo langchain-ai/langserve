@@ -1367,6 +1367,7 @@ class APIHandler:
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server.",
+                + "Please set the proper environment variables",
             )
 
         feedback_from_langsmith = self._langsmith_client.create_feedback(
@@ -1405,6 +1406,7 @@ class APIHandler:
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server.",
+                + "Please set the proper environment variables",
             )
 
     async def check_feedback_enabled(self) -> bool:
