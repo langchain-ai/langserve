@@ -107,3 +107,21 @@ class Feedback(BaseFeedback):
 
     correction: Optional[Dict] = None
     """Correction for the run."""
+
+
+class PublicTraceLinkCreateRequest(BaseModel):
+    """
+    Represents a request that creates a public trace for an individual run
+    """
+
+    run_id: UUID
+    """The unique ID of the run to share."""
+
+
+class PublicTraceLink(BaseModel):
+    """
+    Represents a public trace for an individual run
+    """
+
+    public_url: str
+    """Public URL for the trace."""
