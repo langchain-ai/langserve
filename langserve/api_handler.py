@@ -1405,7 +1405,7 @@ class APIHandler:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.",
+                + "enabled on your LangServe server."
                 + "Please set the proper environment variables",
             )
 
