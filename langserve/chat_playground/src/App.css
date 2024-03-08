@@ -109,3 +109,8 @@
 .share-button:hover > * {
   color: white;
 }
+
+a {
+  color: blue;
+  text-decoration: underline;
+}

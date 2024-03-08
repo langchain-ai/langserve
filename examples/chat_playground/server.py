@@ -35,7 +35,7 @@ app.add_middleware(
 # Declare a chain
 prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "You are a helpful assisstant named Cob."),
+        ("system", "You are a helpful, professional assisstant named Cob."),
         MessagesPlaceholder(variable_name="messages"),
     ]
 )
@@ -49,7 +49,6 @@ class InputChat(BaseModel):
     messages: List[Union[HumanMessage, AIMessage, SystemMessage]] = Field(
         ...,
         description="The chat messages representing the current conversation.",
-        extra={"widget": {"type": "chat", "input": "messages"}},
     )
 
 

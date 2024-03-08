@@ -15,13 +15,14 @@ import LangServeLogo from "../assets/LangServeLogo.svg?react";
 export function ChatWindow(props: {
   startStream: (input: unknown, config: unknown) => Promise<void>;
   stopStream: (() => void) | undefined;
+  inputKey: string;
 }) {
-  const { startStream } = props;
+  const { startStream, inputKey } = props;
 
   const [currentInputValue, setCurrentInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   const submitMessage = () => {
     const submittedValue = currentInputValue;
@@ -35,8 +36,8 @@ export function ChatWindow(props: {
     ];
     setMessages(newMessages);
     setCurrentInputValue("");
-    // TODO: Add config and input schema support
-    startStream({ messages: newMessages }, {});
+    // TODO: Add config schema support
+    startStream({ [inputKey]: newMessages }, {});
   };
   
   useStreamCallback("onStart", () => {
@@ -106,9 +107,9 @@ export function ChatWindow(props: {
         )}
       </div>
       <div className="m-16 mt-4 flex justify-center">
-        <div className="flex items-center p-3 rounded-[48px] border shadow-sm max-w-[768px] grow" onClick={() => inputRef.current?.focus()}>
+        <div className="flex items-center p-3 rounded-[48px] border shadow-sm max-w-[768px] grow" onClick={() => messageInputRef.current?.focus()}>
           <AutosizeTextarea
-            inputRef={inputRef}
+            inputRef={messageInputRef}
             className="flex-grow mr-4 ml-8 border-none focus:ring-0 py-2 cursor-text"
             placeholder="Send a message..."
             value={currentInputValue}
