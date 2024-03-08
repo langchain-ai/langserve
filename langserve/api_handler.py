@@ -1367,7 +1367,7 @@ class APIHandler:
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server."
-                + "Please set `enable_feedback_endpoint=True` on your route and ",
+                + "Please set `enable_feedback_endpoint=True` on your route and "
                 + "set the proper environment variables",
             )
 
@@ -1407,7 +1407,7 @@ class APIHandler:
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
                 + "enabled on your LangServe server."
-                + "Please set `enable_feedback_endpoint=True` on your route and ",
+                + "Please set `enable_feedback_endpoint=True` on your route and "
                 + "set the proper environment variables",
             )
 
