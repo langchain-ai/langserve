@@ -1366,7 +1366,9 @@ class APIHandler:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.",
+                + "enabled on your LangServe server."
+                + "Please set `enable_feedback_endpoint=True` on your route and "
+                + "set the proper environment variables",
             )
 
         feedback_from_langsmith = self._langsmith_client.create_feedback(
@@ -1404,7 +1406,9 @@ class APIHandler:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.",
+                + "enabled on your LangServe server."
+                + "Please set `enable_feedback_endpoint=True` on your route and "
+                + "set the proper environment variables",
             )
 
     async def check_feedback_enabled(self) -> bool:
