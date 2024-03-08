@@ -1381,7 +1381,7 @@ class APIHandler:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server."
+                + "enabled on your LangServe server.\n"
                 + "Please set `enable_feedback_endpoint=True` on your route and "
                 + "set the proper environment variables",
             )
@@ -1421,7 +1421,7 @@ class APIHandler:
             raise HTTPException(
                 400,
                 "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server."
+                + "enabled on your LangServe server.\n"
                 + "Please set `enable_feedback_endpoint=True` on your route and "
                 + "set the proper environment variables",
             )
