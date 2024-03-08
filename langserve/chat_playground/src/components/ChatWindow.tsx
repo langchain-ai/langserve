@@ -47,7 +47,6 @@ export function ChatWindow(props: {
   });
   useStreamCallback("onChunk", (_chunk, aggregatedState) => {
     const finalOutput = aggregatedState?.final_output;
-    console.log(_chunk);
     if (typeof finalOutput === "string") {
       setMessages((prevMessages) => [
         ...prevMessages.slice(0, -1),
@@ -58,8 +57,13 @@ export function ChatWindow(props: {
   useStreamCallback("onSuccess", () => {
     setIsLoading(false);
   });
-  useStreamCallback("onError", () => {
+  useStreamCallback("onError", (e) => {
     setIsLoading(false);
+    toast(e.message, { hideProgressBar: true });
+    setCurrentInputValue(messages[messages.length - 2]?.content);
+    setMessages((prevMessages) => [
+      ...prevMessages.slice(0, -2),
+    ]);
   });
 
   return (
@@ -73,7 +77,7 @@ export function ChatWindow(props: {
           <ShareDialog config={{}}>
             <button
               type="button"
-              className="px-3 py-1 border rounded-full px-8 py-2"
+              className="px-3 py-1 border rounded-full px-8 py-2 share-button"
             >
               <span>Share</span>
             </button>
@@ -85,7 +89,12 @@ export function ChatWindow(props: {
           <div className="flex flex-col-reverse basis-0 overflow-auto flex-re grow max-w-[640px] w-[640px]">
             {messages.map((message, i) => {
               return (
-                <ChatMessage message={message} key={i} isLoading={isLoading} onError={(e: any) => toast(e.message)}></ChatMessage>
+                <ChatMessage
+                  message={message}
+                  key={i}
+                  isLoading={isLoading}
+                  onError={(e: any) => toast(e.message, { hideProgressBar: true })}
+                ></ChatMessage>
               );
             }).reverse()}
           </div>

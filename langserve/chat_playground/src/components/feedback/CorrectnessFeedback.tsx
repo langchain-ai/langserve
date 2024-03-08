@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import ThumbsUpIcon from "../../assets/ThumbsUpIcon.svg?react";
 import ThumbsDownIcon from "../../assets/ThumbsDownIcon.svg?react";
 import CircleSpinIcon from "../../assets/CircleSpinIcon.svg?react";
@@ -45,6 +46,7 @@ const useFeedbackMutation = (runId: string, onError?: (e: any) => void) => {
         score: number;
       } = await request.json();
 
+      toast("Feedback sent successfully!", { hideProgressBar: true });
       return json;
     }
   );

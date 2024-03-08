@@ -101,3 +101,11 @@
 .vertical-layout {
   @apply flex flex-col gap-4;
 }
+
+.share-button:hover {
+  background: linear-gradient(270deg, #BCB2FD 0.29%, #D65622 92%);
+}
+
+.share-button:hover > * {
+  color: white;
+}
