@@ -32,6 +32,19 @@ export function useFeedback() {
   });
 }
 
+export function usePublicTraceLink() {
+  return useSWR(["/public_trace_link"], async () => {
+    if (!import.meta.env.DEV && window.PUBLIC_TRACE_LINK_ENABLED) {
+      return window.PUBLIC_TRACE_LINK_ENABLED === "true";
+    }
+
+    const response = await fetch(resolveApiUrl("/public_trace_link"), {
+      method: "HEAD",
+    });
+    return response.ok;
+  });
+}
+
 export function useConfigSchema() {
   return useSWR(["/config_schema"], async () => {
     let schema: JsonSchema | null = null;

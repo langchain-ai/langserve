@@ -14,6 +14,7 @@ import ArrowUp from "../assets/ArrowUp.svg?react";
 import CircleSpinIcon from "../assets/CircleSpinIcon.svg?react";
 import EmptyState from "../assets/EmptyState.svg?react";
 import LangServeLogo from "../assets/LangServeLogo.svg?react";
+import { useFeedback, usePublicTraceLink } from "../useSchemas";
 
 export type AIMessage = {
   content: string;
@@ -39,6 +40,9 @@ export function ChatWindow(props: {
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const feedbackEnabled = useFeedback()
+  const publicTraceLinksEnabled = usePublicTraceLink();
 
   const submitMessage = () => {
     const submittedValue = currentInputValue;
@@ -116,6 +120,8 @@ export function ChatWindow(props: {
                   key={i}
                   isLoading={isLoading}
                   onError={(e: any) => toast(e.message, { hideProgressBar: true })}
+                  feedbackEnabled={feedbackEnabled.data}
+                  publicTraceLinksEnabled={publicTraceLinksEnabled.data}
                 ></ChatMessage>
               );
             }).reverse()}
