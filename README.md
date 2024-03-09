@@ -370,6 +370,13 @@ add_routes(
 
 If you are using LangSmith, you can also set `enable_feedback_endpoint=True` on your route to enable thumbs-up/thumbs-down buttons
 after each message, and `enable_public_trace_link_endpoint=True` to add a button that creates a public traces for runs.
+Note that you will also need to set the following environment variables:
+
+```bash
+export LANGCHAIN_TRACING_V2="true"
+export LANGCHAIN_PROJECT="YOUR_PROJECT_NAME"
+export LANGCHAIN_API_KEY="YOUR_API_KEY"
+```
 
 Here's an example with the above two options turned on:
 
