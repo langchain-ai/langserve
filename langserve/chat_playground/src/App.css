@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    color: #043D5C;
+    font-weight: 300;
+    @font-face {
+      font-family: 'Manrope';
+      src: url('/dist/Manrope-VariableFont_wght.ttf') format('truetype');
+    }
+    border-color: #043D5C;
+  }
+  
+  input,
+  textarea,
+  select {
+    background: transparent;
+  }
+
+  /* clash between MUI and Tailwind */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    box-shadow: none;
+    outline: none;
+  }
+
+  :root {
+    --popover: 0 0% 100%;
+    --background: #F8F7FF;
+
+    --divider-500: 210 40% 96.1%; /* slate-100 */
+    --divider-700: 214.3 31.8% 91.4%; /* slate-200 */
+
+    --ls-blue: 211.5 91.8% 61.8%;
+    --ls-black: 222.2 47.4% 11.2%; /* slate-900 */
+    --ls-gray-100: 215.4 16.3% 46.9%; /* slate-500 */
+    --ls-gray-200: 212.7 26.8% 83.9%; /* slate-300 */
+    --ls-gray-300: 214.3 31.8% 91.4%; /* slate-200 */
+    --ls-gray-400: 210 40% 96.1%; /* slate-100 */
+
+    --button-green: #162E2E;
+    --button-green-disabled: rgba(4, 61, 92, 0.20);
+    --button-inline: #006BA41A;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --popover: 240 11.6% 8.4%;
+
+      --divider-500: 217.2 32.6% 17.5%; /* slate-800 */
+      --divider-700: 215.3 25% 26.7%; /* slate-700 */
+
+      --ls-blue: 211.5 91.8% 61.8%;
+      --ls-black: 0 0% 100%; /* white */
+      --ls-gray-100: 215 20.2% 65.1%; /* slate-400 */
+      --ls-gray-200: 215.4 16.3% 46.9%; /* slate-500 */
+      --ls-gray-300: 215.3 25% 26.7%; /* slate-700 */
+      --ls-gray-400: 217.2 32.6% 17.5%; /* slate-800 */
+    }
+  }
+}
+
+.control {
+  @apply flex flex-col border border-divider-700 rounded-lg p-3 gap-1 relative bg-background transition-all outline-ls-blue/20;
+  @apply focus-within:border-ls-blue focus-within:outline focus-within:outline-4 focus-within:outline-ls-blue/20;
+}
+
+.control > label,
+.control h6 {
+  @apply text-xs uppercase font-semibold text-ls-gray-100;
+}
+
+.control div .MuiGrid-item {
+  @apply pt-0;
+}
+
+.control > select {
+  @apply -ml-1;
+}
+
+.control > .input-description,
+.control > .validation {
+  @apply absolute right-3 top-3 text-xs;
+}
+
+.group-layout {
+  @apply flex flex-col gap-4 bg-background p-4 border border-divider-700 rounded-lg;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.vertical-layout {
+  @apply flex flex-col gap-4;
+}
+
+.share-button:hover {
+  background: linear-gradient(270deg, #BCB2FD 0.29%, #D65622 92%);
+}
+
+.share-button:hover > * {
+  color: white;
+}
+
+a {
+  color: blue;
+  text-decoration: underline;
+}

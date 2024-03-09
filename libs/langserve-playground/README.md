@@ -1,2 +1,1 @@
-# LangServe Playground 🦜️🔗
-
+# LangServe Playground 🦜️🏓
