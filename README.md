@@ -330,6 +330,56 @@ runnable and share a link with the configuration:
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/86ce9c59-f8e4-4d08-9fa3-62030e0f521d" width="50%"/>
 </p>
 
+## Chat playground
+
+LangServe also makes a chat-focused playground available at `/my_runnable/chat_playground/`.
+Unlike the general playground, only certain types of runnables are supported - the runnable's input schema must
+be a `dict` with a single key, and that key's value must be a list of chat messages. The runnable
+can return either an `AIMessage` or a string.
+
+Here's an example route:
+
+```python
+# Declare a chain
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", "You are a helpful, professional assistant named Cob."),
+        MessagesPlaceholder(variable_name="messages"),
+    ]
+)
+
+chain = prompt | ChatAnthropic(model="claude-2")
+
+
+class InputChat(BaseModel):
+    """Input for the chat endpoint."""
+
+    messages: List[Union[HumanMessage, AIMessage, SystemMessage]] = Field(
+        ...,
+        description="The chat messages representing the current conversation.",
+    )
+
+
+add_routes(
+    app,
+    chain.with_types(input_type=InputChat),
+    enable_feedback_endpoint=True,
+    enable_public_trace_link_endpoint=True,
+)
+```
+
+If you are using LangSmith, you can also set `enable_feedback_endpoint=True` on your route to enable thumbs-up/thumbs-down buttons
+after each message, and `enable_public_trace_link_endpoint=True` to add a button that creates a public traces for runs.
+
+Here's an example with the above two options turned on:
+
+<p align="center">
+<img src="./.github/img/chat_playground.png" width="50%"/>
+</p>
+
+Note: If you enable public trace links, the internals of your chain will be exposed. We recommend only using this setting
+for demos or testing.
+
 ## Legacy Chains
 
 LangServe works with both Runnables (constructed
