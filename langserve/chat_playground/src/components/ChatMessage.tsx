@@ -59,7 +59,7 @@ export function ChatMessage(props: {
   return (
     <div className="mb-8">
       <p className="font-medium text-transform uppercase mb-2">{role}</p>
-      <p>{content}</p>
+      <p className="whitespace-pre-wrap">{content}</p>
       {role === "ai" && !isLoading && runId != null && (
         <div className="mt-2 flex items-center">
           {feedbackEnabled && <span className="mr-2"><CorrectnessFeedback runId={runId} onError={props.onError}></CorrectnessFeedback></span>}
