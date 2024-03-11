@@ -51,8 +51,8 @@ export function ShareDialog(props: { config: unknown; children: ReactNode }) {
   // get base URL
   const targetUrl = `${state.basePath}/c/${hash}`;
 
-  // .../c/[hash]/chat_playground
-  const playgroundUrl = `${targetUrl}/chat_playground`;
+  // .../c/[hash]/playground
+  const playgroundUrl = `${targetUrl}/playground`;
 
   // cURL, JS: .../c/[hash]/invoke
   // Python: .../c/[hash]

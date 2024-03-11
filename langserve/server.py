@@ -112,7 +112,6 @@ EndpointName = Literal[
     "stream_log",
     "stream_events",
     "playground",
-    "chat_playground",
     "feedback",
     "public_trace_link",
     "input_schema",
@@ -130,7 +129,6 @@ KNOWN_ENDPOINTS = {
     "stream_log",
     "stream_events",
     "playground",
-    "chat_playground",
     "feedback",
     "public_trace_link",
     "input_schema",
@@ -179,7 +177,6 @@ class _EndpointConfiguration:
                 is_stream_log_enabled = True
                 is_stream_events_enabled = True
                 is_playground_enabled = True
-                is_chat_playground_enabled = True
                 is_input_schema_enabled = True
                 is_output_schema_enabled = True
                 is_config_schema_enabled = True
@@ -197,9 +194,6 @@ class _EndpointConfiguration:
                 is_stream_log_enabled = "stream_log" not in disabled_endpoints_
                 is_stream_events_enabled = "stream_events" not in disabled_endpoints_
                 is_playground_enabled = "playground" not in disabled_endpoints_
-                is_chat_playground_enabled = (
-                    "chat_playground" not in disabled_endpoints_
-                )
                 is_input_schema_enabled = "input_schema" not in disabled_endpoints_
                 is_output_schema_enabled = "output_schema" not in disabled_endpoints_
                 is_config_schema_enabled = "config_schema" not in disabled_endpoints_
@@ -216,7 +210,6 @@ class _EndpointConfiguration:
             is_stream_log_enabled = "stream_log" in enabled_endpoints_
             is_stream_events_enabled = "stream_events" in enabled_endpoints_
             is_playground_enabled = "playground" in enabled_endpoints_
-            is_chat_playground_enabled = "chat_playground" in enabled_endpoints_
             is_input_schema_enabled = "input_schema" in enabled_endpoints_
             is_output_schema_enabled = "output_schema" in enabled_endpoints_
             is_config_schema_enabled = "config_schema" in enabled_endpoints_
@@ -228,7 +221,6 @@ class _EndpointConfiguration:
         self.is_stream_log_enabled = is_stream_log_enabled
         self.is_stream_events_enabled = is_stream_events_enabled
         self.is_playground_enabled = is_playground_enabled
-        self.is_chat_playground_enabled = is_chat_playground_enabled
         self.is_input_schema_enabled = is_input_schema_enabled
         self.is_output_schema_enabled = is_output_schema_enabled
         self.is_config_schema_enabled = is_config_schema_enabled
@@ -256,6 +248,7 @@ def add_routes(
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
     dependencies: Optional[Sequence[Depends]] = None,
+    playground_type: Literal["default", "chat"] = "default",
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -307,13 +300,13 @@ def add_routes(
         enable_public_trace_link_endpoint: Whether to enable an endpoint for
             end-users to publicly view LangSmith traces of your chain runs.
             WARNING: THIS WILL EXPOSE THE INTERNAL STATE OF YOUR RUN AND CHAIN AS
-            A PUBLICY ACCESSIBLE LINK.
+            A PUBLICLY ACCESSIBLE LINK.
             If this flag is disabled or LangSmith tracing is not enabled for
             the runnable, then 400 errors will be thrown when accessing the endpoint.
         enabled_endpoints: A list of endpoints which should be enabled. If not
             specified, all associated endpoints will be enabled. The list can contain
             the following values: *invoke*, *batch*, *stream*, *stream_log*,
-            *playground*, *chat_playground*, *input_schema*, *output_schema*,
+            *playground*, *input_schema*, *output_schema*,
             *config_schema*, *config_hashes*.
 
             *config_hashes* represents the config hash variant (when it exists)
@@ -337,7 +330,7 @@ def add_routes(
         disabled_endpoints: A list of endpoints which should be disabled. If not
             specified, all associated endpoints will be enabled. The list can contain
             the following values: *invoke*, *batch*, *stream*, *stream_log*,
-            *playground*, *chat_playground*, *input_schema*, *output_schema*,
+            *playground*, *input_schema*, *output_schema*,
             *config_schema*, *config_hashes*.
 
             *config_hashes* represents the config hash variant (when it exists)
@@ -358,6 +351,7 @@ def add_routes(
             stream as intermediate steps
         dependencies: list of dependencies to be applied to the *path operation*.
             See [FastAPI docs for Dependencies in path operation decorators](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/).
+        playground_type: The type of playground to serve. The default is "default".
     """  # noqa: E501
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
@@ -410,6 +404,7 @@ def add_routes(
         enable_public_trace_link_endpoint=enable_public_trace_link_endpoint,
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
+        playground_type=playground_type,
     )
     namespace = path or ""
 
@@ -701,20 +696,6 @@ def add_routes(
                 dependencies=dependencies,
                 include_in_schema=False,
             )(playground)
-
-    if endpoint_configuration.is_chat_playground_enabled:
-        chat_playground = app.get(
-            namespace + "/chat_playground/{file_path:path}",
-            dependencies=dependencies,
-            include_in_schema=False,
-        )(api_handler.chat_playground)
-
-        if endpoint_configuration.is_config_hash_enabled:
-            app.get(
-                namespace + "/c/{config_hash}/chat_playground/{file_path:path}",
-                dependencies=dependencies,
-                include_in_schema=False,
-            )(chat_playground)
 
     if enable_feedback_endpoint:
         app.post(
