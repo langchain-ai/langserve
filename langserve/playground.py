@@ -64,7 +64,8 @@ async def serve_playground(
         path_to_dist = "./chat_playground/dist"
     else:
         raise ValueError(
-            f"Invalid playground type: {playground_type}. Use one of 'default' or 'chat'."
+            f"Invalid playground type: {playground_type}. "
+            f"Use one of 'default' or 'chat'."
         )
 
     local_file_path = os.path.abspath(
