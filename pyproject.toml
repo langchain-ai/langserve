@@ -18,6 +18,7 @@ httpx-sse = {version = ">=0.3.1", optional = true}
 pydantic = ">=1"
 langchain = ">=0.0.333"
 orjson = ">=2"
+langchain-anthropic = "^0.1.4"
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^3.6.1"
