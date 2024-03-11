@@ -1369,54 +1369,6 @@ class APIHandler:
             playground_type=self.playground_type,
         )
 
-    async def chat_playground(
-        self,
-        file_path: str,
-        request: Request,
-        *,
-        config_hash: str = "",
-        server_config: Optional[RunnableConfig] = None,
-    ) -> Any:
-        """Return the playground of the runnable."""
-        with _with_validation_error_translation():
-            user_provided_config = await _unpack_request_config(
-                config_hash,
-                config_keys=self._config_keys,
-                model=self._ConfigPayload,
-                request=request,
-                # Do not use per request config modifier for output schema
-                # since it's unclear why it would make sense to modify
-                # this using a per request config modifier.
-                # If this is needed, for some reason please file an issue explaining
-                # the user case.
-                per_req_config_modifier=None,
-                server_config=server_config,
-            )
-
-            config = _update_config_with_defaults(
-                self._run_name, user_provided_config, request
-            )
-
-        chat_playground_url = (
-            request.scope.get("root_path", "").rstrip("/")
-            + self._base_url
-            + "/chat_playground"
-        )
-        feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
-        public_trace_link_enabled = (
-            tracing_is_enabled() and self._enable_public_trace_link_endpoint
-        )
-
-        return await serve_chat_playground(
-            self._runnable.with_config(config),
-            self._runnable.with_config(config).input_schema,
-            self._config_keys,
-            chat_playground_url,
-            file_path,
-            feedback_enabled,
-            public_trace_link_enabled,
-        )
-
     async def create_feedback(
         self, feedback_create_req: FeedbackCreateRequest
     ) -> Feedback:
