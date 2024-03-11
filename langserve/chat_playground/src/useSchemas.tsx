@@ -1,7 +1,7 @@
-import { resolveApiUrl } from "./utils/url";
-import { simplifySchema } from "./utils/simplifySchema";
 import { JsonSchema } from "@jsonforms/core";
 import { compressToEncodedURIComponent } from "lz-string";
+import { resolveApiUrl } from "./utils/url";
+import { simplifySchema } from "./utils/simplifySchema";
 
 import useSWR from "swr";
 import defaults from "./utils/defaults";
@@ -12,6 +12,8 @@ declare global {
     CONFIG_SCHEMA?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     INPUT_SCHEMA?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    OUTPUT_SCHEMA?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     FEEDBACK_ENABLED?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +83,37 @@ export function useInputSchema(configData?: unknown) {
         schema = await simplifySchema(window.INPUT_SCHEMA);
       } else {
         const response = await fetch(resolveApiUrl(`${prefix}/input_schema`));
+        if (!response.ok) throw new Error(await response.text());
+
+        const json = await response.json();
+        schema = await simplifySchema(json);
+      }
+
+      if (schema == null) return null;
+      return {
+        schema,
+        defaults: defaults(schema),
+      };
+    },
+    { keepPreviousData: true }
+  );
+}
+
+export function useOutputSchema(configData?: unknown) {
+  return useSWR(
+    ["/output_schema", configData],
+    async ([, configData]) => {
+      // TODO: this won't work if we're already seeing a prefixed URL
+      const prefix = configData
+        ? `/c/${compressToEncodedURIComponent(JSON.stringify(configData))}`
+        : "";
+
+      let schema: JsonSchema | null = null;
+
+      if (!prefix && !import.meta.env.DEV && window.OUTPUT_SCHEMA) {
+        schema = await simplifySchema(window.OUTPUT_SCHEMA);
+      } else {
+        const response = await fetch(resolveApiUrl(`${prefix}/output_schema`));
         if (!response.ok) throw new Error(await response.text());
 
         const json = await response.json();
