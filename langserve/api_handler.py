@@ -35,7 +35,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
-from langserve.chat_playground import serve_chat_playground
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
 from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model

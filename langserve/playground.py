@@ -79,7 +79,6 @@ async def serve_playground(
 
     if base_dir != os.path.commonpath((base_dir, local_file_path)):
         return Response("Not Found", status_code=404)
-
     try:
         with open(local_file_path, encoding="utf-8") as f:
             mime_type = _get_mimetype(local_file_path)
