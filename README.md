@@ -332,12 +332,12 @@ runnable and share a link with the configuration:
 
 ## Chat playground
 
-LangServe also makes a chat-focused playground available at `/my_runnable/chat_playground/`.
+LangServe also supports a chat-focused playground that opt into and use under `/my_runnable/playground/`.
 Unlike the general playground, only certain types of runnables are supported - the runnable's input schema must
 be a `dict` with a single key, and that key's value must be a list of chat messages. The runnable
 can return either an `AIMessage` or a string.
 
-Here's an example route:
+To enable it, you must set `playground_type="chat",` when adding your route. Here's an example:
 
 ```python
 # Declare a chain
@@ -365,6 +365,7 @@ add_routes(
     chain.with_types(input_type=InputChat),
     enable_feedback_endpoint=True,
     enable_public_trace_link_endpoint=True,
+    playground_type="chat",
 )
 ```
 
