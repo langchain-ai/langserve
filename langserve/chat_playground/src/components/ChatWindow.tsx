@@ -6,6 +6,7 @@ import { AutosizeTextarea } from "./AutosizeTextarea";
 import {
   ChatMessage,
   type ChatMessageType,
+  type ChatMessageBody,
 } from "./ChatMessage";
 import { ShareDialog } from "./ShareDialog";
 import { useStreamCallback } from "../useStreamCallback";
@@ -38,7 +39,7 @@ export function ChatWindow(props: {
 
   const [currentInputValue, setCurrentInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
+  const [messages, setMessages] = useState<ChatMessageBody[]>([]);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   const feedbackEnabled = useFeedback()
@@ -52,18 +53,27 @@ export function ChatWindow(props: {
     setIsLoading(true);
     const newMessages = [
       ...messages,
-      { role: "human", content: submittedValue } as const
+      { type: "human", content: submittedValue } as const
     ];
     setMessages(newMessages);
     setCurrentInputValue("");
     // TODO: Add config schema support
     startStream({ [inputKey]: newMessages }, {});
   };
+
+  const regenerateMessages = () => {
+    if (isLoading) {
+      return;
+    }
+    setIsLoading(true);
+    // TODO: Add config schema support
+    startStream({ [inputKey]: messages }, {});
+  };
   
   useStreamCallback("onStart", () => {
     setMessages((prevMessages) => [
       ...prevMessages,
-      { role: "ai", content: "" },
+      { type: "ai", content: "" },
     ]);
   });
   useStreamCallback("onChunk", (_chunk, aggregatedState) => {
@@ -71,12 +81,12 @@ export function ChatWindow(props: {
     if (typeof finalOutput === "string") {
       setMessages((prevMessages) => [
         ...prevMessages.slice(0, -1),
-        { role: "ai", content: finalOutput, runId: aggregatedState?.id }
+        { type: "ai", content: finalOutput, runId: aggregatedState?.id }
       ]); 
     } else if (isAIMessage(finalOutput)) {
       setMessages((prevMessages) => [
         ...prevMessages.slice(0, -1),
-        { role: "ai", content: finalOutput.content, runId: aggregatedState?.id }
+        { type: "ai", content: finalOutput.content, runId: aggregatedState?.id }
       ]);
     }
   });
@@ -85,7 +95,7 @@ export function ChatWindow(props: {
   });
   useStreamCallback("onError", (e) => {
     setIsLoading(false);
-    toast(e.message, { hideProgressBar: true });
+    toast(e.message + "\nCheck your backend logs for errors.", { hideProgressBar: true });
     setCurrentInputValue(messages[messages.length - 2]?.content);
     setMessages((prevMessages) => [
       ...prevMessages.slice(0, -2),
@@ -122,6 +132,29 @@ export function ChatWindow(props: {
                   onError={(e: any) => toast(e.message, { hideProgressBar: true })}
                   feedbackEnabled={feedbackEnabled.data}
                   publicTraceLinksEnabled={publicTraceLinksEnabled.data}
+                  isFinalMessage={i === messages.length - 1}
+                  onRemove={() => setMessages(
+                    (previousMessages) => [...previousMessages.slice(0, i), ...previousMessages.slice(i + 1)]
+                  )}
+                  onTypeChange={(newValue) => {
+                    setMessages(
+                      (previousMessages) => [
+                        ...previousMessages.slice(0, i),
+                        {...message, type: newValue as ChatMessageType},
+                        ...previousMessages.slice(i + 1)
+                      ]
+                    )
+                  }}
+                  onChange={(newValue) => {
+                    setMessages(
+                      (previousMessages) => [
+                        ...previousMessages.slice(0, i),
+                        {...message, content: newValue},
+                        ...previousMessages.slice(i + 1)
+                      ]
+                    );
+                  }}
+                  onRegenerate={() => regenerateMessages()}
                 ></ChatMessage>
               );
             }).reverse()}
