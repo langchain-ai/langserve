@@ -1,22 +1,32 @@
 import { useState } from "react";
 import { CorrectnessFeedback } from "./feedback/CorrectnessFeedback";
 import { resolveApiUrl } from "../utils/url";
+import { AutosizeTextarea } from "./AutosizeTextarea";
+import TrashIcon from "../assets/TrashIcon.svg?react";
+import RefreshCW from "../assets/RefreshCW.svg?react";
 
-export type ChatMessageType = {
-  role: "human" | "ai" | "function" | "tool" | "system";
+export type ChatMessageType = "human" | "ai" | "function" | "tool" | "system";
+
+export type ChatMessageBody = {
+  type: ChatMessageType;
   content: string;
   runId?: string;
 }
 
 export function ChatMessage(props: {
-  message: ChatMessageType;
+  message: ChatMessageBody;
   isLoading?: boolean;
   onError?: (e: any) => void;
+  onTypeChange?: (newValue: string) => void;
+  onChange?: (newValue: string) => void;
+  onRemove?: (e: any) => void;
+  onRegenerate?: (e?: any) => void;
+  isFinalMessage?: boolean;
   feedbackEnabled?: boolean;
   publicTraceLinksEnabled?: boolean;
 }) {
   const { message, feedbackEnabled, publicTraceLinksEnabled, onError, isLoading } = props;
-  const { content, role, runId } = message;
+  const { content, type, runId } = message;
 
   const [publicTraceLink, setPublicTraceLink] = useState<string | null>(null);
   const [messageActionIsLoading, setMessageActionIsLoading] = useState(false);
@@ -57,10 +67,39 @@ export function ChatMessage(props: {
   };
 
   return (
-    <div className="mb-8">
-      <p className="font-medium text-transform uppercase mb-2">{role}</p>
-      <p className="whitespace-pre-wrap">{content}</p>
-      {role === "ai" && !isLoading && runId != null && (
+    <div className="mb-8 group">
+      <div className="flex justify-between">
+        <select
+          className="font-medium text-transform uppercase mb-2 appearance-none"
+          defaultValue={type}
+          onChange={(e) => props.onTypeChange?.(e.target.value)}
+        >
+          <option value="human">HUMAN</option>
+          <option value="ai">AI</option>
+          <option value="system">SYSTEM</option>
+        </select>
+        <span className="flex">
+          {props.isFinalMessage &&
+            type === "human" && 
+            <RefreshCW className="opacity-0 group-hover:opacity-50 transition-opacity duration-200 cursor-pointer h-4 w-4 mr-2" onMouseUp={props.onRegenerate}></RefreshCW>}
+          <TrashIcon
+            className="opacity-0 group-hover:opacity-50 transition-opacity duration-200 cursor-pointer h-4 w-4"
+            onMouseUp={props.onRemove}
+          ></TrashIcon>
+        </span>
+      </div>
+      <AutosizeTextarea value={content} fullHeight={true} onChange={props.onChange} onKeyDown={(e) => {
+        if (
+          e.key === 'Enter' &&
+          !e.shiftKey &&
+          props.isFinalMessage &&
+          type === "human"
+        ) {
+          e.preventDefault();
+          props.onRegenerate?.();
+        }
+      }}></AutosizeTextarea>
+      {type === "ai" && !isLoading && runId != null && (
         <div className="mt-2 flex items-center">
           {feedbackEnabled && <span className="mr-2"><CorrectnessFeedback runId={runId} onError={props.onError}></CorrectnessFeedback></span>}
           {publicTraceLinksEnabled && <>
