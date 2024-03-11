@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [svgr(), react()],
   server: {
     proxy: {
-      "^/____LANGSERVE_BASE_URL.*/(config_schema|input_schema|stream_log|feedback|public_trace_link)(/[a-zA-Z0-9-]*)?$": {
+      "^/____LANGSERVE_BASE_URL.*/(config_schema|input_schema|output_schema|stream_log|feedback|public_trace_link)(/[a-zA-Z0-9-]*)?$": {
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace("/____LANGSERVE_BASE_URL", ""),

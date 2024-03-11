@@ -13,7 +13,11 @@ declare global {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     INPUT_SCHEMA?: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    OUTPUT_SCHEMA?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     FEEDBACK_ENABLED?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    PUBLIC_TRACE_LINK_ENABLED?: any;
   }
 }
 

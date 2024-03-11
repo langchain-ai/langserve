@@ -5,7 +5,7 @@
     <link rel="icon" href="/____LANGSERVE_BASE_URL/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chat Playground</title>
-    <script type="module" crossorigin src="/____LANGSERVE_BASE_URL/assets/index-9018861a.js"></script>
+    <script type="module" crossorigin src="/____LANGSERVE_BASE_URL/assets/index-c5f8c3dc.js"></script>
     <link rel="stylesheet" href="/____LANGSERVE_BASE_URL/assets/index-b47ed17e.css">
   </head>
   <body>
@@ -13,10 +13,27 @@
     <script>
       try {
         window.CONFIG_SCHEMA = ____LANGSERVE_CONFIG_SCHEMA;
+      } catch (e) {
+        // pass
+      }
+      try {
         window.INPUT_SCHEMA = ____LANGSERVE_INPUT_SCHEMA;
+      } catch (e) {
+        // pass
+      }
+      try {
+        window.OUTPUT_SCHEMA = ____LANGSERVE_OUTPUT_SCHEMA;
+      } catch (e) {
+        // pass
+      }
+      try {
         window.FEEDBACK_ENABLED = ____LANGSERVE_FEEDBACK_ENABLED;
+      } catch (e) {
+        // pass
+      }
+      try {
         window.PUBLIC_TRACE_LINK_ENABLED = ____LANGSERVE_PUBLIC_TRACE_LINK_ENABLED;
-      } catch (error) {
+      } catch (e) {
         // pass
       }
     </script>
