@@ -256,6 +256,7 @@ def add_routes(
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
     dependencies: Optional[Sequence[Depends]] = None,
+    playground_type: Literal["default", "chat"] = "default",
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -410,6 +411,7 @@ def add_routes(
         enable_public_trace_link_endpoint=enable_public_trace_link_endpoint,
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
+        playground_type=playground_type,
     )
     namespace = path or ""
 

@@ -2,7 +2,7 @@ import json
 import mimetypes
 import os
 from string import Template
-from typing import Sequence, Type
+from typing import Literal, Sequence, Type
 
 from fastapi.responses import Response
 from langchain.schema.runnable import Runnable
@@ -55,19 +55,27 @@ async def serve_playground(
     file_path: str,
     feedback_enabled: bool,
     public_trace_link_enabled: bool,
+    playground_type: Literal["default", "chat"],
 ) -> Response:
     """Serve the playground."""
+    if playground_type == "default":
+        path_to_dist = "./playground/dist"
+    elif playground_type == "chat":
+        path_to_dist = "./playground/dist-chat"
+    else:
+        raise ValueError(
+            f"Invalid playground type: {playground_type}. Use one of 'default' or 'chat'."
+        )
+
     local_file_path = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "./playground/dist",
+            path_to_dist,
             file_path or "index.html",
         )
     )
 
-    base_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "./playground/dist")
-    )
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), path_to_dist))
 
     if base_dir != os.path.commonpath((base_dir, local_file_path)):
         return Response("Not Found", status_code=404)
