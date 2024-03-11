@@ -19,9 +19,10 @@ export function AutosizeTextarea(props: {
   readOnly?: boolean;
   cursorPointer?: boolean;
   disabled?: boolean;
+  fullHeight?: boolean;
 }) {
   return (
-    <div className={cn("grid w-full", props.className) + " max-h-80 overflow-auto"}>
+    <div className={cn("grid w-full", props.className) + (props.fullHeight ? "" : " max-h-80 overflow-auto")}>
       <textarea
         ref={props.inputRef}
         id={props.id}

@@ -88,7 +88,7 @@ export function ChatMessage(props: {
           ></TrashIcon>
         </span>
       </div>
-      <AutosizeTextarea value={content} onChange={props.onChange} onKeyDown={(e) => {
+      <AutosizeTextarea value={content} fullHeight={true} onChange={props.onChange} onKeyDown={(e) => {
         if (
           e.key === 'Enter' &&
           !e.shiftKey &&
