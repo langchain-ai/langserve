@@ -1361,6 +1361,7 @@ class APIHandler:
         return await serve_playground(
             self._runnable.with_config(config),
             self._runnable.with_config(config).input_schema,
+            self._runnable.with_config(config).output_schema,
             self._config_keys,
             playground_url,
             file_path,
