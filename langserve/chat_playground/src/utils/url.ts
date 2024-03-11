@@ -7,8 +7,8 @@ export function getStateFromUrl(path: string) {
     basePath = basePath.slice(0, -1);
   }
 
-  if (basePath.endsWith("/chat_playground")) {
-    basePath = basePath.slice(0, -"/chat_playground".length);
+  if (basePath.endsWith("/playground")) {
+    basePath = basePath.slice(0, -"/playground".length);
   }
 
   // check if we can omit the last segment
