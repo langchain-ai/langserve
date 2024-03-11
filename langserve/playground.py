@@ -61,7 +61,7 @@ async def serve_playground(
     if playground_type == "default":
         path_to_dist = "./playground/dist"
     elif playground_type == "chat":
-        path_to_dist = "./playground/dist-chat"
+        path_to_dist = "./chat_playground/dist"
     else:
         raise ValueError(
             f"Invalid playground type: {playground_type}. Use one of 'default' or 'chat'."
