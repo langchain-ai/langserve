@@ -62,10 +62,6 @@ export function ChatWindow(props: {
     if (inputKey === undefined) {
       startStream({ [messagesInputKey]: newMessages }, {});
     } else {
-      console.log({
-        [messagesInputKey]: newMessages.slice(0, -1),
-        [inputKey]: newMessages[newMessages.length - 1].content
-      })
       startStream({
         [messagesInputKey]: newMessages.slice(0, -1),
         [inputKey]: newMessages[newMessages.length - 1].content
@@ -84,7 +80,7 @@ export function ChatWindow(props: {
     } else {
       startStream({
         [messagesInputKey]: messages.slice(0, -1),
-        [inputKey]: messages[messages.length - 1]
+        [inputKey]: messages[messages.length - 1].content
       }, {});
     }
   };
