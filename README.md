@@ -6,7 +6,7 @@
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
 🚩 We will be releasing a hosted version of LangServe for one-click deployments of
-LangChain applications. [Sign up here](https://airtable.com/app0hN6sd93QcKubv/shrAjst60xXa6quV2)
+LangChain applications. [Sign up here](https://airtable.com/apppQ9p5XuujRl3wJ/shrABpHWdxry8Bacm)
 to get on the waitlist.
 
 ## Overview
@@ -334,8 +334,14 @@ runnable and share a link with the configuration:
 
 LangServe also supports a chat-focused playground that opt into and use under `/my_runnable/playground/`.
 Unlike the general playground, only certain types of runnables are supported - the runnable's input schema must
-be a `dict` with a single key, and that key's value must be a list of chat messages. The runnable
-can return either an `AIMessage` or a string.
+be a `dict` with either:
+
+- a single key, and that key's value must be a list of chat messages.
+- two keys, one whose value is a list of messages, and the other representing the most recent message.
+
+We recommend you use the first format.
+
+The runnable must also return either an `AIMessage` or a string.
 
 To enable it, you must set `playground_type="chat",` when adding your route. Here's an example:
 

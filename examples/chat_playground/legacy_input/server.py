@@ -5,8 +5,7 @@ state back and forth between server and client.
 from typing import List, Union
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from langchain_anthropic.chat_models import ChatAnthropic
+from langchain.chat_models import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
@@ -25,10 +24,11 @@ prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful, professional assistant named Cob."),
         MessagesPlaceholder(variable_name="messages"),
+        ("human", "{input}"),
     ]
 )
 
-chain = prompt | ChatAnthropic(model_name="claude-3-sonnet-20240229")
+chain = prompt | ChatAnthropic(model="claude-2")
 
 
 class InputChat(BaseModel):
@@ -38,6 +38,8 @@ class InputChat(BaseModel):
         ...,
         description="The chat messages representing the current conversation.",
     )
+
+    input: str
 
 
 add_routes(

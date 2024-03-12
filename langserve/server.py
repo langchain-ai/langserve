@@ -352,6 +352,11 @@ def add_routes(
         dependencies: list of dependencies to be applied to the *path operation*.
             See [FastAPI docs for Dependencies in path operation decorators](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/).
         playground_type: The type of playground to serve. The default is "default".
+            - default: supports more types of inputs / outputs. Not optimized
+              for any particular use case.
+            - chat: UX is optimized for chat-like interactions. Please review
+              the README in langserve for more details about constraints (e.g.,
+              which message types are supported etc.)
     """  # noqa: E501
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
