@@ -66,6 +66,8 @@ You can run one of the chains in the `examples/` repo using `poetry run python p
 You may need to add the following to an example route when developing the playground in dev mode to handle CORS:
 
 ```python
+from fastapi.middleware.cors import CORSMiddleware
+
 # Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,
