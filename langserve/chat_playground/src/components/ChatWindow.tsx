@@ -33,9 +33,10 @@ export function isAIMessage(x: unknown): x is AIMessage {
 export function ChatWindow(props: {
   startStream: (input: unknown, config: unknown) => Promise<void>;
   stopStream: (() => void) | undefined;
-  inputKey: string;
+  messagesInputKey: string;
+  inputKey?: string;
 }) {
-  const { startStream, inputKey } = props;
+  const { startStream, messagesInputKey, inputKey } = props;
 
   const [currentInputValue, setCurrentInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +59,18 @@ export function ChatWindow(props: {
     setMessages(newMessages);
     setCurrentInputValue("");
     // TODO: Add config schema support
-    startStream({ [inputKey]: newMessages }, {});
+    if (inputKey === undefined) {
+      startStream({ [messagesInputKey]: newMessages }, {});
+    } else {
+      console.log({
+        [messagesInputKey]: newMessages.slice(0, -1),
+        [inputKey]: newMessages[newMessages.length - 1].content
+      })
+      startStream({
+        [messagesInputKey]: newMessages.slice(0, -1),
+        [inputKey]: newMessages[newMessages.length - 1].content
+      }, {});
+    }
   };
 
   const regenerateMessages = () => {
@@ -67,7 +79,14 @@ export function ChatWindow(props: {
     }
     setIsLoading(true);
     // TODO: Add config schema support
-    startStream({ [inputKey]: messages }, {});
+    if (inputKey === undefined) {
+      startStream({ [messagesInputKey]: messages }, {});
+    } else {
+      startStream({
+        [messagesInputKey]: messages.slice(0, -1),
+        [inputKey]: messages[messages.length - 1]
+      }, {});
+    }
   };
   
   useStreamCallback("onStart", () => {

@@ -49,3 +49,32 @@ To run linting for this project:
 ```sh
 make lint
 ```
+
+## Frontend Playground Development
+
+Here are a few tips to keep in mind when developing the LangServe playgrounds:
+
+### Setup
+
+Switch directories to `langserve/playground` or `langserve/chat_playground`, then run `yarn` to install required
+dependencies. `yarn dev` will start the playground at `http://localhost:5173/____LANGSERVE_BASE_URL/` in dev mode.
+
+You can run one of the chains in the `examples/` repo using `poetry run python path/to/file.py`.
+
+### Setting CORS
+
+You may need to add the following to an example route when developing the playground in dev mode to handle CORS:
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+# Set all CORS enabled origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+```

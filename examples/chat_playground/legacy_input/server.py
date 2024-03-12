@@ -24,6 +24,7 @@ prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful, professional assistant named Cob."),
         MessagesPlaceholder(variable_name="messages"),
+        ("human", "{input}"),
     ]
 )
 
@@ -37,6 +38,8 @@ class InputChat(BaseModel):
         ...,
         description="The chat messages representing the current conversation.",
     )
+
+    input: str
 
 
 add_routes(
