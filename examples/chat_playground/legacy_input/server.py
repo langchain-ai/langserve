@@ -36,7 +36,7 @@ prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful, professional assistant named Cob."),
         MessagesPlaceholder(variable_name="messages"),
-        ("human", "{input}")
+        ("human", "{input}"),
     ]
 )
 
