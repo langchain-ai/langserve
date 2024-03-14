@@ -13,14 +13,16 @@ See:
 * https://fastapi.tiangolo.com/tutorial/security/
 """
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import APIKeyHeader
 from langchain_core.runnables import RunnableLambda
-from typing_extensions import Annotated
 
 from langserve import add_routes
 
+XToken = APIKeyHeader(name="x-token")
 
-async def verify_token(x_token: Annotated[str, Header()]) -> None:
+
+async def verify_token(x_token: str = Depends(XToken)) -> None:
     """Verify the token is valid."""
     # Replace this with your actual authentication logic
     if x_token != "secret-token":
