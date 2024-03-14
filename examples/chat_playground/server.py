@@ -5,7 +5,6 @@ state back and forth between server and client.
 from typing import List, Union
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from langchain_anthropic.chat_models import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
