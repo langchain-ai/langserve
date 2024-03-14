@@ -2,10 +2,12 @@ import json
 import mimetypes
 import os
 from string import Template
-from typing import Literal, Sequence, Type
+from typing import Literal, Optional, Sequence, Type, Union
 
 from fastapi.responses import Response
+from fastapi.security import APIKeyCookie, APIKeyHeader, APIKeyQuery
 from langchain.schema.runnable import Runnable
+from typing_extensions import TypedDict
 
 from langserve.pydantic_v1 import BaseModel
 
@@ -47,6 +49,15 @@ def _get_mimetype(path: str) -> str:
     return mime_type
 
 
+SupportedSecurityScheme = Union[APIKeyHeader, APIKeyQuery, APIKeyCookie]
+
+
+class PlaygroundConfig(TypedDict, total=False):
+    """Configuration for the playground."""
+
+    security_scheme: Optional[SupportedSecurityScheme]
+
+
 async def serve_playground(
     runnable: Runnable,
     input_schema: Type[BaseModel],
@@ -56,8 +67,20 @@ async def serve_playground(
     feedback_enabled: bool,
     public_trace_link_enabled: bool,
     playground_type: Literal["default", "chat"],
+    *,
+    playground_config: Optional[PlaygroundConfig] = None,
 ) -> Response:
     """Serve the playground."""
+    security_scheme = (
+        playground_config.get("security_scheme") if playground_config else None
+    )
+    if not isinstance(
+        security_scheme, (APIKeyHeader, APIKeyQuery, APIKeyCookie, type(None))
+    ):
+        raise NotImplementedError(
+            "Only APIKeyHeader, APIKeyQuery, APIKeyCookie, and None are supported."
+        )
+
     if playground_type == "default":
         path_to_dist = "./playground/dist"
     elif playground_type == "chat":
@@ -98,6 +121,9 @@ async def serve_playground(
                     LANGSERVE_PUBLIC_TRACE_LINK_ENABLED=json.dumps(
                         "true" if public_trace_link_enabled else "false"
                     ),
+                    SECURITY_SCHEME=security_scheme.model.json()
+                    if security_scheme
+                    else json.dumps({}),
                 )
             else:
                 response = f.buffer.read()
