@@ -36,7 +36,7 @@ from starlette.responses import JSONResponse, Response
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
-from langserve.playground import serve_playground
+from langserve.playground import PlaygroundConfig, serve_playground
 from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model
 from langserve.schema import (
     BatchResponseMetadata,
@@ -468,6 +468,7 @@ class APIHandler:
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
         playground_type: Literal["default", "chat"] = "default",
+        playground_config: Optional[PlaygroundConfig] = None,
     ) -> None:
         """Create an API handler for the given runnable.
 
@@ -561,6 +562,7 @@ class APIHandler:
         self._enable_feedback_endpoint = enable_feedback_endpoint
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
+        self._playground_config = playground_config
 
         # Client is patched using mock.patch, if changing the names
         # remember to make relevant updates in the unit tests.
@@ -1367,7 +1369,8 @@ class APIHandler:
             file_path,
             feedback_enabled,
             public_trace_link_enabled,
-            playground_type=self.playground_type,
+            self.playground_type,
+            playground_config=self._playground_config,
         )
 
     async def create_feedback(
