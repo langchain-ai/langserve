@@ -79,10 +79,35 @@ Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
 To use the langchain CLI make sure that you have a recent version of `langchain-cli`
 installed. You can install it with `pip install -U langchain-cli`.
+## Setup
+**Note**: We use `poetry` for dependency management. Please follow poetry [doc](https://python-poetry.org/docs/) to learn more about it.
 
+### 1. Create new app using langchain cli command
 ```sh
-langchain app new ../path/to/directory
+langchain app new my-app
 ```
+
+### 2. Define the runnable in add_routes. Go to server.py and edit
+```sh
+add_routes(app. NotImplemented)
+```
+
+### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral etc) and to run any commands like tests. More details on `poetry` commands is [here](https://python-poetry.org/docs/cli/).
+```sh
+poetry add [package-name] // e.g `poetry add langchain-openai`
+poetry run [command] // e.g `poetry run pytest`
+```
+
+### 4. Set up relevant env variables. For example,
+```sh
+export OPENAI_API_KEY="sk-..."
+```
+
+### 5. Serve your app
+```sh
+langchain serve --port=8100
+```
+
 
 ## Examples
 
