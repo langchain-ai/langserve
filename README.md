@@ -126,7 +126,8 @@ the Anthropic model to tell a joke about a topic.
 #!/usr/bin/env python
 from fastapi import FastAPI
 from langchain.prompts import ChatPromptTemplate
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain_community.chat_models import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langserve import add_routes
 
 app = FastAPI(
