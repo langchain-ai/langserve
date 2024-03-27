@@ -24,11 +24,11 @@ from typing import (
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.callbacks.tracers.log_stream import RunLogPatch
-from langchain.load.serializable import Serializable
-from langchain.schema.runnable import Runnable, RunnableConfig
-from langchain.schema.runnable.config import get_config_list, merge_configs
+from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.tracers import RunLogPatch
+from langchain_core.load.serializable import Serializable
+from langchain_core.runnables import Runnable, RunnableConfig
+from langchain_core.runnables.config import get_config_list, merge_configs
 from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
 from starlette.requests import Request

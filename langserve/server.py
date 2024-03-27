@@ -15,8 +15,8 @@ from typing import (
     Union,
 )
 
-from langchain.schema.runnable import Runnable
 from typing_extensions import Annotated
+from langchain_core.runnables import Runnable
 
 from langserve.api_handler import APIHandler, PerRequestConfigModifier, _is_hosted
 from langserve.pydantic_v1 import (

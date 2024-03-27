@@ -27,19 +27,32 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
-from langchain.prompts import PromptTemplate
-from langchain.prompts.base import StringPromptValue
-from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.schema.runnable import Runnable, RunnableConfig, RunnablePassthrough
-from langchain.schema.runnable.base import RunnableLambda
-from langchain.schema.runnable.utils import ConfigurableField, Input, Output
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.documents import Document
-from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.outputs import ChatGenerationChunk, LLMResult
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompt_values import StringPromptValue
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+)
+from langchain_core.runnables import (
+    Runnable,
+    RunnableConfig,
+    RunnablePassthrough,
+    RunnableLambda,
+    ConfigurableField,
+)
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.runnables.utils import Input, Output
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture

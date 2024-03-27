@@ -26,17 +26,17 @@ from langchain.callbacks.manager import (
     AsyncCallbackManagerForChainRun,
     CallbackManagerForChainRun,
 )
-from langchain.callbacks.tracers.log_stream import RunLogPatch
-from langchain.load.dump import dumpd
-from langchain.schema.runnable import Runnable
-from langchain.schema.runnable.config import (
+from langchain_core.load.dump import dumpd
+from langchain_core.runnables import Runnable
+from langchain_core.runnables.config import (
     RunnableConfig,
     ensure_config,
     get_async_callback_manager_for_config,
     get_callback_manager_for_config,
 )
-from langchain.schema.runnable.utils import AddableDict, Input, Output
 from langchain_core.runnables.schema import StreamEvent
+from langchain_core.runnables.utils import AddableDict, Input, Output
+from langchain_core.tracers.log_stream import RunLogPatch
 from typing_extensions import Literal
 
 from langserve.callbacks import CallbackEventDict, ahandle_callbacks, handle_callbacks

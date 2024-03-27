@@ -16,11 +16,9 @@ from functools import lru_cache
 from typing import Any, Dict, List, Union
 
 import orjson
-from langchain.prompts.base import StringPromptValue
-from langchain.prompts.chat import ChatPromptValueConcrete
-from langchain.schema.agent import AgentAction, AgentActionMessageLog, AgentFinish
-from langchain.schema.document import Document
-from langchain.schema.messages import (
+from langchain_core.agents import AgentAction, AgentActionMessageLog, AgentFinish
+from langchain_core.documents import Document
+from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
     ChatMessage,
@@ -32,12 +30,14 @@ from langchain.schema.messages import (
     SystemMessage,
     SystemMessageChunk,
 )
-from langchain.schema.output import (
+from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
     LLMResult,
 )
+from langchain_core.prompt_values import ChatPromptValueConcrete
+from langchain_core.prompts.base import StringPromptValue
 
 from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
