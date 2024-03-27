@@ -39,69 +39,13 @@ except ImportError:
 # Duplicated model names break fastapi's openapi generation.
 
 _APP_SEEN = weakref.WeakSet()
+
+# Keeps track of the paths that have been associated with each app.
+# Each runnable registered with an APP will have a unique path.
+# An APP can have multiple runnables registered with it.
+# There are multiple APPs as it's common to use APIRouter in larger
+# FastAPI applications.
 _APP_TO_PATHS = weakref.WeakKeyDictionary()
-
-
-def _setup_global_app_handlers(app: Union[FastAPI, APIRouter]) -> None:
-    @app.on_event("startup")
-    async def startup_event():
-        LANGSERVE = r"""
- __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
-|  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
-|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
-|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
-|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
-|_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""  # noqa: E501
-
-        def green(text: str) -> str:
-            """Return the given text in green."""
-            return "\x1b[1;32;40m" + text + "\x1b[0m"
-
-        def orange(text: str) -> str:
-            """Return the given text in orange."""
-            return "\x1b[1;31;40m" + text + "\x1b[0m"
-
-        paths = _APP_TO_PATHS[app]
-        print(LANGSERVE)
-        for path in paths:
-            print(
-                f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
-                f"live at:"
-            )
-            print(f'{green("LANGSERVE:")}  │')
-            print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
-            print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
-
-        if _PYDANTIC_MAJOR_VERSION == 2:
-            print()
-            print(f'{orange("LANGSERVE:")} ', end="")
-            print(
-                f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
-                f"OpenAPI docs for invoke, batch, stream, stream_log "
-                f"endpoints will not be generated. API endpoints and playground "
-                f"should work as expected. "
-                f"If you need to see the docs, you can downgrade to pydantic 1. "
-                "For example, `pip install pydantic==1.10.13`. "
-                f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
-            )
-        print()
-
-
-def _register_path_for_app(app: Union[FastAPI, APIRouter], path: str) -> None:
-    """Register a path when its added to app. Raise if path already seen."""
-    if app in _APP_TO_PATHS:
-        seen_paths = _APP_TO_PATHS.get(app)
-        if path in seen_paths:
-            raise ValueError(
-                f"A runnable already exists at path: {path}. If adding "
-                f"multiple runnables make sure they have different paths."
-            )
-        seen_paths.add(path)
-    else:
-        _setup_global_app_handlers(app)
-        _APP_TO_PATHS[app] = {path}
 
 
 # This is the type annotation
@@ -227,6 +171,75 @@ class _EndpointConfiguration:
         self.is_config_hash_enabled = is_config_hash_enabled
         self.is_feedback_enabled = enable_feedback_endpoint
         self.is_public_trace_link_enabled = enable_public_trace_link_endpoint
+
+
+def _register_path_for_app(
+    app: Union[FastAPI, APIRouter],
+    path: str,
+    endpoint_configuration: _EndpointConfiguration,
+) -> None:
+    """Register a path when its added to app. Raise if path already seen."""
+    if app in _APP_TO_PATHS:
+        seen_paths = _APP_TO_PATHS.get(app)
+        if path in seen_paths:
+            raise ValueError(
+                f"A runnable already exists at path: {path}. If adding "
+                f"multiple runnables make sure they have different paths."
+            )
+        seen_paths.add(path)
+    else:
+        _setup_global_app_handlers(app, endpoint_configuration)
+        _APP_TO_PATHS[app] = {path}
+
+
+def _setup_global_app_handlers(
+    app: Union[FastAPI, APIRouter], endpoint_configuration: _EndpointConfiguration
+) -> None:
+    @app.on_event("startup")
+    async def startup_event():
+        LANGSERVE = r"""
+ __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
+|  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
+|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
+|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
+|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
+|_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
+"""  # noqa: E501
+
+        def green(text: str) -> str:
+            """Return the given text in green."""
+            return "\x1b[1;32;40m" + text + "\x1b[0m"
+
+        def orange(text: str) -> str:
+            """Return the given text in orange."""
+            return "\x1b[1;31;40m" + text + "\x1b[0m"
+
+        paths = _APP_TO_PATHS[app]
+        print(LANGSERVE)
+        for path in paths:
+            if endpoint_configuration.is_playground_enabled:
+                print(
+                    f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
+                    f"live at:"
+                )
+                print(f'{green("LANGSERVE:")}  │')
+                print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
+                print(f'{green("LANGSERVE:")}')
+        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+
+        if _PYDANTIC_MAJOR_VERSION == 2:
+            print()
+            print(f'{orange("LANGSERVE:")} ', end="")
+            print(
+                f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
+                f"OpenAPI docs for invoke, batch, stream, stream_log "
+                f"endpoints will not be generated. API endpoints and playground "
+                f"should work as expected. "
+                f"If you need to see the docs, you can downgrade to pydantic 1. "
+                "For example, `pip install pydantic==1.10.13`. "
+                f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
+            )
+        print()
 
 
 # PUBLIC API
@@ -383,7 +396,7 @@ def add_routes(
     if isinstance(app, FastAPI):  # type: ignore
         # Cannot do this checking logic for a router since
         # API routers are not hashable
-        _register_path_for_app(app, path)
+        _register_path_for_app(app, path, endpoint_configuration)
 
     # Determine the base URL for the playground endpoint
     prefix = app.prefix if isinstance(app, APIRouter) else ""  # type: ignore
