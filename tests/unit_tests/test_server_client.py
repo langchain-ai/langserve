@@ -45,11 +45,11 @@ from langchain_core.prompts import (
     PromptTemplate,
 )
 from langchain_core.runnables import (
+    ConfigurableField,
     Runnable,
     RunnableConfig,
-    RunnablePassthrough,
     RunnableLambda,
-    ConfigurableField,
+    RunnablePassthrough,
 )
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.runnables.utils import Input, Output
