@@ -92,10 +92,9 @@ langchain app new my-app
 add_routes(app. NotImplemented)
 ```
 
-### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral etc) and to run any commands like tests. More details on `poetry` commands is [here](https://python-poetry.org/docs/cli/).
+### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral etc).
 ```sh
 poetry add [package-name] // e.g `poetry add langchain-openai`
-poetry run [command] // e.g `poetry run pytest`
 ```
 
 ### 4. Set up relevant env variables. For example,
@@ -105,7 +104,7 @@ export OPENAI_API_KEY="sk-..."
 
 ### 5. Serve your app
 ```sh
-langchain serve --port=8100
+poetry run langchain serve --port=8100
 ```
 
 
