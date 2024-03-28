@@ -271,7 +271,7 @@ def create_invoke_response_model(
             output_type,
             Field(..., description="The output of the invocation."),
         ),
-        metadata=(
+        "metadata": (
             InvokeResponseMetadata,
             Field(
                 ...,
