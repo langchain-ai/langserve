@@ -63,7 +63,9 @@ class BatchResponseMetadata(SharedResponseMetadata):
     # ID was a thing, it would go here)
 
     # metadata for each individual response in the batch
-    metadatas: List[InvokeResponseMetadata]
+    # Parallel list of InvokeResponseMetadata objects matching
+    # the individual requests in the batch
+    responses: List[InvokeResponseMetadata]
 
     # A list of UUIDs
     # Represents each parent run id for a given request, in

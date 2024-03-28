@@ -2,6 +2,7 @@
 import asyncio
 import datetime
 import json
+import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from enum import Enum
 from itertools import cycle
 from typing import (
     Any,
+    AsyncIterator,
     Dict,
     Iterable,
     Iterator,
@@ -54,6 +56,8 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.runnables.utils import Input, Output
 from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
+from langsmith.client import Client
+from langsmith.schemas import FeedbackIngestToken
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import Annotated, TypedDict
@@ -2835,3 +2839,162 @@ async def test_remote_configurable_remote_runnable() -> None:
                 messages=[HumanMessage(content="hi"), AIMessage(content="Hello World!")]
             )
         }
+
+
+@asynccontextmanager
+async def get_langsmith_client() -> AsyncIterator[MagicMock]:
+    """Get a patched langsmith client."""
+    with patch("langserve.api_handler.ls_client") as mocked_ls_client_package:
+        with patch("langserve.api_handler._is_scoped_feedback_enabled") as f:
+            # Enable scoped feedback for now.
+            f.return_value = True
+            with patch(
+                "langserve.api_handler.tracing_is_enabled"
+            ) as tracing_is_enabled:
+                tracing_is_enabled.return_value = True
+                mocked_client = MagicMock(auto_spec=Client)
+                mocked_ls_client_package.Client.return_value = mocked_client
+                yield mocked_client
+
+
+async def test_scoped_feedback() -> None:
+    """Test that information to leave scoped feedback is passed to the client
+    is present in the server response.
+    """
+    feedback_id = uuid.UUID(int=1)
+    async with get_langsmith_client() as mocked_client:
+        mocked_client.create_presigned_feedback_token.return_value = (
+            FeedbackIngestToken(
+                id=feedback_id,
+                url="feedback_id",
+                expires_at=datetime.datetime(2023, 1, 1),
+            )
+        )
+
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+            enable_feedback_endpoint=True,
+        )
+
+        async with get_async_test_client(
+            local_app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/invoke",
+                json={"input": "hello"},
+            )
+
+            json_response = response.json()
+            run_id = json_response["metadata"]["run_id"]
+            assert json_response == {
+                "callback_events": [],
+                "metadata": {
+                    "feedback_token_expires_at": "2023-01-01T00:00:00",
+                    "feedback_token_url": "feedback_id",
+                    "run_id": run_id,
+                },
+                "output": "hello",
+            }
+
+            response = await async_client.post(
+                "/batch",
+                json={
+                    "inputs": ["hello", "world"],
+                },
+            )
+            json_response = response.json()
+            responses = json_response["metadata"]["responses"]
+            run_ids = [response["run_id"] for response in responses]
+            assert run_ids == json_response["metadata"]["run_ids"]
+
+            for r in responses:
+                del r["run_id"]
+
+            assert json_response == {
+                "callback_events": [],
+                "metadata": {
+                    "responses": [
+                        {
+                            "feedback_token_expires_at": "2023-01-01T00:00:00",
+                            "feedback_token_url": "feedback_id",
+                        },
+                        {
+                            "feedback_token_expires_at": "2023-01-01T00:00:00",
+                            "feedback_token_url": "feedback_id",
+                        },
+                    ],
+                    "run_ids": run_ids,
+                },
+                "output": ["hello", "hello"],
+            }
+
+            # Test stream
+            response = await async_client.post(
+                "/stream",
+                json={"input": "hello"},
+            )
+            events = _decode_eventstream(response.text)
+            del events[0]["data"]["run_id"]
+            assert events == [
+                {
+                    "data": {
+                        "feedback_token_expires_at": "2023-01-01T00:00:00",
+                        "feedback_token_url": "feedback_id",
+                    },
+                    "type": "metadata",
+                },
+                {"data": "hello", "type": "data"},
+                {"type": "end"},
+            ]
+
+            # Test astream events
+            response = await async_client.post(
+                "/stream_events",
+                json={"input": "hello"},
+            )
+            events = _decode_eventstream(response.text)
+            for event in events:
+                if "data" in event and "run_id" in event["data"]:
+                    del event["data"]["run_id"]
+            assert events == [
+                {
+                    "data": {
+                        "data": {"input": "hello"},
+                        "event": "on_chain_start",
+                        "metadata": {},
+                        "name": "RunnableLambda",
+                        "tags": [],
+                    },
+                    "type": "data",
+                },
+                {
+                    "data": {
+                        "feedback_token_expires_at": "2023-01-01T00:00:00",
+                        "feedback_token_url": "feedback_id",
+                    },
+                    "type": "metadata",
+                },
+                {
+                    "data": {
+                        "data": {"chunk": "hello"},
+                        "event": "on_chain_stream",
+                        "metadata": {},
+                        "name": "RunnableLambda",
+                        "tags": [],
+                    },
+                    "type": "data",
+                },
+                {
+                    "data": {
+                        "data": {"output": "hello"},
+                        "event": "on_chain_end",
+                        "metadata": {},
+                        "name": "RunnableLambda",
+                        "tags": [],
+                    },
+                    "type": "data",
+                },
+                {"type": "end"},
+            ]

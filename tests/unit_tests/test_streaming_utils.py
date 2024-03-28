@@ -1,8 +1,10 @@
 """Test utilities for streaming."""
-from langserve.api_handler import _create_metadata_event
-from langsmith.schemas import FeedbackIngestToken
 import datetime
 import uuid
+
+from langsmith.schemas import FeedbackIngestToken
+
+from langserve.api_handler import _create_metadata_event
 
 
 def test_create_metadata_event() -> None:

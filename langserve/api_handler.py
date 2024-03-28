@@ -384,23 +384,6 @@ def _with_validation_error_translation() -> Generator[None, None, None]:
         raise RequestValidationError(e.errors(), body=e.model)
 
 
-def _get_base_run_id_as_str(
-    event_aggregator: AsyncEventAggregatorCallback,
-) -> Optional[str]:
-    """
-    Uses `event_aggregator` to determine the base run ID for a given run. Returns
-    the run_id as a string, or None if it does not exist.
-    """
-    # The first run in the callback_events list corresponds to the
-    # overall trace for request
-    if event_aggregator.callback_events and event_aggregator.callback_events[0].get(
-        "run_id"
-    ):
-        return str(event_aggregator.callback_events[0].get("run_id"))
-    else:
-        raise AssertionError("No run_id found for the given run")
-
-
 def _json_encode_response(model: BaseModel) -> JSONResponse:
     """Return a JSONResponse with the given content.
 
@@ -470,6 +453,11 @@ def _add_callbacks(
 
 _MODEL_REGISTRY = {}
 _SEEN_NAMES = set()
+
+
+def _is_scoped_feedback_enabled() -> bool:
+    """Temporary hard-coded as False. Used only to enable during unit tests."""
+    return False
 
 
 # PUBLIC API
@@ -597,7 +585,7 @@ class APIHandler:
         self._names_in_stream_allow_list = stream_log_name_allow_list
 
         # Hard-coded as False for now, until we expose via the API
-        self._enable_scoped_feedback = False
+        self._enable_scoped_feedback = _is_scoped_feedback_enabled()
         # Client is patched using mock.patch, if changing the names
         # remember to make relevant updates in the unit tests.
         self._langsmith_client = (
@@ -900,7 +888,7 @@ class APIHandler:
             _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
-                    self._run_name, config_, request, endpoint="batch"
+                    self._run_name, config_, request, endpoint="batch", run_id=run_id
                 )
             )
 
@@ -953,8 +941,8 @@ class APIHandler:
             output=self._serializer.dumpd(output),
             callback_events=callback_events,
             metadata=BatchResponseMetadata(
-                run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators],
-                metadatas=metadatas,
+                run_ids=run_ids,
+                responses=metadatas,
             ),
         )
 
