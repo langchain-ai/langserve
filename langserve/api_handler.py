@@ -401,9 +401,7 @@ def _get_base_run_id_as_str(
         raise AssertionError("No run_id found for the given run")
 
 
-def _json_encode_response(
-    model: BaseModel, *, headers: Optional[Dict[str, str]] = None
-) -> JSONResponse:
+def _json_encode_response(model: BaseModel) -> JSONResponse:
     """Return a JSONResponse with the given content.
 
     We're doing the encoding manually here as a workaround to fastapi
@@ -411,8 +409,7 @@ def _json_encode_response(
     v2 is imported.
 
     Args:
-        model: The object to encode; either an invoke response or a batch response.
-        headers: Optional headers to include in the response.
+        obj: The object to encode; either an invoke response or a batch response.
 
     Returns:
         A JSONResponse with the given content.
@@ -459,7 +456,7 @@ def _json_encode_response(
             f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"
         )
 
-    return JSONResponse(content=obj, headers=headers)
+    return JSONResponse(content=obj)
 
 
 def _add_callbacks(
@@ -1087,7 +1084,6 @@ class APIHandler:
                     if not has_sent_metadata:
                         if task is not None and not task.done():
                             continue
-
                         if task is None:
                             feedback_token = None
                         else:

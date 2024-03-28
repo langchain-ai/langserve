@@ -79,13 +79,6 @@ class BaseFeedback(BaseModel):
     run_id: Optional[UUID]
     """The associated run ID this feedback is logged for."""
 
-    token_or_url: Union[str, UUID]
-    """The token or URL associated with the feedback.
-    
-    This is a new way to associate feedback with a run: the token or URL
-    are scoped to a specific run and can be associated with expiration times.
-    """
-
     key: str
     """The metric name, tag, or aspect to provide feedback on."""
 
