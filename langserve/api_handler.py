@@ -617,9 +617,11 @@ class APIHandler:
         )
         # Generate the response models
         self._InvokeResponse = create_invoke_response_model(
-            model_namespace, output_type_
+            model_namespace, output_type_, include_callback_events
         )
-        self._BatchResponse = create_batch_response_model(model_namespace, output_type_)
+        self._BatchResponse = create_batch_response_model(
+            model_namespace, output_type_, include_callback_events
+        )
         self.playground_type = playground_type
 
     @property
