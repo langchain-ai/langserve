@@ -2607,6 +2607,12 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "tags": ["seq:step:2"],
             },
             {
+                "data": {"chunk": AIMessageChunk(content="Hello")},
+                "event": "on_chat_model_stream",
+                "name": "GenericFakeChatModel",
+                "tags": ["seq:step:2"],
+            },
+            {
                 "data": {},
                 "event": "on_parser_start",
                 "name": "StrOutputParser",
@@ -2625,37 +2631,19 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "tags": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="Hello")},
-                "event": "on_chat_model_stream",
-                "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
-            },
-            {
-                "data": {"chunk": " "},
-                "event": "on_parser_stream",
-                "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
-            },
-            {
-                "data": {"chunk": " "},
-                "event": "on_chain_stream",
-                "name": "RunnableSequence",
-                "tags": [],
-            },
-            {
                 "data": {"chunk": AIMessageChunk(content=" ")},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
             },
             {
-                "data": {"chunk": "World!"},
+                "data": {"chunk": " "},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
             },
             {
-                "data": {"chunk": "World!"},
+                "data": {"chunk": " "},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
@@ -2665,6 +2653,18 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+            },
+            {
+                "data": {"chunk": "World!"},
+                "event": "on_parser_stream",
+                "name": "StrOutputParser",
+                "tags": ["seq:step:3"],
+            },
+            {
+                "data": {"chunk": "World!"},
+                "event": "on_chain_stream",
+                "name": "RunnableSequence",
+                "tags": [],
             },
             {
                 "data": {
