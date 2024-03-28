@@ -22,7 +22,7 @@ from urllib.parse import urljoin
 
 import httpx
 from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes, VerifyTypes
-from langchain.callbacks.manager import (
+from langchain_core.callbacks import (
     AsyncCallbackManagerForChainRun,
     CallbackManagerForChainRun,
 )

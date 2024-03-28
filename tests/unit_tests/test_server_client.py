@@ -26,7 +26,6 @@ import pytest_asyncio
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from langchain.callbacks.tracers.log_stream import RunLog, RunLogPatch
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.documents import Document
 from langchain_core.messages import (
@@ -53,6 +52,7 @@ from langchain_core.runnables import (
 )
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.runnables.utils import Input, Output
+from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture

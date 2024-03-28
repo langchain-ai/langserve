@@ -1,14 +1,13 @@
 import uuid
 
+from langchain_core.prompts import ChatPromptTemplate
+
 from langserve.callbacks import AsyncEventAggregatorCallback, replace_uuids
+from tests.unit_tests.utils.llms import FakeListLLM
 
 
 async def test_event_aggregator() -> None:
     """Test that the event aggregator is aggregating events."""
-
-    from langchain.llms import FakeListLLM
-    from langchain.prompts import ChatPromptTemplate
-
     prompt = ChatPromptTemplate.from_template("{question}")
     llm = FakeListLLM(responses=["hello", "world"])
 

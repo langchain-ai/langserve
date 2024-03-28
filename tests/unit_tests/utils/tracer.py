@@ -1,7 +1,7 @@
 from typing import Dict, List
 from uuid import UUID
 
-from langchain.callbacks.tracers.base import BaseTracer
+from langchain_core.tracers import BaseTracer
 from langsmith.schemas import Run
 
 
