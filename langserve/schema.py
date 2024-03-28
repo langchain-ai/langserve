@@ -52,6 +52,12 @@ class InvokeResponseMetadata(SharedResponseMetadata):
     feedback_token_expires_at: Optional[datetime] = None
 
 
+# Alias for backwards compatibility
+# Keep here in case clients are somehow using this for type checking
+# TODO(Deprecate): This should be deprecated in 2025.
+SingletonResponseMetadata = InvokeResponseMetadata
+
+
 class BatchResponseMetadata(SharedResponseMetadata):
     """
     Represents response metadata used for batches of input/output LangServe
@@ -70,7 +76,7 @@ class BatchResponseMetadata(SharedResponseMetadata):
     # A list of UUIDs
     # Represents each parent run id for a given request, in
     # the same order in which they were received
-    run_ids: List[UUID]  # For backwards compatibility, clients should not use
+    run_ids: List[UUID]  # For backwards compatibility, clients should not use this
 
 
 class BaseFeedback(BaseModel):
