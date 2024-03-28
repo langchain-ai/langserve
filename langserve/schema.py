@@ -67,8 +67,15 @@ class BaseFeedback(BaseModel):
     Shared information between create requests of feedback and feedback objects
     """
 
-    run_id: UUID
+    run_id: Optional[UUID]
     """The associated run ID this feedback is logged for."""
+
+    token_or_url: Union[str, UUID]
+    """The token or URL associated with the feedback.
+    
+    This is a new way to associate feedback with a run: the token or URL
+    are scoped to a specific run and can be associated with expiration times.
+    """
 
     key: str
     """The metric name, tag, or aspect to provide feedback on."""
@@ -84,17 +91,11 @@ class BaseFeedback(BaseModel):
 
 
 class FeedbackCreateRequest(BaseFeedback):
-    """
-    Represents a request that creates feedback for an individual run
-    """
-
-    pass
+    """Represents a request that creates feedback for an individual run"""
 
 
 class Feedback(BaseFeedback):
-    """
-    Represents feedback given on an individual run
-    """
+    """Represents feedback given on an individual run"""
 
     id: UUID
     """The unique ID of the feedback that was created."""
@@ -110,9 +111,7 @@ class Feedback(BaseFeedback):
 
 
 class PublicTraceLinkCreateRequest(BaseModel):
-    """
-    Represents a request that creates a public trace for an individual run
-    """
+    """Represents a request that creates a public trace for an individual run."""
 
     run_id: UUID
     """The unique ID of the run to share."""

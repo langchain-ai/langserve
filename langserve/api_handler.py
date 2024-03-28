@@ -1,9 +1,11 @@
+import asyncio
 import contextlib
 import importlib
 import inspect
 import json
 import os
 import re
+import uuid
 from inspect import isclass
 from typing import (
     Any,
@@ -27,7 +29,11 @@ from fastapi.exceptions import RequestValidationError
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.load.serializable import Serializable
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_core.runnables.config import get_config_list, merge_configs
+from langchain_core.runnables.config import (
+    get_config_list,
+    merge_configs,
+    run_in_executor,
+)
 from langchain_core.tracers import RunLogPatch
 from langsmith import client as ls_client
 from langsmith.utils import tracing_is_enabled
@@ -367,7 +373,9 @@ def _get_base_run_id_as_str(
         raise AssertionError("No run_id found for the given run")
 
 
-def _json_encode_response(model: BaseModel) -> JSONResponse:
+def _json_encode_response(
+    model: BaseModel, *, headers: Optional[Dict[str, str]] = None
+) -> JSONResponse:
     """Return a JSONResponse with the given content.
 
     We're doing the encoding manually here as a workaround to fastapi
@@ -375,7 +383,8 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
     v2 is imported.
 
     Args:
-        obj: The object to encode; either an invoke response or a batch response.
+        model: The object to encode; either an invoke response or a batch response.
+        headers: Optional headers to include in the response.
 
     Returns:
         A JSONResponse with the given content.
@@ -726,7 +735,24 @@ class APIHandler:
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_callbacks(config, [event_aggregator])
-        output = await self._runnable.ainvoke(input_, config=config)
+
+        # If there's feedback enabled, let's create a presigned feedback token
+        run_id = uuid.uuid4()
+
+        invoke_coro = self._runnable.ainvoke(input_, config=config)
+
+        if self._langsmith_client:
+            feedback_coro = run_in_executor(
+                None,
+                self._langsmith_client.create_presigned_feedback_token,
+                run_id,
+                "score",
+            )
+
+            output, feedback_token = await asyncio.gather(invoke_coro, feedback_coro)
+        else:
+            output = await invoke_coro
+            feedback_token = None
 
         if self._include_callback_events:
             callback_events = [
@@ -746,6 +772,7 @@ class APIHandler:
                     run_id=_get_base_run_id_as_str(event_aggregator)
                 ),
             ),
+            headers={"Feedback-Token": feedback_token} if feedback_token else None,
         )
 
     async def batch(
@@ -861,6 +888,7 @@ class APIHandler:
                 run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
             ),
         )
+
         return _json_encode_response(obj)
 
     async def stream(
