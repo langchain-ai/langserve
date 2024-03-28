@@ -36,6 +36,7 @@ from langchain_core.runnables.config import (
 )
 from langchain_core.tracers import RunLogPatch
 from langsmith import client as ls_client
+from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -49,9 +50,9 @@ from langserve.schema import (
     CustomUserType,
     Feedback,
     FeedbackCreateRequest,
+    InvokeResponseMetadata,
     PublicTraceLink,
     PublicTraceLinkCreateRequest,
-    SingletonResponseMetadata,
 )
 from langserve.serialization import WellKnownLCSerializer
 from langserve.validation import (
@@ -110,6 +111,29 @@ def _strip_internal_keys(metadata: Dict[str, Any]) -> Dict[str, Any]:
     These keys are defined to be any key that starts with "__".
     """
     return {k: v for k, v in metadata.items() if not k.startswith("__")}
+
+
+def _create_metadata_event(
+    run_id: Optional[uuid.UUID] = None,
+    feedback_ingest_token: Optional[FeedbackIngestToken] = None,
+) -> Dict[str, Any]:
+    """Create a metadata event with the given type and metadata."""
+    data = {
+        "run_id": str(run_id) if run_id else None,
+    }
+    if feedback_ingest_token:
+        data["feedback_token_url"] = feedback_ingest_token.url
+
+        if feedback_ingest_token.expires_at:
+            data[
+                "feedback_token_expires_at"
+            ] = feedback_ingest_token.expires_at.isoformat()
+
+    metadata = {
+        "event": "metadata",
+        "data": json.dumps(data),
+    }
+    return metadata
 
 
 async def _unpack_request_config(
@@ -184,6 +208,7 @@ def _update_config_with_defaults(
     request: Request,
     *,
     endpoint: Optional[str] = None,
+    run_id: Optional[uuid.UUID] = None,
 ) -> RunnableConfig:
     """Set up some baseline configuration for the underlying runnable."""
 
@@ -220,6 +245,9 @@ def _update_config_with_defaults(
         run_name=run_name,
         metadata=metadata,
     )
+
+    if run_id:
+        non_overridable_default_config["run_id"] = run_id
 
     # merge_configs is last-writer-wins, so we specifically pass in the
     # overridable configs first, then the user provided configs, then
@@ -431,7 +459,7 @@ def _json_encode_response(
             f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"
         )
 
-    return JSONResponse(content=obj)
+    return JSONResponse(content=obj, headers=headers)
 
 
 def _add_callbacks(
@@ -673,6 +701,7 @@ class APIHandler:
         *,
         endpoint: Optional[str] = None,
         server_config: Optional[RunnableConfig] = None,
+        run_id: Optional[uuid.UUID] = None,
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -697,6 +726,7 @@ class APIHandler:
                 user_provided_config,
                 request,
                 endpoint=endpoint,
+                run_id=run_id,
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -726,22 +756,25 @@ class APIHandler:
         """
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
+        run_id = uuid.uuid4()
         config, input_ = await self._get_config_and_input(
             request,
             config_hash,
             endpoint="invoke",
             server_config=server_config,
+            run_id=run_id,
         )
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_callbacks(config, [event_aggregator])
 
+        invoke_coro = self._runnable.ainvoke(
+            input_,
+            config=config,
+        )
+
         # If there's feedback enabled, let's create a presigned feedback token
-        run_id = uuid.uuid4()
-
-        invoke_coro = self._runnable.ainvoke(input_, config=config)
-
-        if self._langsmith_client:
+        if self._enable_feedback_endpoint:
             feedback_coro = run_in_executor(
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
@@ -768,11 +801,16 @@ class APIHandler:
                 # Callbacks are scrubbed and exceptions are converted to
                 # serializable format before returned in the response.
                 callback_events=callback_events,
-                metadata=SingletonResponseMetadata(
-                    run_id=_get_base_run_id_as_str(event_aggregator)
+                metadata=InvokeResponseMetadata(
+                    run_id=run_id,
+                    feedback_token_url=feedback_token.url if feedback_token else None,
+                    feedback_token_expires_at=(
+                        feedback_token.expires_at.isoformat()
+                        if feedback_token
+                        else None
+                    ),
                 ),
             ),
-            headers={"Feedback-Token": feedback_token} if feedback_token else None,
         )
 
     async def batch(
@@ -856,9 +894,10 @@ class APIHandler:
 
         # Update the configuration with callbacks
         aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
+        run_ids = [uuid.uuid4() for _ in range(len(inputs))]
 
         final_configs = []
-        for config_, aggregator in zip(configs_, aggregators):
+        for run_id, config_, aggregator in zip(run_ids, configs_, aggregators):
             _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
@@ -866,7 +905,25 @@ class APIHandler:
                 )
             )
 
-        output = await self._runnable.abatch(inputs, config=final_configs)
+        batch_coro = self._runnable.abatch(inputs, config=final_configs)
+
+        # If there's feedback enabled, let's create a presigned feedback token
+        if self._enable_feedback_endpoint:
+            feedback_coros = [
+                run_in_executor(
+                    None,
+                    self._langsmith_client.create_presigned_feedback_token,
+                    run_id,
+                    "score",
+                )
+                for run_id in run_ids
+            ]
+            response = await asyncio.gather(batch_coro, *feedback_coros)
+            output = response[0]
+            feedback_tokens = response[1:]
+        else:
+            output = await batch_coro
+            feedback_tokens = []
 
         if self._include_callback_events:
             callback_events = [
@@ -881,11 +938,24 @@ class APIHandler:
         else:
             callback_events = []
 
+        if feedback_tokens:
+            metadatas = [
+                InvokeResponseMetadata(
+                    run_id=run_id,
+                    feedback_token_url=feedback_token.url,
+                    feedback_token_expires_at=(feedback_token.expires_at.isoformat()),
+                )
+                for run_id, feedback_token in zip(run_ids, feedback_tokens)
+            ]
+        else:
+            metadatas = [InvokeResponseMetadata(run_id=run_id) for run_id in run_ids]
+
         obj = self._BatchResponse(
             output=self._serializer.dumpd(output),
             callback_events=callback_events,
             metadata=BatchResponseMetadata(
-                run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators]
+                run_ids=[_get_base_run_id_as_str(agg) for agg in aggregators],
+                metadatas=metadatas,
             ),
         )
 
@@ -951,12 +1021,14 @@ class APIHandler:
         """
         err_event = {}
         validation_exception: Optional[BaseException] = None
+        run_id = uuid.uuid4()
         try:
             config, input_ = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream",
                 server_config=server_config,
+                run_id=run_id,
             )
         except BaseException as e:
             validation_exception = e
@@ -976,6 +1048,18 @@ class APIHandler:
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
+
+        if self._enable_feedback_endpoint:
+            # Create task to create a presigned feedback token
+            feedback_coro = run_in_executor(
+                None,
+                self._langsmith_client.create_presigned_feedback_token,
+                run_id,
+                "score",
+            )
+            task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
+        else:
+            task = None
 
         async def _stream() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
@@ -997,16 +1081,17 @@ class APIHandler:
                     input_,
                     config=config_w_callbacks,
                 ):
-                    if not has_sent_metadata and event_aggregator.callback_events:
-                        yield {
-                            "event": "metadata",
-                            "data": json.dumps(
-                                {
-                                    "run_id": _get_base_run_id_as_str(event_aggregator),
-                                }
-                            ),
-                        }
-                        has_sent_metadata = True
+                    # Send a metadata event as soon as possible
+                    if not has_sent_metadata:
+                        if task is not None and not task.done():
+                            continue
+
+                        if task is None:
+                            feedback_token = None
+                        else:
+                            feedback_token = task.result()
+
+                        yield _create_metadata_event(run_id, feedback_token)
 
                     yield {
                         # EventSourceResponse expects a string for data
@@ -1159,12 +1244,14 @@ class APIHandler:
         """Stream events from the runnable."""
         err_event = {}
         validation_exception: Optional[BaseException] = None
+        run_id = uuid.uuid4()
         try:
             config, input_ = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream_events",
                 server_config=server_config,
+                run_id=run_id,
             )
         except BaseException as e:
             validation_exception = e
@@ -1205,6 +1292,18 @@ class APIHandler:
                 "data": json.dumps({"status_code": 422, "message": repr(e.errors())}),
             }
 
+        if self._enable_feedback_endpoint:
+            # Create task to create a presigned feedback token
+            feedback_coro = run_in_executor(
+                None,
+                self._langsmith_client.create_presigned_feedback_token,
+                run_id,
+                "score",
+            )
+            task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
+        else:
+            task = None
+
         async def _stream_events() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
             if not hasattr(self._runnable, "astream_events"):
@@ -1220,6 +1319,8 @@ class APIHandler:
                     raise AssertionError(
                         "Internal server error"
                     ) from validation_exception
+
+            has_sent_metadata = False
 
             try:
                 async for event in self._runnable.astream_events(
@@ -1247,6 +1348,16 @@ class APIHandler:
                             "data": self._serializer.dumps(event).decode("utf-8"),
                             "event": "data",
                         }
+
+                    # Send a metadata event as soon as possible
+                    if not has_sent_metadata and self._enable_feedback_endpoint:
+                        if task is None:
+                            raise AssertionError("Feedback token task was not created.")
+                        if not task.done():
+                            continue
+                        feedback_token = task.result()
+                        yield _create_metadata_event(run_id, feedback_token)
+                        has_sent_metadata = True
                 yield {"event": "end"}
             except BaseException:
                 yield {

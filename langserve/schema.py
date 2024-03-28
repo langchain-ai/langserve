@@ -41,14 +41,15 @@ class SharedResponseMetadata(BaseModelV1):
     pass
 
 
-class SingletonResponseMetadata(SharedResponseMetadata):
-    """
-    Represents response metadata used for just single input/output LangServe
+class InvokeResponseMetadata(SharedResponseMetadata):
+    """Represents response metadata used for just single input/output LangServe
     responses.
     """
 
     # Represents the parent run id for a given request
     run_id: UUID
+    feedback_token_url: Optional[str] = None
+    feedback_token_expires_at: Optional[datetime] = None
 
 
 class BatchResponseMetadata(SharedResponseMetadata):
@@ -57,9 +58,17 @@ class BatchResponseMetadata(SharedResponseMetadata):
     responses.
     """
 
+    # This namespace can include any additional metadata that is shared
+    # across all responses in the batch (e.g., if a batch run
+    # ID was a thing, it would go here)
+
+    # metadata for each individual response in the batch
+    metadatas: List[InvokeResponseMetadata]
+
+    # A list of UUIDs
     # Represents each parent run id for a given request, in
     # the same order in which they were received
-    run_ids: List[UUID]
+    run_ids: List[UUID]  # For backwards compatibility, clients should not use
 
 
 class BaseFeedback(BaseModel):
