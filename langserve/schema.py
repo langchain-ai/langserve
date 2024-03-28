@@ -41,14 +41,21 @@ class SharedResponseMetadata(BaseModelV1):
     pass
 
 
-class SingletonResponseMetadata(SharedResponseMetadata):
-    """
-    Represents response metadata used for just single input/output LangServe
+class InvokeResponseMetadata(SharedResponseMetadata):
+    """Represents response metadata used for just single input/output LangServe
     responses.
     """
 
     # Represents the parent run id for a given request
     run_id: UUID
+    feedback_token_url: Optional[str] = None
+    feedback_token_expires_at: Optional[datetime] = None
+
+
+# Alias for backwards compatibility
+# Keep here in case clients are somehow using this for type checking
+# TODO(Deprecate): This should be deprecated in 2025.
+SingletonResponseMetadata = InvokeResponseMetadata
 
 
 class BatchResponseMetadata(SharedResponseMetadata):
@@ -57,9 +64,19 @@ class BatchResponseMetadata(SharedResponseMetadata):
     responses.
     """
 
+    # This namespace can include any additional metadata that is shared
+    # across all responses in the batch (e.g., if a batch run
+    # ID was a thing, it would go here)
+
+    # metadata for each individual response in the batch
+    # Parallel list of InvokeResponseMetadata objects matching
+    # the individual requests in the batch
+    responses: List[InvokeResponseMetadata]
+
+    # A list of UUIDs
     # Represents each parent run id for a given request, in
     # the same order in which they were received
-    run_ids: List[UUID]
+    run_ids: List[UUID]  # For backwards compatibility, clients should not use this
 
 
 class BaseFeedback(BaseModel):
@@ -67,7 +84,7 @@ class BaseFeedback(BaseModel):
     Shared information between create requests of feedback and feedback objects
     """
 
-    run_id: UUID
+    run_id: Optional[UUID]
     """The associated run ID this feedback is logged for."""
 
     key: str
@@ -84,17 +101,11 @@ class BaseFeedback(BaseModel):
 
 
 class FeedbackCreateRequest(BaseFeedback):
-    """
-    Represents a request that creates feedback for an individual run
-    """
-
-    pass
+    """Represents a request that creates feedback for an individual run"""
 
 
 class Feedback(BaseFeedback):
-    """
-    Represents feedback given on an individual run
-    """
+    """Represents feedback given on an individual run"""
 
     id: UUID
     """The unique ID of the feedback that was created."""
@@ -110,9 +121,7 @@ class Feedback(BaseFeedback):
 
 
 class PublicTraceLinkCreateRequest(BaseModel):
-    """
-    Represents a request that creates a public trace for an individual run
-    """
+    """Represents a request that creates a public trace for an individual run."""
 
     run_id: UUID
     """The unique ID of the run to share."""
