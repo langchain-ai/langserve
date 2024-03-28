@@ -314,7 +314,8 @@ def create_batch_response_model(
             List[output_type],
             Field(
                 ...,
-                description="The outputs corresponding to the inputs the batch request.",
+                description="The outputs corresponding to the inputs the "
+                "batch request.",
             ),
         ),
         "metadata": (
