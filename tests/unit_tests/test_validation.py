@@ -3,8 +3,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import Request
-from langchain.prompts import PromptTemplate
-from langchain.schema.runnable.utils import ConfigurableField
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import ConfigurableField
 
 from langserve.api_handler import _unpack_request_config
 

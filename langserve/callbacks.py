@@ -4,13 +4,16 @@ import uuid
 from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
-from langchain.callbacks.base import AsyncCallbackHandler
-from langchain.callbacks.manager import (
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.callbacks import AsyncCallbackHandler
+from langchain_core.callbacks.manager import (
     BaseRunManager,
     ahandle_event,
     handle_event,
 )
-from langchain.schema import AgentAction, AgentFinish, BaseMessage, Document, LLMResult
+from langchain_core.documents import Document
+from langchain_core.messages import BaseMessage
+from langchain_core.outputs import LLMResult
 from typing_extensions import TypedDict
 
 

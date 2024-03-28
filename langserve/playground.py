@@ -5,7 +5,7 @@ from string import Template
 from typing import Literal, Sequence, Type
 
 from fastapi.responses import Response
-from langchain.schema.runnable import Runnable
+from langchain_core.runnables import Runnable
 
 from langserve.pydantic_v1 import BaseModel
 

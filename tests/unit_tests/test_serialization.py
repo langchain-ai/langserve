@@ -4,12 +4,8 @@ from enum import Enum
 from typing import Any
 
 import pytest
-from langchain.schema.messages import (
-    HumanMessage,
-    HumanMessageChunk,
-    SystemMessage,
-)
-from langchain.schema.output import ChatGeneration
+from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
+from langchain_core.outputs import ChatGeneration
 
 try:
     from pydantic.v1 import BaseModel

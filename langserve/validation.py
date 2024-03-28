@@ -19,13 +19,9 @@ generating OpenAPI specs.
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 from uuid import UUID
 
-from langchain.schema import (
-    BaseMessage,
-    ChatGeneration,
-    Document,
-    Generation,
-    RunInfo,
-)
+from langchain_core.documents import Document
+from langchain_core.messages import BaseMessage
+from langchain_core.outputs import ChatGeneration, Generation, RunInfo
 from typing_extensions import Type
 
 from langserve.schema import BatchResponseMetadata, SingletonResponseMetadata
