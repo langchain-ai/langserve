@@ -599,6 +599,8 @@ class APIHandler:
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
 
+        # Hard-coded as False for now, until we expose via the API
+        self._enable_scoped_feedback = False
         # Client is patched using mock.patch, if changing the names
         # remember to make relevant updates in the unit tests.
         self._langsmith_client = (
@@ -774,7 +776,7 @@ class APIHandler:
         )
 
         # If there's feedback enabled, let's create a presigned feedback token
-        if self._enable_feedback_endpoint:
+        if self._enable_scoped_feedback:
             feedback_coro = run_in_executor(
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
@@ -908,7 +910,7 @@ class APIHandler:
         batch_coro = self._runnable.abatch(inputs, config=final_configs)
 
         # If there's feedback enabled, let's create a presigned feedback token
-        if self._enable_feedback_endpoint:
+        if self._enable_scoped_feedback:
             feedback_coros = [
                 run_in_executor(
                     None,
@@ -1049,7 +1051,7 @@ class APIHandler:
                     ),
                 }
 
-        if self._enable_feedback_endpoint:
+        if self._enable_scoped_feedback:
             # Create task to create a presigned feedback token
             feedback_coro = run_in_executor(
                 None,
@@ -1292,7 +1294,7 @@ class APIHandler:
                 "data": json.dumps({"status_code": 422, "message": repr(e.errors())}),
             }
 
-        if self._enable_feedback_endpoint:
+        if self._enable_scoped_feedback:
             # Create task to create a presigned feedback token
             feedback_coro = run_in_executor(
                 None,
