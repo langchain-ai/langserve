@@ -2889,7 +2889,6 @@ async def test_scoped_feedback() -> None:
             json_response = response.json()
             run_id = json_response["metadata"]["run_id"]
             assert json_response == {
-                "callback_events": [],
                 "metadata": {
                     "feedback_token_expires_at": "2023-01-01T00:00:00",
                     "feedback_token_url": "feedback_id",
@@ -2913,7 +2912,6 @@ async def test_scoped_feedback() -> None:
                 del r["run_id"]
 
             assert json_response == {
-                "callback_events": [],
                 "metadata": {
                     "responses": [
                         {
