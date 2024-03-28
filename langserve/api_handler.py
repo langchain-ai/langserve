@@ -1077,6 +1077,7 @@ class APIHandler:
                         else:
                             feedback_token = task.result()
 
+                        has_sent_metadata = True
                         yield _create_metadata_event(run_id, feedback_token)
 
                     yield {
