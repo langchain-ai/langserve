@@ -1,5 +1,6 @@
 """Test utilities for streaming."""
 import datetime
+import json
 import uuid
 
 from langsmith.schemas import FeedbackIngestToken
@@ -20,10 +21,20 @@ def test_create_metadata_event() -> None:
     feedback_ingest_token = FeedbackIngestToken(
         id=uuid.UUID(int=8), expires_at=datetime.datetime(2022, 1, 1), url="ingest-url"
     )
-    event = _create_metadata_event(run_id, feedback_ingest_token=feedback_ingest_token)
+    event = _create_metadata_event(
+        run_id, feedback_ingest_token=feedback_ingest_token, feedback_key="key"
+    )
+    data = json.loads(event.pop("data"))
     assert event == {
-        "data": '{"run_id": "00000000-0000-0000-0000-000000000007", '
-        '"feedback_token_url": "ingest-url", "feedback_token_expires_at": '
-        '"2022-01-01T00:00:00"}',
         "event": "metadata",
+    }
+    assert data == {
+        "feedback_tokens": [
+            {
+                "expires_at": "2022-01-01T00:00:00",
+                "key": "key",
+                "token_url": "ingest-url",
+            }
+        ],
+        "run_id": "00000000-0000-0000-0000-000000000007",
     }

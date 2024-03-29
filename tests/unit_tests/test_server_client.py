@@ -2890,8 +2890,13 @@ async def test_scoped_feedback() -> None:
             run_id = json_response["metadata"]["run_id"]
             assert json_response == {
                 "metadata": {
-                    "feedback_token_expires_at": "2023-01-01T00:00:00",
-                    "feedback_token_url": "feedback_id",
+                    "feedback_tokens": [
+                        {
+                            "expires_at": "2023-01-01T00:00:00",
+                            "key": "correctness",
+                            "token_url": None,
+                        }
+                    ],
                     "run_id": run_id,
                 },
                 "output": "hello",
@@ -2915,12 +2920,22 @@ async def test_scoped_feedback() -> None:
                 "metadata": {
                     "responses": [
                         {
-                            "feedback_token_expires_at": "2023-01-01T00:00:00",
-                            "feedback_token_url": "feedback_id",
+                            "feedback_tokens": [
+                                {
+                                    "expires_at": "2023-01-01T00:00:00",
+                                    "key": "correctness",
+                                    "token_url": None,
+                                }
+                            ]
                         },
                         {
-                            "feedback_token_expires_at": "2023-01-01T00:00:00",
-                            "feedback_token_url": "feedback_id",
+                            "feedback_tokens": [
+                                {
+                                    "expires_at": "2023-01-01T00:00:00",
+                                    "key": "correctness",
+                                    "token_url": None,
+                                }
+                            ]
                         },
                     ],
                     "run_ids": run_ids,
@@ -2938,8 +2953,13 @@ async def test_scoped_feedback() -> None:
             assert events == [
                 {
                     "data": {
-                        "feedback_token_expires_at": "2023-01-01T00:00:00",
-                        "feedback_token_url": "feedback_id",
+                        "feedback_tokens": [
+                            {
+                                "expires_at": "2023-01-01T00:00:00",
+                                "key": "correctness",
+                                "token_url": "feedback_id",
+                            }
+                        ]
                     },
                     "type": "metadata",
                 },
@@ -2969,8 +2989,13 @@ async def test_scoped_feedback() -> None:
                 },
                 {
                     "data": {
-                        "feedback_token_expires_at": "2023-01-01T00:00:00",
-                        "feedback_token_url": "feedback_id",
+                        "feedback_tokens": [
+                            {
+                                "expires_at": "2023-01-01T00:00:00",
+                                "key": "correctness",
+                                "token_url": "feedback_id",
+                            }
+                        ]
                     },
                     "type": "metadata",
                 },

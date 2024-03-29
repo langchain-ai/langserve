@@ -50,6 +50,8 @@ from langserve.schema import (
     CustomUserType,
     Feedback,
     FeedbackCreateRequest,
+    FeedbackCreateRequestTokenBased,
+    FeedbackToken,
     InvokeResponseMetadata,
     PublicTraceLink,
     PublicTraceLinkCreateRequest,
@@ -115,6 +117,7 @@ def _strip_internal_keys(metadata: Dict[str, Any]) -> Dict[str, Any]:
 
 def _create_metadata_event(
     run_id: Optional[uuid.UUID] = None,
+    feedback_key: Optional[str] = None,
     feedback_ingest_token: Optional[FeedbackIngestToken] = None,
 ) -> Dict[str, Any]:
     """Create a metadata event with the given type and metadata."""
@@ -122,12 +125,21 @@ def _create_metadata_event(
         "run_id": str(run_id) if run_id else None,
     }
     if feedback_ingest_token:
-        data["feedback_token_url"] = feedback_ingest_token.url
+        if not feedback_key:
+            raise ValueError("Feedback key must be provided if feedback token is given")
 
         if feedback_ingest_token.expires_at:
-            data[
-                "feedback_token_expires_at"
-            ] = feedback_ingest_token.expires_at.isoformat()
+            expires_at = feedback_ingest_token.expires_at.isoformat()
+        else:
+            expires_at = None
+
+        data["feedback_tokens"] = [
+            {
+                "key": feedback_key,
+                "token_url": feedback_ingest_token.url,
+                "expires_at": expires_at,
+            }
+        ]
 
     metadata = {
         "event": "metadata",
@@ -460,6 +472,9 @@ def _is_scoped_feedback_enabled() -> bool:
     return False
 
 
+# Temporary default key for feedback
+_FEEDBACK_KEY = "correctness"
+
 # PUBLIC API
 
 
@@ -768,7 +783,7 @@ class APIHandler:
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                "score",
+                _FEEDBACK_KEY,
             )
 
             output, feedback_token = await asyncio.gather(invoke_coro, feedback_coro)
@@ -792,12 +807,15 @@ class APIHandler:
                 callback_events=callback_events,
                 metadata=InvokeResponseMetadata(
                     run_id=run_id,
-                    feedback_token_url=feedback_token.url if feedback_token else None,
-                    feedback_token_expires_at=(
-                        feedback_token.expires_at.isoformat()
-                        if feedback_token
-                        else None
-                    ),
+                    feedback_tokens=[
+                        FeedbackToken(
+                            key=_FEEDBACK_KEY,
+                            url=feedback_token.url,
+                            expires_at=feedback_token.expires_at.isoformat(),
+                        )
+                    ]
+                    if feedback_token
+                    else [],
                 ),
             ),
         )
@@ -903,7 +921,7 @@ class APIHandler:
                     None,
                     self._langsmith_client.create_presigned_feedback_token,
                     run_id,
-                    "score",
+                    _FEEDBACK_KEY,
                 )
                 for run_id in run_ids
             ]
@@ -931,13 +949,21 @@ class APIHandler:
             metadatas = [
                 InvokeResponseMetadata(
                     run_id=run_id,
-                    feedback_token_url=feedback_token.url,
-                    feedback_token_expires_at=(feedback_token.expires_at.isoformat()),
+                    feedback_tokens=[
+                        FeedbackToken(
+                            key=_FEEDBACK_KEY,
+                            url=feedback_token.url,
+                            expires_at=feedback_token.expires_at.isoformat(),
+                        )
+                    ],
                 )
                 for run_id, feedback_token in zip(run_ids, feedback_tokens)
             ]
         else:
-            metadatas = [InvokeResponseMetadata(run_id=run_id) for run_id in run_ids]
+            metadatas = [
+                InvokeResponseMetadata(run_id=run_id, feedback_tokens=[])
+                for run_id in run_ids
+            ]
 
         obj = self._BatchResponse(
             output=self._serializer.dumpd(output),
@@ -1044,7 +1070,7 @@ class APIHandler:
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                "score",
+                _FEEDBACK_KEY,
             )
             task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
         else:
@@ -1080,7 +1106,9 @@ class APIHandler:
                             feedback_token = task.result()
 
                         has_sent_metadata = True
-                        yield _create_metadata_event(run_id, feedback_token)
+                        yield _create_metadata_event(
+                            run_id, _FEEDBACK_KEY, feedback_token
+                        )
 
                     yield {
                         # EventSourceResponse expects a string for data
@@ -1287,7 +1315,7 @@ class APIHandler:
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                "score",
+                _FEEDBACK_KEY,
             )
             task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
         else:
@@ -1345,7 +1373,9 @@ class APIHandler:
                         if not task.done():
                             continue
                         feedback_token = task.result()
-                        yield _create_metadata_event(run_id, feedback_token)
+                        yield _create_metadata_event(
+                            run_id, _FEEDBACK_KEY, feedback_token
+                        )
                         has_sent_metadata = True
                 yield {"event": "end"}
             except BaseException:
@@ -1542,6 +1572,35 @@ class APIHandler:
             score=feedback_from_langsmith.score,
             value=feedback_from_langsmith.value,
             comment=feedback_from_langsmith.comment,
+        )
+
+    async def create_feedback_from_token(
+        self, create_request: FeedbackCreateRequestTokenBased
+    ) -> None:
+        """Send feedback on an individual run to langsmith."""
+
+        if not tracing_is_enabled() or not self._enable_feedback_endpoint:
+            raise HTTPException(
+                400,
+                "The feedback endpoint is only accessible when LangSmith is "
+                + "enabled on your LangServe server.\n"
+                + "Please set `enable_feedback_endpoint=True` on your route and "
+                + "set the proper environment variables",
+            )
+
+        metadata = create_request.metadata or {}
+        metadata.update(
+            {
+                "from_langserve": True,
+            }
+        )
+
+        self._langsmith_client.create_feedback_from_token(
+            create_request.token_or_url,
+            score=create_request.score,
+            value=create_request.value,
+            comment=create_request.comment,
+            metadata=metadata,
         )
 
     async def _check_feedback_enabled(self) -> None:

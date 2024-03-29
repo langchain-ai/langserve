@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel  # Floats between v1 and v2
 
 from langserve.pydantic_v1 import BaseModel as BaseModelV1
+from langserve.pydantic_v1 import Field
 
 
 class CustomUserType(BaseModelV1):
@@ -41,6 +42,14 @@ class SharedResponseMetadata(BaseModelV1):
     pass
 
 
+class FeedbackToken(BaseModelV1):
+    """Represents the feedback tokens for a given request."""
+
+    key: str  # The key of the feedback token
+    token_url: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
 class InvokeResponseMetadata(SharedResponseMetadata):
     """Represents response metadata used for just single input/output LangServe
     responses.
@@ -48,8 +57,14 @@ class InvokeResponseMetadata(SharedResponseMetadata):
 
     # Represents the parent run id for a given request
     run_id: UUID
-    feedback_token_url: Optional[str] = None
-    feedback_token_expires_at: Optional[datetime] = None
+    feedback_tokens: List[FeedbackToken] = Field(
+        ...,
+        description=(
+            "Feedback tokens from the given run."
+            "These tokens allow a user to provide feedback on the run."
+            "Only available if server was configured to provide feedback tokens."
+        ),
+    )
 
 
 # Alias for backwards compatibility
@@ -80,9 +95,7 @@ class BatchResponseMetadata(SharedResponseMetadata):
 
 
 class BaseFeedback(BaseModel):
-    """
-    Shared information between create requests of feedback and feedback objects
-    """
+    """Shared information between create requests of feedback and feedback objects"""
 
     run_id: Optional[UUID]
     """The associated run ID this feedback is logged for."""
@@ -98,6 +111,28 @@ class BaseFeedback(BaseModel):
 
     comment: Optional[str] = None
     """Comment or explanation for the feedback."""
+
+
+class FeedbackCreateRequestTokenBased(BaseModel):
+    """Shared information between create requests of feedback and feedback objects."""
+
+    token_or_url: UUID
+    """The associated run ID this feedback is logged for."""
+
+    score: Optional[Union[float, int, bool]] = None
+    """Value or score to assign the run."""
+
+    value: Optional[Union[float, int, bool, str, Dict]] = None
+    """The display value for the feedback if not a metric."""
+
+    comment: Optional[str] = None
+    """Comment or explanation for the feedback."""
+
+    correction: Optional[Dict] = None
+    """Correction for the run."""
+
+    metadata: Optional[Dict] = None
+    """Metadata for the feedback."""
 
 
 class FeedbackCreateRequest(BaseFeedback):
