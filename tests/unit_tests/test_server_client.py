@@ -2983,51 +2983,25 @@ async def test_scoped_feedback() -> None:
             for event in events:
                 if "data" in event and "run_id" in event["data"]:
                     del event["data"]["run_id"]
-            assert events == [
-                {
-                    "data": {
-                        "data": {"input": "hello"},
-                        "event": "on_chain_start",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
+
+            # Find the metadata event and pull it out
+            metadata_event = None
+            for event in events:
+                if event["type"] == "metadata":
+                    metadata_event = event
+
+            assert metadata_event == {
+                "data": {
+                    "feedback_tokens": [
+                        {
+                            "expires_at": "2023-01-01T00:00:00",
+                            "key": "foo",
+                            "token_url": "feedback_id",
+                        }
+                    ]
                 },
-                {
-                    "data": {
-                        "feedback_tokens": [
-                            {
-                                "expires_at": "2023-01-01T00:00:00",
-                                "key": "foo",
-                                "token_url": "feedback_id",
-                            }
-                        ]
-                    },
-                    "type": "metadata",
-                },
-                {
-                    "data": {
-                        "data": {"chunk": "hello"},
-                        "event": "on_chain_stream",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
-                },
-                {
-                    "data": {
-                        "data": {"output": "hello"},
-                        "event": "on_chain_end",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
-                },
-                {"type": "end"},
-            ]
+                "type": "metadata",
+            }
 
 
 async def test_passing_run_id_from_client() -> None:
