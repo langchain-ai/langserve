@@ -2876,6 +2876,13 @@ async def test_scoped_feedback() -> None:
             local_app,
             RunnableLambda(lambda foo: "hello"),
             enable_feedback_endpoint=True,
+            token_feedback_config={
+                "key_configs": [
+                    {
+                        "key": "foo",
+                    }
+                ]
+            },
         )
 
         async with get_async_test_client(
@@ -2893,7 +2900,7 @@ async def test_scoped_feedback() -> None:
                     "feedback_tokens": [
                         {
                             "expires_at": "2023-01-01T00:00:00",
-                            "key": "correctness",
+                            "key": "foo",
                             "token_url": None,
                         }
                     ],
@@ -2923,7 +2930,7 @@ async def test_scoped_feedback() -> None:
                             "feedback_tokens": [
                                 {
                                     "expires_at": "2023-01-01T00:00:00",
-                                    "key": "correctness",
+                                    "key": "foo",
                                     "token_url": None,
                                 }
                             ]
@@ -2932,7 +2939,7 @@ async def test_scoped_feedback() -> None:
                             "feedback_tokens": [
                                 {
                                     "expires_at": "2023-01-01T00:00:00",
-                                    "key": "correctness",
+                                    "key": "foo",
                                     "token_url": None,
                                 }
                             ]
@@ -2956,7 +2963,7 @@ async def test_scoped_feedback() -> None:
                         "feedback_tokens": [
                             {
                                 "expires_at": "2023-01-01T00:00:00",
-                                "key": "correctness",
+                                "key": "foo",
                                 "token_url": "feedback_id",
                             }
                         ]
@@ -2992,7 +2999,7 @@ async def test_scoped_feedback() -> None:
                         "feedback_tokens": [
                             {
                                 "expires_at": "2023-01-01T00:00:00",
-                                "key": "correctness",
+                                "key": "foo",
                                 "token_url": "feedback_id",
                             }
                         ]
