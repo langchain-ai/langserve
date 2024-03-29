@@ -1087,6 +1087,7 @@ class APIHandler:
         """
         err_event = {}
         validation_exception: Optional[BaseException] = None
+        run_id = None
         try:
             config, input_ = await self._get_config_and_input(
                 request,
@@ -1094,6 +1095,7 @@ class APIHandler:
                 endpoint="stream",
                 server_config=server_config,
             )
+            run_id = config["run_id"]
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -1113,9 +1115,7 @@ class APIHandler:
                     ),
                 }
 
-        run_id = config["run_id"]
-
-        if self._token_feedback_enabled:
+        if self._token_feedback_enabled and not validation_exception:
             # Create task to create a presigned feedback token
             feedback_key: Optional[str] = self._token_feedback_config["key_configs"][0][
                 "key"
@@ -1316,6 +1316,7 @@ class APIHandler:
         """Stream events from the runnable."""
         err_event = {}
         validation_exception: Optional[BaseException] = None
+        run_id = None
         try:
             config, input_ = await self._get_config_and_input(
                 request,
@@ -1323,6 +1324,7 @@ class APIHandler:
                 endpoint="stream_events",
                 server_config=server_config,
             )
+            run_id = config["run_id"]
         except BaseException as e:
             validation_exception = e
             if isinstance(e, RequestValidationError):
@@ -1341,8 +1343,6 @@ class APIHandler:
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
-
-        run_id = config["run_id"]
 
         try:
             body = await request.json()
@@ -1366,7 +1366,7 @@ class APIHandler:
 
         feedback_key: Optional[str]
 
-        if self._token_feedback_enabled:
+        if self._token_feedback_enabled and not validation_exception:
             # Create task to create a presigned feedback token
             feedback_key: str = self._token_feedback_config["key_configs"][0]["key"]
             feedback_coro = run_in_executor(
