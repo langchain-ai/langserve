@@ -223,7 +223,6 @@ def _update_config_with_defaults(
     request: Request,
     *,
     endpoint: Optional[str] = None,
-    run_id: Optional[uuid.UUID] = None,
 ) -> RunnableConfig:
     """Set up some baseline configuration for the underlying runnable."""
 
@@ -261,17 +260,21 @@ def _update_config_with_defaults(
         metadata=metadata,
     )
 
-    if run_id:
-        non_overridable_default_config["run_id"] = run_id
-
     # merge_configs is last-writer-wins, so we specifically pass in the
     # overridable configs first, then the user provided configs, then
     # finally the non-overridable configs
-    return merge_configs(
+    config = merge_configs(
         overridable_default_config,
         incoming_config,
         non_overridable_default_config,
     )
+
+    # run_id may have been set by user (and accepted by server) or
+    # it may have been by the user on the server request path.
+    # If it's not set, we'll generate a new one.
+    if "run_id" not in config or config["run_id"] is None:
+        config["run_id"] = str(uuid.uuid4())
+    return config
 
 
 def _unpack_input(validated_model: BaseModel) -> Any:
@@ -363,7 +366,11 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
         A new model with name prepended with the given namespace.
     """
     model_with_unique_name = _rename_pydantic_model(model, namespace)
-    model_with_unique_name.update_forward_refs()
+    if "run_id" in model_with_unique_name.__annotations__:
+        # Help resolve reference by providing namespace references
+        model_with_unique_name.update_forward_refs(uuid=uuid)
+    else:
+        model_with_unique_name.update_forward_refs()
     return model_with_unique_name
 
 
@@ -743,7 +750,6 @@ class APIHandler:
         *,
         endpoint: Optional[str] = None,
         server_config: Optional[RunnableConfig] = None,
-        run_id: Optional[uuid.UUID] = None,
     ) -> Tuple[RunnableConfig, Any]:
         """Extract the config and input from the request, validating the request."""
         try:
@@ -768,7 +774,6 @@ class APIHandler:
                 user_provided_config,
                 request,
                 endpoint=endpoint,
-                run_id=run_id,
             )
             # Unpack the input dynamically using the input schema of the runnable.
             # This takes into account changes in the input type when
@@ -798,14 +803,13 @@ class APIHandler:
         """
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        run_id = uuid.uuid4()
         config, input_ = await self._get_config_and_input(
             request,
             config_hash,
             endpoint="invoke",
             server_config=server_config,
-            run_id=run_id,
         )
+        run_id = config["run_id"]
 
         event_aggregator = AsyncEventAggregatorCallback()
         _add_callbacks(config, [event_aggregator])
@@ -943,20 +947,21 @@ class APIHandler:
 
         # Update the configuration with callbacks
         aggregators = [AsyncEventAggregatorCallback() for _ in range(len(inputs))]
-        run_ids = [uuid.uuid4() for _ in range(len(inputs))]
 
         final_configs = []
-        for run_id, config_, aggregator in zip(run_ids, configs_, aggregators):
+        for config_, aggregator in zip(configs_, aggregators):
             _add_callbacks(config_, [aggregator])
             final_configs.append(
                 _update_config_with_defaults(
-                    self._run_name, config_, request, endpoint="batch", run_id=run_id
+                    self._run_name, config_, request, endpoint="batch"
                 )
             )
 
+        run_ids = [config["run_id"] for config in final_configs]
+
         batch_coro = self._runnable.abatch(inputs, config=final_configs)
 
-        feedback_key: Optional[str] = None
+        feedback_key: Optional[str]
 
         # If there's feedback enabled, let's create a presigned feedback token
         if self._token_feedback_enabled:
@@ -1082,14 +1087,12 @@ class APIHandler:
         """
         err_event = {}
         validation_exception: Optional[BaseException] = None
-        run_id = uuid.uuid4()
         try:
             config, input_ = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream",
                 server_config=server_config,
-                run_id=run_id,
             )
         except BaseException as e:
             validation_exception = e
@@ -1109,6 +1112,8 @@ class APIHandler:
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
+
+        run_id = config["run_id"]
 
         if self._token_feedback_enabled:
             # Create task to create a presigned feedback token
@@ -1311,14 +1316,12 @@ class APIHandler:
         """Stream events from the runnable."""
         err_event = {}
         validation_exception: Optional[BaseException] = None
-        run_id = uuid.uuid4()
         try:
             config, input_ = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream_events",
                 server_config=server_config,
-                run_id=run_id,
             )
         except BaseException as e:
             validation_exception = e
@@ -1338,6 +1341,8 @@ class APIHandler:
                         {"status_code": 500, "message": "Internal Server Error"}
                     ),
                 }
+
+        run_id = config["run_id"]
 
         try:
             body = await request.json()

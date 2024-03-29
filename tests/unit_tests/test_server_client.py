@@ -3028,3 +3028,56 @@ async def test_scoped_feedback() -> None:
                 },
                 {"type": "end"},
             ]
+
+
+async def test_passing_run_id_from_client() -> None:
+    """test that the client can set a run id if server allows it."""
+    local_app = FastAPI()
+    add_routes(
+        local_app,
+        RunnableLambda(lambda foo: "hello"),
+        config_keys=["run_id"],
+    )
+
+    run_id = uuid.UUID(int=9)
+    run_id2 = uuid.UUID(int=14)
+
+    async with get_async_test_client(
+        local_app, raise_app_exceptions=True
+    ) as async_client:
+        response = await async_client.post(
+            "/invoke",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        response.raise_for_status()
+        json_response = response.json()
+        assert json_response["metadata"]["run_id"] == str(run_id)
+
+        ## Test batch
+        response = await async_client.post(
+            "/batch",
+            json={
+                "inputs": ["hello", "world"],
+                "config": [{"run_id": str(run_id)}, {"run_id": str(run_id2)}],
+            },
+        )
+        json_response = response.json()
+        responses = json_response["metadata"]["responses"]
+        run_ids = [response["run_id"] for response in responses]
+        assert run_ids == [str(run_id), str(run_id2)]
+
+        # Test stream
+        response = await async_client.post(
+            "/stream",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        events = _decode_eventstream(response.text)
+        assert events[0]["data"]["run_id"] == str(run_id)
+
+        # Test stream events
+        response = await async_client.post(
+            "/stream_events",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        events = _decode_eventstream(response.text)
+        assert events[0]["data"]["run_id"] == str(run_id)
