@@ -2129,6 +2129,7 @@ async def test_endpoint_configurations() -> None:
         ("GET", "/playground/index.html", {}),
         ("HEAD", "/feedback", {}),
         ("GET", "/feedback", {}),
+        ("POST", "/token_feedback", {}),
         # Check config hashes
         ("POST", "/c/1234/invoke", {"input": 1}),
         ("POST", "/c/1234/batch", {"inputs": [1, 2]}),
