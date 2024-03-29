@@ -14,6 +14,7 @@ from typing import (
     Callable,
     Dict,
     Generator,
+    List,
     Literal,
     Mapping,
     Optional,
@@ -26,6 +27,7 @@ from typing import (
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from langchain_core._api.beta_decorator import warn_beta
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.load.serializable import Serializable
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -40,6 +42,7 @@ from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from typing_extensions import TypedDict
 
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
@@ -472,10 +475,23 @@ def _is_scoped_feedback_enabled() -> bool:
     return False
 
 
-# Temporary default key for feedback
-_FEEDBACK_KEY = "correctness"
+class PerKeyFeedbackConfig(TypedDict):
+    """Per feedback configuration.
+
+    Use to configure the feedback token.
+    """
+
+    key: str
+
 
 # PUBLIC API
+class TokenFeedbackConfig(TypedDict):
+    """Token feedback configuration.
+
+    This is used to configure the feedback tokens.
+    """
+
+    key_configs: List[PerKeyFeedbackConfig]
 
 
 class APIHandler:
@@ -501,6 +517,10 @@ class APIHandler:
         config_keys: Sequence[str] = ("configurable",),
         include_callback_events: bool = False,
         enable_feedback_endpoint: bool = False,
+        # token feedback config configures **token** based feedback which
+        # is different from the feedback endpoint.
+        # Read the documentation for more details
+        token_feedback_config: Optional[TokenFeedbackConfig] = None,
         enable_public_trace_link_endpoint: bool = False,
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
@@ -543,6 +563,11 @@ class APIHandler:
                 to LangSmith. Disabled by default. If this flag is disabled or LangSmith
                 tracing is not enabled for the runnable, then 4xx errors will be thrown
                 when accessing the feedback endpoint
+                **Attention** this is distinct from `token_feedback_config`.
+            token_feedback_config: optional configuration for token based feedback.
+                **Attention** this is distinct from `enable_feedback_endpoint`.
+                When provided, feedback tokens will be included in the response
+                metadata that can be used to provide feedback on the run.
             enable_public_trace_link_endpoint:  Whether to enable an endpoint for
                 end-users to publicly view LangSmith traces of your chain runs.
                 WARNING: THIS WILL EXPOSE THE INTERNAL STATE OF YOUR RUN AND CHAIN AS
@@ -599,8 +624,21 @@ class APIHandler:
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
 
-        # Hard-coded as False for now, until we expose via the API
-        self._enable_scoped_feedback = _is_scoped_feedback_enabled()
+        if token_feedback_config:
+            if len(token_feedback_config["key_configs"]) != 1:
+                raise NotImplementedError(
+                    "Only one key is supported for now for token feedback "
+                    "configuration. For example specify: "
+                    "{'key_configs': [{'key': 'correctness'}]}"
+                )
+
+            warn_beta(
+                message="Token feedback is in beta. This API may change in the future."
+            )
+
+        self._token_feedback_config = token_feedback_config
+        self._token_feedback_enabled = token_feedback_config is not None
+
         # Client is patched using mock.patch, if changing the names
         # remember to make relevant updates in the unit tests.
         self._langsmith_client = (
@@ -777,17 +815,21 @@ class APIHandler:
             config=config,
         )
 
+        feedback_key: Optional[str]
+
         # If there's feedback enabled, let's create a presigned feedback token
-        if self._enable_scoped_feedback:
+        if self._token_feedback_enabled:
+            feedback_key = self._token_feedback_config["key_configs"][0]["key"]
             feedback_coro = run_in_executor(
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                _FEEDBACK_KEY,
+                feedback_key,
             )
 
             output, feedback_token = await asyncio.gather(invoke_coro, feedback_coro)
         else:
+            feedback_key = None
             output = await invoke_coro
             feedback_token = None
 
@@ -809,7 +851,7 @@ class APIHandler:
                     run_id=run_id,
                     feedback_tokens=[
                         FeedbackToken(
-                            key=_FEEDBACK_KEY,
+                            key=feedback_key,
                             url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
@@ -914,14 +956,17 @@ class APIHandler:
 
         batch_coro = self._runnable.abatch(inputs, config=final_configs)
 
+        feedback_key: Optional[str] = None
+
         # If there's feedback enabled, let's create a presigned feedback token
-        if self._enable_scoped_feedback:
+        if self._token_feedback_enabled:
+            feedback_key = self._token_feedback_config["key_configs"][0]["key"]
             feedback_coros = [
                 run_in_executor(
                     None,
                     self._langsmith_client.create_presigned_feedback_token,
                     run_id,
-                    _FEEDBACK_KEY,
+                    feedback_key,
                 )
                 for run_id in run_ids
             ]
@@ -929,6 +974,7 @@ class APIHandler:
             output = response[0]
             feedback_tokens = response[1:]
         else:
+            feedback_key = None
             output = await batch_coro
             feedback_tokens = []
 
@@ -951,7 +997,7 @@ class APIHandler:
                     run_id=run_id,
                     feedback_tokens=[
                         FeedbackToken(
-                            key=_FEEDBACK_KEY,
+                            key=feedback_key,
                             url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
@@ -1064,16 +1110,20 @@ class APIHandler:
                     ),
                 }
 
-        if self._enable_scoped_feedback:
+        if self._token_feedback_enabled:
             # Create task to create a presigned feedback token
+            feedback_key: Optional[str] = self._token_feedback_config["key_configs"][0][
+                "key"
+            ]
             feedback_coro = run_in_executor(
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                _FEEDBACK_KEY,
+                feedback_key,
             )
             task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
         else:
+            feedback_key = None
             task = None
 
         async def _stream() -> AsyncIterator[dict]:
@@ -1107,7 +1157,7 @@ class APIHandler:
 
                         has_sent_metadata = True
                         yield _create_metadata_event(
-                            run_id, _FEEDBACK_KEY, feedback_token
+                            run_id, feedback_key, feedback_token
                         )
 
                     yield {
@@ -1309,16 +1359,20 @@ class APIHandler:
                 "data": json.dumps({"status_code": 422, "message": repr(e.errors())}),
             }
 
-        if self._enable_scoped_feedback:
+        feedback_key: Optional[str]
+
+        if self._token_feedback_enabled:
             # Create task to create a presigned feedback token
+            feedback_key: str = self._token_feedback_config["key_configs"][0]["key"]
             feedback_coro = run_in_executor(
                 None,
                 self._langsmith_client.create_presigned_feedback_token,
                 run_id,
-                _FEEDBACK_KEY,
+                feedback_key,
             )
             task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
         else:
+            feedback_key = None
             task = None
 
         async def _stream_events() -> AsyncIterator[dict]:
@@ -1374,7 +1428,7 @@ class APIHandler:
                             continue
                         feedback_token = task.result()
                         yield _create_metadata_event(
-                            run_id, _FEEDBACK_KEY, feedback_token
+                            run_id, feedback_key, feedback_token
                         )
                         has_sent_metadata = True
                 yield {"event": "end"}
@@ -1579,13 +1633,16 @@ class APIHandler:
     ) -> None:
         """Send feedback on an individual run to langsmith."""
 
-        if not tracing_is_enabled() or not self._enable_feedback_endpoint:
+        if not tracing_is_enabled() or not self._token_feedback_enabled:
             raise HTTPException(
                 400,
-                "The feedback endpoint is only accessible when LangSmith is "
-                + "enabled on your LangServe server.\n"
-                + "Please set `enable_feedback_endpoint=True` on your route and "
-                + "set the proper environment variables",
+                (
+                    "The feedback endpoint is only accessible when LangSmith is "
+                    "enabled on your LangServe server.\n "
+                    "Please set the proper environment variables to enable LangSmith."
+                    "In addition, please ensure that the token_feedback_config "
+                    "has been properly specified when using add_routes or APIHandler."
+                ),
             )
 
         metadata = create_request.metadata or {}

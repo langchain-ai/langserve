@@ -18,7 +18,12 @@ from typing import (
 from langchain_core.runnables import Runnable
 from typing_extensions import Annotated
 
-from langserve.api_handler import APIHandler, PerRequestConfigModifier, _is_hosted
+from langserve.api_handler import (
+    APIHandler,
+    PerRequestConfigModifier,
+    TokenFeedbackConfig,
+    _is_hosted,
+)
 from langserve.pydantic_v1 import (
     _PYDANTIC_MAJOR_VERSION,
     PYDANTIC_VERSION,
@@ -74,6 +79,7 @@ KNOWN_ENDPOINTS = {
     "stream_events",
     "playground",
     "feedback",
+    "token_feedback",
     "public_trace_link",
     "input_schema",
     "config_schema",
@@ -125,6 +131,7 @@ class _EndpointConfiguration:
                 is_output_schema_enabled = True
                 is_config_schema_enabled = True
                 is_config_hash_enabled = True
+                is_token_feedback_enabled = True
             else:
                 disabled_endpoints_ = set(name.lower() for name in disabled_endpoints)
                 if disabled_endpoints_ - KNOWN_ENDPOINTS:
@@ -142,6 +149,7 @@ class _EndpointConfiguration:
                 is_output_schema_enabled = "output_schema" not in disabled_endpoints_
                 is_config_schema_enabled = "config_schema" not in disabled_endpoints_
                 is_config_hash_enabled = "config_hashes" not in disabled_endpoints_
+                is_token_feedback_enabled = "token_feedback" not in disabled_endpoints_
         else:
             enabled_endpoints_ = set(name.lower() for name in enabled_endpoints)
             if enabled_endpoints_ - KNOWN_ENDPOINTS:
@@ -158,6 +166,7 @@ class _EndpointConfiguration:
             is_output_schema_enabled = "output_schema" in enabled_endpoints_
             is_config_schema_enabled = "config_schema" in enabled_endpoints_
             is_config_hash_enabled = "config_hashes" in enabled_endpoints_
+            is_token_feedback_enabled = "token_feedback" in enabled_endpoints_
 
         self.is_invoke_enabled = is_invoke_enabled
         self.is_batch_enabled = is_batch_enabled
@@ -171,6 +180,7 @@ class _EndpointConfiguration:
         self.is_config_hash_enabled = is_config_hash_enabled
         self.is_feedback_enabled = enable_feedback_endpoint
         self.is_public_trace_link_enabled = enable_public_trace_link_endpoint
+        self.is_token_feedback_enabled = is_token_feedback_enabled
 
 
 def _register_path_for_app(
@@ -256,6 +266,7 @@ def add_routes(
     include_callback_events: bool = False,
     per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
     enable_feedback_endpoint: bool = _is_hosted(),
+    token_feedback_config: Optional[TokenFeedbackConfig] = None,
     enable_public_trace_link_endpoint: bool = False,
     disabled_endpoints: Optional[Sequence[EndpointName]] = None,
     stream_log_name_allow_list: Optional[Sequence[str]] = None,
@@ -310,6 +321,16 @@ def add_routes(
             to LangSmith. Enabled by default. If this flag is disabled or LangSmith
             tracing is not enabled for the runnable, then 400 errors will be thrown
             when accessing the feedback endpoint.
+        token_feedback_config: optional configuration for token based feedback.
+            **Attention** this is distinct from `enable_feedback_endpoint`.
+            When provided, feedback tokens will be included in the response
+            metadata that can be used to provide feedback on the run.
+            In addition, an endpoint will be created for submitting feedback
+            using the feedback tokens. This is a safer option for public facing
+            APIs as they scope the feedback to a specific run id and key
+            and include an expiration time.
+            This endpoint will be created at /token_feedback
+            **BETA**: This feature is in beta and may change in the future.
         enable_public_trace_link_endpoint: Whether to enable an endpoint for
             end-users to publicly view LangSmith traces of your chain runs.
             WARNING: THIS WILL EXPOSE THE INTERNAL STATE OF YOUR RUN AND CHAIN AS
@@ -419,6 +440,7 @@ def add_routes(
         config_keys=config_keys,
         include_callback_events=include_callback_events,
         enable_feedback_endpoint=enable_feedback_endpoint,
+        token_feedback_config=token_feedback_config,
         enable_public_trace_link_endpoint=enable_public_trace_link_endpoint,
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
@@ -714,6 +736,12 @@ def add_routes(
                 dependencies=dependencies,
                 include_in_schema=False,
             )(playground)
+
+    if endpoint_configuration.is_token_feedback_enabled:
+        app.post(
+            namespace + "/token_feedback",
+            dependencies=dependencies,
+        )(api_handler.create_feedback_from_token)
 
     if enable_feedback_endpoint:
         app.post(
