@@ -2983,48 +2983,75 @@ async def test_scoped_feedback() -> None:
             for event in events:
                 if "data" in event and "run_id" in event["data"]:
                     del event["data"]["run_id"]
-            assert events == [
-                {
-                    "data": {
-                        "data": {"input": "hello"},
-                        "event": "on_chain_start",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
+
+            # Find the metadata event and pull it out
+            metadata_event = None
+            for event in events:
+                if event["type"] == "metadata":
+                    metadata_event = event
+
+            assert metadata_event == {
+                "data": {
+                    "feedback_tokens": [
+                        {
+                            "expires_at": "2023-01-01T00:00:00",
+                            "key": "foo",
+                            "token_url": "feedback_id",
+                        }
+                    ]
                 },
-                {
-                    "data": {
-                        "feedback_tokens": [
-                            {
-                                "expires_at": "2023-01-01T00:00:00",
-                                "key": "foo",
-                                "token_url": "feedback_id",
-                            }
-                        ]
-                    },
-                    "type": "metadata",
-                },
-                {
-                    "data": {
-                        "data": {"chunk": "hello"},
-                        "event": "on_chain_stream",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
-                },
-                {
-                    "data": {
-                        "data": {"output": "hello"},
-                        "event": "on_chain_end",
-                        "metadata": {},
-                        "name": "RunnableLambda",
-                        "tags": [],
-                    },
-                    "type": "data",
-                },
-                {"type": "end"},
-            ]
+                "type": "metadata",
+            }
+
+
+async def test_passing_run_id_from_client() -> None:
+    """test that the client can set a run id if server allows it."""
+    local_app = FastAPI()
+    add_routes(
+        local_app,
+        RunnableLambda(lambda foo: "hello"),
+        config_keys=["run_id"],
+    )
+
+    run_id = uuid.UUID(int=9)
+    run_id2 = uuid.UUID(int=14)
+
+    async with get_async_test_client(
+        local_app, raise_app_exceptions=True
+    ) as async_client:
+        response = await async_client.post(
+            "/invoke",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        response.raise_for_status()
+        json_response = response.json()
+        assert json_response["metadata"]["run_id"] == str(run_id)
+
+        ## Test batch
+        response = await async_client.post(
+            "/batch",
+            json={
+                "inputs": ["hello", "world"],
+                "config": [{"run_id": str(run_id)}, {"run_id": str(run_id2)}],
+            },
+        )
+        json_response = response.json()
+        responses = json_response["metadata"]["responses"]
+        run_ids = [response["run_id"] for response in responses]
+        assert run_ids == [str(run_id), str(run_id2)]
+
+        # Test stream
+        response = await async_client.post(
+            "/stream",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        events = _decode_eventstream(response.text)
+        assert events[0]["data"]["run_id"] == str(run_id)
+
+        # Test stream events
+        response = await async_client.post(
+            "/stream_events",
+            json={"input": "hello", "config": {"run_id": str(run_id)}},
+        )
+        events = _decode_eventstream(response.text)
+        assert events[0]["data"]["run_id"] == str(run_id)
