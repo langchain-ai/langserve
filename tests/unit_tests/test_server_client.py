@@ -3056,3 +3056,11 @@ async def test_passing_run_id_from_client() -> None:
         )
         events = _decode_eventstream(response.text)
         assert events[0]["data"]["run_id"] == str(run_id)
+
+
+async def test_passing_bad_runnable_to_add_routes() -> None:
+    """test passing a bad type."""
+    with pytest.raises(TypeError) as e:
+        add_routes(FastAPI(), "not a runnable")
+
+    assert e.match("Expected a Runnable, got <class 'str'>")

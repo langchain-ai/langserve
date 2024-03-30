@@ -392,6 +392,15 @@ def add_routes(
               the README in langserve for more details about constraints (e.g.,
               which message types are supported etc.)
     """  # noqa: E501
+    if not isinstance(runnable, Runnable):
+        raise TypeError(
+            f"Expected a Runnable, got {type(runnable)}. "
+            f"The second argument to add_routes should be a Runnable instance."
+            f"add_route(app, runnable, ...) is the correct usage."
+            f"Please make sure that you are using a runnable which is an instance of "
+            f"langchain_core.runnables.Runnable."
+        )
+
     endpoint_configuration = _EndpointConfiguration(
         enabled_endpoints=enabled_endpoints,
         disabled_endpoints=disabled_endpoints,
