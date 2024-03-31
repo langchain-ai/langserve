@@ -1,5 +1,4 @@
 """Test the playground API."""
-from asyncio import AbstractEventLoop
 
 from fastapi import APIRouter, FastAPI
 from httpx import AsyncClient
