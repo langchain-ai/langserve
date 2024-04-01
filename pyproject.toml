@@ -46,11 +46,11 @@ sse-starlette = "^1.3.0"
 
 [tool.poetry.extras]
 # Extras that are used for client
-client = ["httpx-sse"]
+client = []
 # Extras that are used for server
 server = ["sse-starlette", "fastapi"]
 # All
-all = ["httpx-sse", "sse-starlette", "fastapi"]
+all = ["sse-starlette", "fastapi"]
 
 [tool.ruff]
 select = [
