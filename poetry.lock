@@ -1014,17 +1014,6 @@ http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
 
 [[package]]
-name = "httpx-sse"
-version = "0.4.0"
-description = "Consume Server-Sent Event (SSE) messages with HTTPX."
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "httpx-sse-0.4.0.tar.gz", hash = "sha256:1e81a3a3070ce322add1d3529ed42eb5f70817f45ed6ec915ab753f961139721"},
-    {file = "httpx_sse-0.4.0-py3-none-any.whl", hash = "sha256:f329af6eae57eaa2bdfd962b42524764af68075ea87370a2de920af5341e318f"},
-]
-
-[[package]]
 name = "idna"
 version = "3.6"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -3762,4 +3751,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "880643c0bae664347320a0b9db10ee83bba316bb7cf6aeabe0ee91b1d30aa168"
+content-hash = "999ecb80bde71edf92b09ce61dbae717cf5b9cfca475c746f4c2c80a4cb6fc99"
