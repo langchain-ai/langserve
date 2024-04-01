@@ -801,6 +801,31 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
         }
 
 
+async def test_streaming_with_errors() -> None:
+    from langchain_core.runnables import RunnableGenerator
+
+    async def with_errors(inputs: dict) -> AsyncIterator[int]:
+        yield 1
+        raise ValueError("Error")
+        yield 2
+
+    app = FastAPI()
+    add_routes(app, RunnableGenerator(with_errors), path="/with_errors")
+
+    async with get_async_remote_runnable(
+        app, path="/with_errors", raise_app_exceptions=False
+    ) as runnable:
+        chunks = []
+
+        with pytest.raises(httpx.HTTPStatusError) as e:
+            async for chunk in runnable.astream(1):
+                chunks.append(chunk)
+
+        # Check that first chunk was received
+        assert chunks == [1]
+        assert e.value.response.status_code == 500
+
+
 async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
     """Test async stream with an allowlist."""
 
