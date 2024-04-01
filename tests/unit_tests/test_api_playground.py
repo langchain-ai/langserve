@@ -46,7 +46,8 @@ async def test_serve_playground_with_api_router() -> None:
         response = await client.get("/langserve_runnables/chat/playground/index.html")
         assert response.status_code == 200
         assert (
-            'src="/langserve_runnables/chat/playground/assets/' in response.content.decode()
+            'src="/langserve_runnables/chat/playground/assets/'
+            in response.content.decode()
         ), "html should contain reference to valid playground assets path"
 
 
