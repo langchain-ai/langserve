@@ -380,26 +380,18 @@ async def test_server_async(app: FastAPI) -> None:
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test bad stream requests
         response = await async_client.post("/stream", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
     # test stream_log bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         response = await async_client.post("/stream_log", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream_log", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
 
 async def test_server_astream_events(app: FastAPI) -> None:
@@ -455,14 +447,10 @@ async def test_server_astream_events(app: FastAPI) -> None:
     # test stream_events with bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         response = await async_client.post("/stream_events", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream_events", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
 
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
@@ -811,6 +799,31 @@ async def test_astream_log(async_remote_runnable: RemoteRunnable) -> None:
             "type": "chain",
             "name": "add_one",
         }
+
+
+async def test_streaming_with_errors() -> None:
+    from langchain_core.runnables import RunnableGenerator
+
+    async def with_errors(inputs: dict) -> AsyncIterator[int]:
+        yield 1
+        raise ValueError("Error")
+        yield 2
+
+    app = FastAPI()
+    add_routes(app, RunnableGenerator(with_errors), path="/with_errors")
+
+    async with get_async_remote_runnable(
+        app, path="/with_errors", raise_app_exceptions=False
+    ) as runnable:
+        chunks = []
+
+        with pytest.raises(httpx.HTTPStatusError) as e:
+            async for chunk in runnable.astream(1):
+                chunks.append(chunk)
+
+        # Check that first chunk was received
+        assert chunks == [1]
+        assert e.value.response.status_code == 500
 
 
 async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
@@ -1958,10 +1971,14 @@ async def test_per_request_config_modifier_endpoints(
             else:
                 raise ValueError(f"Unknown endpoint {endpoint}")
 
-            if endpoint in {"invoke", "batch"}:
+            if endpoint in {
+                "invoke",
+                "batch",
+                "stream",
+                "stream_log",
+                "astream_events",
+            }:
                 assert response.status_code == 500
-            elif endpoint in {"stream", "stream_log"}:
-                assert '"status_code": 500' in response.text
             else:
                 assert response.status_code != 500
 

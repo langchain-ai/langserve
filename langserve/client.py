@@ -45,6 +45,7 @@ from langserve.serialization import (
     WellKnownLCSerializer,
     load_events,
 )
+from langserve.server_sent_events import aconnect_sse, connect_sse
 
 logger = logging.getLogger(__name__)
 
@@ -524,24 +525,16 @@ class RemoteRunnable(Runnable[Input, Output]):
         endpoint = urljoin(self.url, "stream")
 
         try:
-            from httpx_sse import connect_sse
-        except ImportError:
-            raise ImportError(
-                "Missing `httpx_sse` dependency to use the stream method. "
-                "Install via `pip install httpx_sse`'"
-            )
-
-        try:
             with connect_sse(
                 self.sync_client, "POST", endpoint, json=data
             ) as event_source:
                 for sse in event_source.iter_sse():
-                    if sse.event == "data":
-                        chunk = self._lc_serializer.loads(sse.data)
+                    if sse["event"] == "data":
+                        chunk = self._lc_serializer.loads(sse["data"])
                         if isinstance(chunk, dict):
                             # Any dict returned from streaming end point
                             # is assumed to follow additive semantics
-                            # and will be converted to an AddableDict
+                            # and will be coverted to an AddableDict
                             # automatically
                             chunk = AddableDict(chunk)
                         yield chunk
@@ -563,21 +556,21 @@ class RemoteRunnable(Runnable[Input, Output]):
                                 except TypeError:
                                     final_output = None
                                     final_output_supported = False
-                    elif sse.event == "error":
+                    elif sse["event"] == "error":
                         # This can only be a server side error
                         _raise_exception_from_data(
-                            sse.data, httpx.Request(method="POST", url=endpoint)
+                            sse["data"], httpx.Request(method="POST", url=endpoint)
                         )
-                    elif sse.event == "metadata":
+                    elif sse["event"] == "metadata":
                         # Nothing to do for metadata for the regular remote client.
                         continue
-                    elif sse.event == "end":
+                    elif sse["event"] == "end":
                         break
                     else:
                         _log_error_message_once(
-                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Encountered an unsupported event type: `{sse['event']}`. "
                             f"Try upgrading the remote client to the latest version."
-                            f"Ignoring events of type `{sse.event}`."
+                            f"Ignoring events of type `{sse['event']}`."
                         )
         except BaseException as e:
             run_manager.on_chain_error(e)
@@ -610,17 +603,12 @@ class RemoteRunnable(Runnable[Input, Output]):
         endpoint = urljoin(self.url, "stream")
 
         try:
-            from httpx_sse import aconnect_sse
-        except ImportError:
-            raise ImportError("You must install `httpx_sse` to use the stream method.")
-
-        try:
             async with aconnect_sse(
                 self.async_client, "POST", endpoint, json=data
             ) as event_source:
                 async for sse in event_source.aiter_sse():
-                    if sse.event == "data":
-                        chunk = self._lc_serializer.loads(sse.data)
+                    if sse["event"] == "data":
+                        chunk = self._lc_serializer.loads(sse["data"])
                         if isinstance(chunk, dict):
                             # Any dict returned from streaming end point
                             # is assumed to follow additive semantics
@@ -647,21 +635,21 @@ class RemoteRunnable(Runnable[Input, Output]):
                                     final_output = None
                                     final_output_supported = False
 
-                    elif sse.event == "error":
+                    elif sse["event"] == "error":
                         # This can only be a server side error
                         _raise_exception_from_data(
-                            sse.data, httpx.Request(method="POST", url=endpoint)
+                            sse["data"], httpx.Request(method="POST", url=endpoint)
                         )
-                    elif sse.event == "metadata":
+                    elif sse["event"] == "metadata":
                         # Nothing to do for metadata for the regular remote client.
                         continue
-                    elif sse.event == "end":
+                    elif sse["event"] == "end":
                         break
                     else:
                         _log_error_message_once(
-                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Encountered an unsupported event type: `{sse['event']}`. "
                             f"Try upgrading the remote client to the latest version."
-                            f"Ignoring events of type `{sse.event}`."
+                            f"Ignoring events of type `{sse['event']}`."
                         )
         except BaseException as e:
             await run_manager.on_chain_error(e)
@@ -719,17 +707,12 @@ class RemoteRunnable(Runnable[Input, Output]):
         endpoint = urljoin(self.url, "stream_log")
 
         try:
-            from httpx_sse import aconnect_sse
-        except ImportError:
-            raise ImportError("You must install `httpx_sse` to use the stream method.")
-
-        try:
             async with aconnect_sse(
                 self.async_client, "POST", endpoint, json=data
             ) as event_source:
                 async for sse in event_source.aiter_sse():
-                    if sse.event == "data":
-                        data = self._lc_serializer.loads(sse.data)
+                    if sse["event"] == "data":
+                        data = self._lc_serializer.loads(sse["data"])
                         # Create a copy of the data to yield since underlying
                         # code is using jsonpatch which does some stuff in-place
                         # that can cause unexpected consequences.
@@ -741,18 +724,18 @@ class RemoteRunnable(Runnable[Input, Output]):
                             final_output += chunk
                         else:
                             final_output = chunk
-                    elif sse.event == "error":
+                    elif sse["event"] == "error":
                         # This can only be a server side error
                         _raise_exception_from_data(
-                            sse.data, httpx.Request(method="POST", url=endpoint)
+                            sse["data"], httpx.Request(method="POST", url=endpoint)
                         )
-                    elif sse.event == "end":
+                    elif sse["event"] == "end":
                         break
                     else:
                         _log_error_message_once(
-                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Encountered an unsupported event type: `{sse['event']}`. "
                             f"Try upgrading the remote client to the latest version."
-                            f"Ignoring events of type `{sse.event}`."
+                            f"Ignoring events of type `{sse['event']}`."
                         )
         except BaseException as e:
             await run_manager.on_chain_error(e)
@@ -822,36 +805,34 @@ class RemoteRunnable(Runnable[Input, Output]):
             "exclude_tags": exclude_tags,
         }
         endpoint = urljoin(self.url, "stream_events")
-
-        try:
-            from httpx_sse import aconnect_sse
-        except ImportError:
-            raise ImportError("You must install `httpx_sse` to use the stream method.")
+        headers = kwargs.pop("headers", {})
+        headers["Accept"] = "text/event-stream"
+        headers["Cache-Control"] = "no-store"
 
         try:
             async with aconnect_sse(
                 self.async_client, "POST", endpoint, json=data
             ) as event_source:
                 async for sse in event_source.aiter_sse():
-                    if sse.event == "data":
-                        event = self._lc_serializer.loads(sse.data)
+                    if sse["event"] == "data":
+                        event = self._lc_serializer.loads(sse["data"])
                         # Create a copy of the data to yield since underlying
                         # code is using jsonpatch which does some stuff in-place
                         # that can cause unexpected consequences.
                         yield event
                         events.append(event)
-                    elif sse.event == "error":
+                    elif sse["event"] == "error":
                         # This can only be a server side error
                         _raise_exception_from_data(
-                            sse.data, httpx.Request(method="POST", url=endpoint)
+                            sse["data"], httpx.Request(method="POST", url=endpoint)
                         )
-                    elif sse.event == "end":
+                    elif sse["event"] == "end":
                         break
                     else:
                         _log_error_message_once(
-                            f"Encountered an unsupported event type: `{sse.event}`. "
+                            f"Encountered an unsupported event type: `{sse['event']}`. "
                             f"Try upgrading the remote client to the latest version."
-                            f"Ignoring events of type `{sse.event}`."
+                            f"Ignoring events of type `{sse['event']}`."
                         )
         except BaseException as e:
             await run_manager.on_chain_error(e)
