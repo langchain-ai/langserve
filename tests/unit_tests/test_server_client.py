@@ -1946,10 +1946,14 @@ async def test_per_request_config_modifier_endpoints(
             else:
                 raise ValueError(f"Unknown endpoint {endpoint}")
 
-            if endpoint in {"invoke", "batch"}:
+            if endpoint in {
+                "invoke",
+                "batch",
+                "stream",
+                "stream_log",
+                "astream_events",
+            }:
                 assert response.status_code == 500
-            elif endpoint in {"stream", "stream_log"}:
-                assert '"status_code": 500' in response.text
             else:
                 assert response.status_code != 500
 
