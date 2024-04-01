@@ -380,26 +380,18 @@ async def test_server_async(app: FastAPI) -> None:
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test bad stream requests
         response = await async_client.post("/stream", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
     # test stream_log bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         response = await async_client.post("/stream_log", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream_log", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
 
 async def test_server_astream_events(app: FastAPI) -> None:
@@ -455,14 +447,10 @@ async def test_server_astream_events(app: FastAPI) -> None:
     # test stream_events with bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         response = await async_client.post("/stream_events", data="bad json []")
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
         response = await async_client.post("/stream_events", json={})
-        stream_events = _decode_eventstream(response.text)
-        assert stream_events[0]["type"] == "error"
-        assert stream_events[0]["data"]["status_code"] == 422
+        assert response.status_code == 422
 
 
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
