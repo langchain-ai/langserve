@@ -116,7 +116,7 @@ class BaseFeedback(BaseModel):
 class FeedbackCreateRequestTokenBased(BaseModel):
     """Shared information between create requests of feedback and feedback objects."""
 
-    token_or_url: UUID
+    token_or_url: Union[UUID, str]
     """The associated run ID this feedback is logged for."""
 
     score: Optional[Union[float, int, bool]] = None

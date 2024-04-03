@@ -477,11 +477,6 @@ _MODEL_REGISTRY = {}
 _SEEN_NAMES = set()
 
 
-def _is_scoped_feedback_enabled() -> bool:
-    """Temporary hard-coded as False. Used only to enable during unit tests."""
-    return False
-
-
 class PerKeyFeedbackConfig(TypedDict):
     """Per feedback configuration.
 
@@ -650,7 +645,8 @@ class APIHandler:
         # remember to make relevant updates in the unit tests.
         self._langsmith_client = (
             ls_client.Client()
-            if tracing_is_enabled() and enable_feedback_endpoint
+            if tracing_is_enabled()
+            and (enable_feedback_endpoint or self._token_feedback_enabled)
             else None
         )
 
@@ -1181,6 +1177,7 @@ class APIHandler:
                 endpoint="stream_log",
                 server_config=server_config,
             )
+            run_id = config["run_id"]
         except BaseException:
             # Exceptions will be properly translated by default FastAPI middleware
             # to either 422 (on input validation) or 500 internal server errors.
@@ -1194,8 +1191,25 @@ class APIHandler:
         except RequestValidationError:
             raise
 
+        feedback_key: Optional[str]
+
+        if self._token_feedback_enabled:
+            # Create task to create a presigned feedback token
+            feedback_key: str = self._token_feedback_config["key_configs"][0]["key"]
+            feedback_coro = run_in_executor(
+                None,
+                self._langsmith_client.create_presigned_feedback_token,
+                run_id,
+                feedback_key,
+            )
+            task: Optional[asyncio.Task] = asyncio.create_task(feedback_coro)
+        else:
+            feedback_key = None
+            task = None
+
         async def _stream_log() -> AsyncIterator[dict]:
             """Stream the output of the runnable."""
+            has_sent_metadata = False
             try:
                 async for chunk in self._runnable.astream_log(
                     input_,
@@ -1229,6 +1243,18 @@ class APIHandler:
                             "data": self._serializer.dumps(data).decode("utf-8"),
                             "event": "data",
                         }
+
+                    # Send a metadata event as soon as possible
+                    if not has_sent_metadata and self._enable_feedback_endpoint:
+                        if task is None:
+                            raise AssertionError("Feedback token task was not created.")
+                        if not task.done():
+                            continue
+                        feedback_token = task.result()
+                        yield _create_metadata_event(
+                            run_id, feedback_key, feedback_token
+                        )
+                        has_sent_metadata = True
                 yield {"event": "end"}
             except BaseException:
                 yield {

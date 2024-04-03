@@ -2796,19 +2796,14 @@ async def test_remote_configurable_remote_runnable() -> None:
 async def get_langsmith_client() -> AsyncIterator[MagicMock]:
     """Get a patched langsmith client."""
     with patch("langserve.api_handler.ls_client") as mocked_ls_client_package:
-        with patch("langserve.api_handler._is_scoped_feedback_enabled") as f:
-            # Enable scoped feedback for now.
-            f.return_value = True
-            with patch(
-                "langserve.api_handler.tracing_is_enabled"
-            ) as tracing_is_enabled:
-                tracing_is_enabled.return_value = True
-                mocked_client = MagicMock(auto_spec=Client)
-                mocked_ls_client_package.Client.return_value = mocked_client
-                yield mocked_client
+        with patch("langserve.api_handler.tracing_is_enabled") as tracing_is_enabled:
+            tracing_is_enabled.return_value = True
+            mocked_client = MagicMock(auto_spec=Client)
+            mocked_ls_client_package.Client.return_value = mocked_client
+            yield mocked_client
 
 
-async def test_scoped_feedback() -> None:
+async def test_token_feedback_included_in_responses() -> None:
     """Test that information to leave scoped feedback is passed to the client
     is present in the server response.
     """
@@ -2954,6 +2949,35 @@ async def test_scoped_feedback() -> None:
                 "type": "metadata",
             }
 
+            # Test astream log
+            response = await async_client.post(
+                "/stream_log",
+                json={"input": "hello"},
+            )
+            events = _decode_eventstream(response.text)
+            for event in events:
+                if "data" in event and "run_id" in event["data"]:
+                    del event["data"]["run_id"]
+
+            # Find the metadata event and pull it out
+            metadata_event = None
+            for event in events:
+                if event["type"] == "metadata":
+                    metadata_event = event
+
+            assert metadata_event == {
+                "data": {
+                    "feedback_tokens": [
+                        {
+                            "expires_at": "2023-01-01T00:00:00",
+                            "key": "foo",
+                            "token_url": "feedback_id",
+                        }
+                    ]
+                },
+                "type": "metadata",
+            }
+
 
 async def test_passing_run_id_from_client() -> None:
     """test that the client can set a run id if server allows it."""
@@ -3014,3 +3038,37 @@ async def test_passing_bad_runnable_to_add_routes() -> None:
         add_routes(FastAPI(), "not a runnable")
 
     assert e.match("Expected a Runnable, got <class 'str'>")
+
+
+async def test_token_feedback_endpoint() -> None:
+    """Tests that the feedback endpoint can accept feedback to langsmith."""
+    async with get_langsmith_client() as client:
+        local_app = FastAPI()
+        add_routes(
+            local_app,
+            RunnableLambda(lambda foo: "hello"),
+            token_feedback_config={
+                "key_configs": [
+                    {
+                        "key": "silliness",
+                    }
+                ]
+            },
+        )
+
+        async with get_async_test_client(
+            local_app, raise_app_exceptions=True
+        ) as async_client:
+            response = await async_client.post(
+                "/token_feedback", json={"token_or_url": "some_url", "score": 3}
+            )
+            assert response.status_code == 200
+
+            call = client.create_feedback_from_token.call_args
+            assert call.args[0] == "some_url"
+            assert call.kwargs == {
+                "comment": None,
+                "metadata": {"from_langserve": True},
+                "score": 3,
+                "value": None,
+            }
