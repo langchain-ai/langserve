@@ -1136,10 +1136,18 @@ def serve(
         serve(chain)
         ```
     """
-    import uvicorn
-    from fastapi import FastAPI
+    import socket
 
-    app = FastAPI()
+    try:
+        import fastapi
+        import uvicorn
+    except ImportError as e:
+        raise ImportError(
+            "To use the `serve` function, you must install the `server` extra. "
+            "You can do this by running `pip install langserve[server]`."
+        ) from e
+
+    app = fastapi.FastAPI()
     if isinstance(runnables, Runnable):
         runnables = {"": runnables}
     for path, runnable in runnables.items():
@@ -1150,6 +1158,18 @@ def serve(
         loop_on = True
     except RuntimeError:
         loop_on = False
+
+    with socket.socket() as s:
+        try:
+            s.connect((host, port))
+            port_in_use = True
+        except ConnectionRefusedError:
+            port_in_use = False
+
+    if port_in_use:
+        raise RuntimeError(
+            f"Port {port} is already in use. Please choose a different port or host."
+        )
 
     if loop_on:
         config = uvicorn.Config(app, host=host, port=port)
