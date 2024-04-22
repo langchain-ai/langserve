@@ -1123,6 +1123,10 @@ def serve(
         port: The port to bind the server to. Defaults to 8000.
         kwargs: (Advanced) Additional arguments to pass to add_routes().
 
+    Returns:
+        If the event loop is running, returns an asyncio task for the server.
+        Otherwise, starts the server and blocks until it is interrupted.
+
     Example:
         ```python
         from langserve import Runnable, serve
