@@ -8,6 +8,7 @@ FastAPI app or APIRouter.
 import weakref
 from typing import (
     Any,
+    Dict,
     Literal,
     Optional,
     Sequence,
@@ -1104,3 +1105,22 @@ def add_routes(
                     ),
                     dependencies=dependencies,
                 )(_stream_events_docs)
+
+
+def serve(
+    runnables: Union[Runnable, Dict[str, Runnable]],
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **kwargs: Any,
+) -> None:
+    import uvicorn
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    if isinstance(runnables, Runnable):
+        runnables = {"": runnables}
+    for path, runnable in runnables.items():
+        add_routes(app, runnable, path=path, **kwargs)
+
+    uvicorn.run(app, host=host, port=port)
