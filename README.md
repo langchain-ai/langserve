@@ -28,11 +28,11 @@ in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 - Input and Output schemas automatically inferred from your LangChain object, and
   enforced on every API call, with rich error messages
 - API docs page with JSONSchema and Swagger (insert example link)
-- Efficient `/invoke/`, `/batch/` and `/stream/` endpoints with support for many
+- Efficient `/invoke`, `/batch` and `/stream` endpoints with support for many
   concurrent requests on a single server
-- `/stream_log/` endpoint for streaming all (or some) intermediate steps from your
+- `/stream_log` endpoint for streaming all (or some) intermediate steps from your
   chain/agent
-- **new** as of 0.0.40, supports `astream_events` to make it easier to stream without needing to parse the output of `stream_log`.
+- **new** as of 0.0.40, supports `/stream_events` to make it easier to stream without needing to parse the output of `/stream_log`.
 - Playground page at `/playground/` with streaming output and intermediate steps
 - Built-in (optional) tracing to [LangSmith](https://www.langchain.com/langsmith), just
   add your API key (see [Instructions](https://docs.smith.langchain.com/))
@@ -58,7 +58,7 @@ to get on the waitlist.
 
 ## Security
 
-* Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing
+- Vulnerability in Versions 0.0.13 - 0.0.15 -- playground endpoint allows accessing
   arbitrary files on
   server. [Resolved in 0.0.16](https://github.com/langchain-ai/langserve/pull/98).
 
@@ -79,34 +79,40 @@ Use the `LangChain` CLI to bootstrap a `LangServe` project quickly.
 
 To use the langchain CLI make sure that you have a recent version of `langchain-cli`
 installed. You can install it with `pip install -U langchain-cli`.
+
 ## Setup
+
 **Note**: We use `poetry` for dependency management. Please follow poetry [doc](https://python-poetry.org/docs/) to learn more about it.
 
 ### 1. Create new app using langchain cli command
+
 ```sh
 langchain app new my-app
 ```
 
 ### 2. Define the runnable in add_routes. Go to server.py and edit
+
 ```sh
 add_routes(app. NotImplemented)
 ```
 
 ### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral etc).
+
 ```sh
 poetry add [package-name] // e.g `poetry add langchain-openai`
 ```
 
 ### 4. Set up relevant env variables. For example,
+
 ```sh
 export OPENAI_API_KEY="sk-..."
 ```
 
 ### 5. Serve your app
+
 ```sh
 poetry run langchain serve --port=8100
 ```
-
 
 ## Examples
 
@@ -119,24 +125,24 @@ or the [examples](https://github.com/langchain-ai/langserve/tree/main/examples)
 directory.
 
 | Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                               |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **LLMs** Minimal example that reserves OpenAI and Anthropic chat models. Uses async, supports batching and streaming.                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/llm/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/llm/client.ipynb)                                                       | 
-| **Retriever** Simple server that exposes a retriever as a runnable.                                                                                                                                                                                                | [server](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/client.ipynb)                                           | 
-| **Conversational Retriever** A [Conversational Retriever](https://python.langchain.com/docs/expression_language/cookbook/retrieval#conversational-retrieval-chain) exposed via LangServe                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/client.ipynb) | 
-| **Agent** without **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                             | [server](https://github.com/langchain-ai/langserve/tree/main/examples/agent/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/agent/client.ipynb)                                                   | 
-| **Agent** with **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                                               | [server](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/client.ipynb)                         | 
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLMs** Minimal example that reserves OpenAI and Anthropic chat models. Uses async, supports batching and streaming.                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/llm/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/llm/client.ipynb)                                                       |
+| **Retriever** Simple server that exposes a retriever as a runnable.                                                                                                                                                                                                | [server](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/client.ipynb)                                           |
+| **Conversational Retriever** A [Conversational Retriever](https://python.langchain.com/docs/expression_language/cookbook/retrieval#conversational-retrieval-chain) exposed via LangServe                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/client.ipynb) |
+| **Agent** without **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                                            | [server](https://github.com/langchain-ai/langserve/tree/main/examples/agent/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/agent/client.ipynb)                                                   |
+| **Agent** with **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                                               | [server](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/client.ipynb)                         |
 | [RunnableWithMessageHistory](https://python.langchain.com/docs/expression_language/how_to/message_history) to implement chat persisted on backend, keyed off a `session_id` supplied by client.                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/client.ipynb)                   |
-| [RunnableWithMessageHistory](https://python.langchain.com/docs/expression_language/how_to/message_history) to implement chat persisted on backend, keyed off a `conversation_id` supplied by client, and `user_id` (see Auth for implementing `user_id` properly). | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/client.ipynb) | 
-| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) to create a retriever that supports run time configuration of the index name.                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/client.ipynb)                 | 
-| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) that shows configurable fields and configurable alternatives.                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/client.ipynb)                         | 
+| [RunnableWithMessageHistory](https://python.langchain.com/docs/expression_language/how_to/message_history) to implement chat persisted on backend, keyed off a `conversation_id` supplied by client, and `user_id` (see Auth for implementing `user_id` properly). | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/client.ipynb) |
+| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) to create a retriever that supports run time configuration of the index name.                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/client.ipynb)                 |
+| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) that shows configurable fields and configurable alternatives.                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/client.ipynb)                         |
 | **APIHandler** Shows how to use `APIHandler` instead of `add_routes`. This provides more flexibility for developers to define endpoints. Works well with all FastAPI patterns, but takes a bit more effort.                                                        | [server](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/server.py)                                                                                                                               |
-| **LCEL Example** Example that uses LCEL to manipulate a dictionary input.                                                                                                                                                                                          | [server](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/client.ipynb)                          | 
-| **Auth** with `add_routes`: Simple authentication that can be applied across all endpoints associated with app. (Not useful on its own for implementing per user logic.)                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/global_deps/server.py)                                                                                                                                   | 
-| **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                             | 
-| **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.)                                                                                 | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb)     | 
-| **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)                             | 
-| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py)                                                                                                                                            | 
-| **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               | 
+| **LCEL Example** Example that uses LCEL to manipulate a dictionary input.                                                                                                                                                                                          | [server](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/client.ipynb)                             |
+| **Auth** with `add_routes`: Simple authentication that can be applied across all endpoints associated with app. (Not useful on its own for implementing per user logic.)                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/global_deps/server.py)                                                                                                                                   |
+| **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                             |
+| **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.)                                                                                 | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb)     |
+| **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)                             |
+| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py)                                                                                                                                |
+| **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               |
 
 ## Sample Application
 
@@ -206,8 +212,8 @@ app.add_middleware(
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
 
-> ⚠️ If using pydantic v2, docs will not be generated for *invoke*, *batch*, *stream*,
-*stream_log*. See [Pydantic](#pydantic) section below for more details.
+> ⚠️ If using pydantic v2, docs will not be generated for _invoke_, _batch_, _stream_,
+> _stream_log_. See [Pydantic](#pydantic) section below for more details.
 
 ```sh
 curl localhost:8000/docs
@@ -267,10 +273,10 @@ In TypeScript (requires LangChain.js version 0.0.166 or later):
 import { RemoteRunnable } from "@langchain/core/runnables/remote";
 
 const chain = new RemoteRunnable({
-    url: `http://localhost:8000/joke/`,
+  url: `http://localhost:8000/joke/`,
 });
 const result = await chain.invoke({
-    topic: "cats",
+  topic: "cats",
 });
 ```
 
@@ -319,7 +325,7 @@ adds of these endpoints to the server:
 - `POST /my_runnable/stream_log` - invoke on a single input and stream the output,
   including output of intermediate steps as it's generated
 - `POST /my_runnable/astream_events` - invoke on a single input and stream events as they are generated,
- including from intermediate steps.
+  including from intermediate steps.
 - `GET /my_runnable/input_schema` - json schema for input to the runnable
 - `GET /my_runnable/output_schema` - json schema for output of the runnable
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
@@ -460,27 +466,6 @@ You can deploy to GCP Cloud Run using the following command:
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
 
-### Deploy using Infrastructure as Code
-
-#### Pulumi
-
-You can deploy your LangServe server with [Pulumi](https://www.pulumi.com/) using your preferred general purpose language. Below are some quickstart 
-examples for deploying LangServe to different cloud providers.
-
-These examples are a good starting point for your own infrastructure as code (IaC) projects. You can easily modify them to suit your needs.
-
-
-| Cloud | Language   | Repository                                          | Quickstart                                                                                                                                  |
-|-------|------------|-----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| AWS   | dotnet     | https://github.com/pulumi/examples/aws-cs-langserve | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/aws-cs-langserve) |
-| AWS   | golang     | https://github.com/pulumi/examples/aws-go-langserve | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/aws-go-langserve) |
-| AWS   | python     | https://github.com/pulumi/examples/aws-py-langserve | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/aws-py-langserve) |
-| AWS   | typescript | https://github.com/pulumi/examples/aws-ts-langserve | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/aws-ts-langserve) |
-| AWS   | javascript | https://github.com/pulumi/examples/aws-js-langserve | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/aws-js-langserve) |
-
-
-
-
 ### Community Contributed
 
 #### Deploy to Railway
@@ -511,7 +496,7 @@ and [security](https://fastapi.tiangolo.com/tutorial/security/).
 
 The below examples show how to wire up authentication logic LangServe endpoints using FastAPI primitives.
 
-You are responsible for providing the actual authentication logic, the users table etc. 
+You are responsible for providing the actual authentication logic, the users table etc.
 
 If you're not sure what you're doing, you could try using an existing solution [Auth0](https://auth0.com/).
 
@@ -520,11 +505,11 @@ If you're not sure what you're doing, you could try using an existing solution [
 If you're using `add_routes`, see
 examples [here](https://github.com/langchain-ai/langserve/tree/main/examples/auth).
 
-| Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                                |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Auth** with `add_routes`: Simple authentication that can be applied across all endpoints associated with app. (Not useful on its own for implementing per user logic.)                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/global_deps/server.py)                                                                                                                                    | 
-| **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                              | 
-| **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.)                                                                                 | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb)     | 
+| Description                                                                                                                                                                        | Links                                                                                                                                                                                                                           |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth** with `add_routes`: Simple authentication that can be applied across all endpoints associated with app. (Not useful on its own for implementing per user logic.)           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/global_deps/server.py)                                                                                                                               |
+| **Auth** with `add_routes`: Simple authentication mechanism based on path dependencies. (No useful on its own for implementing per user logic.)                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/path_dependencies/server.py)                                                                                                                         |
+| **Auth** with `add_routes`: Implement per user logic and auth for endpoints that use per request config modifier. (**Note**: At the moment, does not integrate with OpenAPI docs.) | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/per_req_config_modifier/client.ipynb) |
 
 Alternatively, you can use FastAPI's [middleware](https://fastapi.tiangolo.com/tutorial/middleware/).
 
@@ -544,10 +529,10 @@ authorization purposes.
 
 If you feel comfortable with FastAPI and python, you can use LangServe's [APIHandler](https://github.com/langchain-ai/langserve/blob/main/examples/api_handler_examples/server.py).
 
-| Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                                |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)                             | 
-| **APIHandler** Shows how to use `APIHandler` instead of `add_routes`. This provides more flexibility for developers to define endpoints. Works well with all FastAPI patterns, but takes a bit more effort.                                                        | [server](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/client.ipynb)                     |
+| Description                                                                                                                                                                                                 | Links                                                                                                                                                                                                           |
+| :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth** with `APIHandler`: Implement per user logic and auth that shows how to search only within user owned documents.                                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/auth/api_handler/client.ipynb)         |
+| **APIHandler** Shows how to use `APIHandler` instead of `add_routes`. This provides more flexibility for developers to define endpoints. Works well with all FastAPI patterns, but takes a bit more effort. | [server](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/client.ipynb) |
 
 It's a bit more work, but gives you complete control over the endpoint definitions, so
 you can do whatever custom logic you need for auth.
@@ -616,8 +601,8 @@ add_routes(app, runnable)
 Inherit from `CustomUserType` if you want the data to de-serialize into a
 pydantic model rather than the equivalent dict representation.
 
-At the moment, this type only works *server* side and is used
-to specify desired *decoding* behavior. If inheriting from this type
+At the moment, this type only works _server_ side and is used
+to specify desired _decoding_ behavior. If inheriting from this type
 the server will keep the decoded type as a pydantic model instead
 of converting it into a dict.
 
@@ -656,10 +641,10 @@ The playground allows you to define custom widgets for your runnable from the ba
 
 Here are a few examples:
 
-| Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                                |
-|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Widgets** Different widgets that can be used with playground (file upload and chat)                                                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/client.ipynb)                                               | 
-| **Widgets** File upload widget used for LangServe playground.                                                                                                                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb)                               | 
+| Description                                                                           | Links                                                                                                                                                                                                 |
+| :------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Widgets** Different widgets that can be used with playground (file upload and chat) | [server](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/chat/tuples/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/widgets/client.ipynb)     |
+| **Widgets** File upload widget used for LangServe playground.                         | [server](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/file_processing/client.ipynb) |
 
 #### Schema
 
@@ -675,8 +660,8 @@ type NameSpacedPath = { title: string; path: JsonPath }; // Using title to mimic
 type OneOfPath = { oneOf: JsonPath[] };
 
 type Widget = {
-    type: string // Some well known type (e.g., base64file, chat etc.)
-    [key: string]: JsonPath | NameSpacedPath | OneOfPath;
+  type: string; // Some well known type (e.g., base64file, chat etc.)
+  [key: string]: JsonPath | NameSpacedPath | OneOfPath;
 };
 ```
 
@@ -734,9 +719,9 @@ at the [widget example](https://github.com/langchain-ai/langserve/tree/main/exam
 
 To define a chat widget, make sure that you pass "type": "chat".
 
-* "input" is JSONPath to the field in the *Request* that has the new input message.
-* "output" is JSONPath to the field in the *Response* that has new output message(s).
-* Don't specify these fields if the entire input or output should be used as they are (
+- "input" is JSONPath to the field in the _Request_ that has the new input message.
+- "output" is JSONPath to the field in the _Response_ that has new output message(s).
+- Don't specify these fields if the entire input or output should be used as they are (
   e.g., if the output is a list of chat messages.)
 
 Here's a snippet:
@@ -776,6 +761,7 @@ add_routes(
 ```
 
 Example widget:
+
 <p align="center">
 <img src="https://github.com/langchain-ai/langserve/assets/3205522/a71ff37b-a6a9-4857-a376-cf27c41d3ca4" width="50%"/>
 </p>
