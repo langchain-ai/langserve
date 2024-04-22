@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import asyncio
 import weakref
 from typing import (
     Any,
@@ -1113,7 +1114,7 @@ def serve(
     host: str = "127.0.0.1",
     port: int = 8000,
     **kwargs: Any,
-) -> None:
+) -> Optional[asyncio.Task]:
     """Start an HTTP server for 1 or more runnables.
 
     Args:
@@ -1140,4 +1141,15 @@ def serve(
     for path, runnable in runnables.items():
         add_routes(app, runnable, path=path, **kwargs)
 
-    uvicorn.run(app, host=host, port=port)
+    try:
+        asyncio.get_running_loop()
+        loop_on = True
+    except RuntimeError:
+        loop_on = False
+
+    if loop_on:
+        config = uvicorn.Config(app, host=host, port=port)
+        server = uvicorn.Server(config)
+        return asyncio.create_task(server.serve())
+    else:
+        uvicorn.run(app, host=host, port=port)
