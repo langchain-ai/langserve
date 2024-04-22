@@ -1114,6 +1114,23 @@ def serve(
     port: int = 8000,
     **kwargs: Any,
 ) -> None:
+    """Start an HTTP server for 1 or more runnables.
+
+    Args:
+        runnables: A Runnable or a dictionary of paths to Runnable.
+        host: The host to bind the server to. Defaults to "127.0.0.1".
+        port: The port to bind the server to. Defaults to 8000.
+        kwargs: (Advanced) Additional arguments to pass to add_routes().
+
+    Example:
+        ```python
+        from langserve import Runnable, serve
+
+        chain = prompt | model
+
+        serve(chain)
+        ```
+    """
     import uvicorn
     from fastapi import FastAPI
 
