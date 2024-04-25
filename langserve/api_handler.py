@@ -1245,7 +1245,7 @@ class APIHandler:
                         }
 
                     # Send a metadata event as soon as possible
-                    if not has_sent_metadata and self._enable_feedback_endpoint:
+                    if not has_sent_metadata and self._token_feedback_enabled:
                         if task is None:
                             raise AssertionError("Feedback token task was not created.")
                         if not task.done():
@@ -1354,7 +1354,7 @@ class APIHandler:
                         }
 
                     # Send a metadata event as soon as possible
-                    if not has_sent_metadata and self._enable_feedback_endpoint:
+                    if not has_sent_metadata and self._token_feedback_enabled:
                         if task is None:
                             raise AssertionError("Feedback token task was not created.")
                         if not task.done():
