@@ -43,7 +43,7 @@ model = ChatOpenAI()
 
 underlying_chain = prompt | model
 
-wrapped_chain = RunnableMap(
+wrapped_chain = RunnableParallel(
     {
         "output": _create_projection(exclude_keys=["info"]) | underlying_chain,
         "info": _create_projection(include_keys=["info"]),
