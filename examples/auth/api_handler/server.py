@@ -35,7 +35,6 @@ from typing import Any, List, Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from langchain_community.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.runnables import (
@@ -44,6 +43,7 @@ from langchain_core.runnables import (
     RunnableSerializable,
 )
 from langchain_core.vectorstores import VectorStore
+from langchain_openai import OpenAIEmbeddings
 from typing_extensions import Annotated
 
 from langserve import APIHandler

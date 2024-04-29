@@ -2,7 +2,8 @@
 """Example LangChain server exposes multiple runnables (LLMs in this case)."""
 
 from fastapi import FastAPI
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
 

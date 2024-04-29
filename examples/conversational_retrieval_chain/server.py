@@ -13,14 +13,11 @@ from operator import itemgetter
 from typing import List, Tuple
 
 from fastapi import FastAPI
-from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate
-from langchain.prompts.prompt import PromptTemplate
-from langchain.schema import format_document
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableMap, RunnablePassthrough
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate, format_document
+from langchain_core.runnables import RunnableMap, RunnablePassthrough
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from langserve import add_routes
 from langserve.pydantic_v1 import BaseModel, Field

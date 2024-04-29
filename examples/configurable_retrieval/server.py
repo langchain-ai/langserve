@@ -3,17 +3,18 @@
 from typing import Any, Iterable, List, Optional, Type
 
 from fastapi import FastAPI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.schema import Document
-from langchain.schema.embeddings import Embeddings
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import (
+from langchain.schema.vectorstore import VST
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import (
     ConfigurableFieldSingleOption,
     RunnableConfig,
     RunnableSerializable,
 )
-from langchain.schema.vectorstore import VST
-from langchain.vectorstores import FAISS, VectorStore
+from langchain_core.vectorstores import VectorStore
+from langchain_openai import OpenAIEmbeddings
 
 from langserve import add_routes
 from langserve.pydantic_v1 import BaseModel, Field

@@ -17,15 +17,12 @@ on the LLM and use the stream_log endpoint rather than stream endpoint.
 from typing import Any, AsyncIterator, Dict, List, Optional, cast
 
 from fastapi import FastAPI
-from langchain.agents import AgentExecutor, tool
+from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
-from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.pydantic_v1 import BaseModel
-from langchain.tools.render import format_tool_to_openai_function
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import (
     ConfigurableField,
     ConfigurableFieldSpec,
@@ -33,6 +30,9 @@ from langchain_core.runnables import (
     RunnableConfig,
 )
 from langchain_core.runnables.utils import Input, Output
+from langchain_core.tools import tool
+from langchain_core.utils.function_calling import format_tool_to_openai_function
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from langserve import add_routes
 

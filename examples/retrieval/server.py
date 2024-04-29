@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Example LangChain server exposes a retriever."""
 from fastapi import FastAPI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
 
 from langserve import add_routes
 

@@ -10,10 +10,10 @@ from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import ConfigurableField
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import ConfigurableField
+from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
 

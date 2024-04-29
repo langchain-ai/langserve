@@ -4,9 +4,9 @@
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 from fastapi import FastAPI
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnableMap, RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_openai import ChatOpenAI
 
 from langserve import add_routes
 
@@ -43,7 +43,7 @@ model = ChatOpenAI()
 
 underlying_chain = prompt | model
 
-wrapped_chain = RunnableMap(
+wrapped_chain = RunnableParallel(
     {
         "output": _create_projection(exclude_keys=["info"]) | underlying_chain,
         "info": _create_projection(include_keys=["info"]),
