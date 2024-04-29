@@ -13,13 +13,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Union
 
 from fastapi import FastAPI, HTTPException, Request
-from langchain.chat_models import ChatOpenAI
-from langchain.memory import FileChatMessageHistory
-from langchain.schema.runnable.utils import ConfigurableFieldSpec
+from langchain_community.chat_message_histories import FileChatMessageHistory
 from langchain_core import __version__
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import ConfigurableFieldSpec
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_openai import ChatOpenAI
 from typing_extensions import TypedDict
 
 from langserve import add_routes

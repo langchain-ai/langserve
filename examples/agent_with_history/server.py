@@ -26,15 +26,15 @@ Relevant LangChain documentation:
 from typing import Any, List, Union
 
 from fastapi import FastAPI
-from langchain.agents import AgentExecutor, tool
+from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_tools import (
     format_to_openai_tool_messages,
 )
 from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
-from langchain.prompts import MessagesPlaceholder
-from langchain_community.tools.convert_to_openai import format_tool_to_openai_tool
 from langchain_core.messages import AIMessage, FunctionMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
+from langchain_core.utils.function_calling import format_tool_to_openai_tool
 from langchain_openai import ChatOpenAI
 
 from langserve import add_routes

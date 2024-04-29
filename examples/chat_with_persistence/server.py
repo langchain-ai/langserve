@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Callable, Union
 
 from fastapi import FastAPI, HTTPException
-from langchain.chat_models import ChatAnthropic
-from langchain.memory import FileChatMessageHistory
+from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_message_histories import FileChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
