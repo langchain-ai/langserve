@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate, format_document
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableMap, RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from langserve import add_routes
