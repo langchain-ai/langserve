@@ -7,7 +7,7 @@ to be considered private and subject to change without notice.
 from langserve.api_handler import APIHandler
 from langserve.client import RemoteRunnable
 from langserve.schema import CustomUserType
-from langserve.server import add_routes
+from langserve.server import add_routes, serve
 from langserve.version import __version__
 
 __all__ = [
@@ -16,4 +16,5 @@ __all__ = [
     "add_routes",
     "__version__",
     "CustomUserType",
+    "serve",
 ]

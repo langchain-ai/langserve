@@ -5,9 +5,11 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import asyncio
 import weakref
 from typing import (
     Any,
+    Dict,
     Literal,
     Optional,
     Sequence,
@@ -1104,3 +1106,74 @@ def add_routes(
                     ),
                     dependencies=dependencies,
                 )(_stream_events_docs)
+
+
+def serve(
+    runnables: Union[Runnable, Dict[str, Runnable]],
+    *,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **kwargs: Any,
+) -> Optional[asyncio.Task]:
+    """Start an HTTP server for 1 or more runnables.
+
+    Args:
+        runnables: A Runnable or a dictionary of paths to Runnable.
+        host: The host to bind the server to. Defaults to "127.0.0.1".
+        port: The port to bind the server to. Defaults to 8000.
+        kwargs: (Advanced) Additional arguments to pass to add_routes().
+
+    Returns:
+        If the event loop is running, returns an asyncio task for the server.
+        Otherwise, starts the server and blocks until it is interrupted.
+
+    Example:
+        ```python
+        from langserve import Runnable, serve
+
+        chain = prompt | model
+
+        serve(chain)
+        ```
+    """
+    import socket
+
+    try:
+        import fastapi
+        import uvicorn
+    except ImportError as e:
+        raise ImportError(
+            "To use the `serve` function, you must install the `server` extra. "
+            "You can do this by running `pip install langserve[server]`."
+        ) from e
+
+    app = fastapi.FastAPI()
+    if isinstance(runnables, Runnable):
+        runnables = {"": runnables}
+    for path, runnable in runnables.items():
+        add_routes(app, runnable, path=path, **kwargs)
+
+    try:
+        asyncio.get_running_loop()
+        loop_on = True
+    except RuntimeError:
+        loop_on = False
+
+    with socket.socket() as s:
+        try:
+            s.connect((host, port))
+            port_in_use = True
+        except ConnectionRefusedError:
+            port_in_use = False
+
+    if port_in_use:
+        raise RuntimeError(
+            f"Port {port} is already in use. Please choose a different port or host."
+        )
+
+    if loop_on:
+        config = uvicorn.Config(app, host=host, port=port)
+        server = uvicorn.Server(config)
+        return asyncio.create_task(server.serve())
+    else:
+        uvicorn.run(app, host=host, port=port)
