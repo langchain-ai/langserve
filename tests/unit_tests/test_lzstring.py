@@ -22,3 +22,19 @@ def test_lzstring() -> None:
     compressed = LZString.compressToBase64(jsonString)
     assert compressed == jsLzStringBase64Json
     assert LZString.decompressFromBase64(compressed) == jsonString
+
+
+def test_lzstring_with_none_input() -> None:
+
+    assert LZString.compress(None) == ""
+    assert LZString.compressToUTF16(None) == ""
+    assert LZString.compressToBase64(None) == ""
+    assert LZString.compressToEncodedURIComponent(None) == ""
+    assert LZString.decompress(None) == ""
+    assert LZString.decompress("") is None
+    assert LZString.decompressFromUTF16(None) == ""
+    assert LZString.decompressFromUTF16("") is None
+    assert LZString.decompressFromBase64(None) == ""
+    assert LZString.decompressFromBase64("") is None
+    assert LZString.decompressFromEncodedURIComponent(None) == ""
+    assert LZString.decompressFromEncodedURIComponent("") is None
