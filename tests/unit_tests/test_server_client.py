@@ -71,6 +71,7 @@ from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
+from tests.unit_tests.utils.stubs import AnyStr
 
 try:
     from pydantic.v1 import BaseModel, Field
@@ -2558,7 +2559,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "tags": ["seq:step:2"],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="Hello")},
+                "data": {"chunk": AIMessageChunk(content="Hello", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2582,7 +2583,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "tags": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content=" ")},
+                "data": {"chunk": AIMessageChunk(content=" ", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2600,7 +2601,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "tags": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="World!")},
+                "data": {"chunk": AIMessageChunk(content="World!", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2632,7 +2633,9 @@ async def test_astream_events_with_prompt_model_parser_chain(
                             [
                                 ChatGenerationChunk(
                                     text="Hello World!",
-                                    message=AIMessageChunk(content="Hello World!"),
+                                    message=AIMessageChunk(
+                                        content="Hello World!", id=AnyStr()
+                                    ),
                                 )
                             ]
                         ],
@@ -2646,7 +2649,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
             },
             {
                 "data": {
-                    "input": AIMessageChunk(content="Hello World!"),
+                    "input": AIMessageChunk(content="Hello World!", id=AnyStr()),
                     "output": "Hello World!",
                 },
                 "event": "on_parser_end",
@@ -2784,10 +2787,13 @@ async def test_remote_configurable_remote_runnable() -> None:
         result = await chain_with_history.ainvoke(
             {"question": "hi"}, {"configurable": {"session_id": "1"}}
         )
-        assert result == AIMessage(content="Hello World!")
+        assert result == AIMessage(content="Hello World!", id=AnyStr())
         assert store == {
             "1": InMemoryHistory(
-                messages=[HumanMessage(content="hi"), AIMessage(content="Hello World!")]
+                messages=[
+                    HumanMessage(content="hi"),
+                    AIMessage(content="Hello World!", id=AnyStr()),
+                ]
             )
         }
 
