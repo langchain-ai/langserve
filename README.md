@@ -167,17 +167,17 @@ app = FastAPI(
 
 add_routes(
     app,
-    ChatOpenAI(),
+    ChatOpenAI(model="gpt-3.5-turbo-0125"),
     path="/openai",
 )
 
 add_routes(
     app,
-    ChatAnthropic(),
+    ChatAnthropic(model="claude-3-haiku-20240307"),
     path="/anthropic",
 )
 
-model = ChatAnthropic()
+model = ChatAnthropic(model="claude-3-haiku-20240307")
 prompt = ChatPromptTemplate.from_template("tell me a joke about {topic}")
 add_routes(
     app,

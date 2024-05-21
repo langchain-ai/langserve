@@ -21,13 +21,13 @@ router = APIRouter(prefix="/models")
 # Invocations to this router will appear in trace logs as /models/openai
 add_routes(
     router,
-    ChatOpenAI(),
+    ChatOpenAI(model="gpt-3.5-turbo-0125"),
     path="/openai",
 )
 # Invocations to this router will appear in trace logs as /models/anthropic
 add_routes(
     router,
-    ChatAnthropic(),
+    ChatAnthropic(model="claude-3-haiku-20240307"),
     path="/anthropic",
 )
 
