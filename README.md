@@ -474,6 +474,17 @@ gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthentic
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/pW9tXP?referralCode=c-aq4K)
 
+#### Deploy using Pluto
+
+You can deploy a LangServe app on AWS using [Pluto](https://github.com/pluto-lang/pluto) with a few
+modifications and a single command:
+
+```
+pluto deploy
+```
+
+To get started, check out the guide on [Deploying a LangServe app on AWS using Pluto](https://github.com/pluto-lang/pluto/tree/main/examples/deploy-langserve-to-aws).
+
 ## Pydantic
 
 LangServe provides support for Pydantic 2 with some limitations.
