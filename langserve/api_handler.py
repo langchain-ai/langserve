@@ -852,7 +852,7 @@ class APIHandler:
                     feedback_tokens=[
                         FeedbackToken(
                             key=feedback_key,
-                            url=feedback_token.url,
+                            token_url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
                     ]
@@ -999,7 +999,7 @@ class APIHandler:
                     feedback_tokens=[
                         FeedbackToken(
                             key=feedback_key,
-                            url=feedback_token.url,
+                            token_url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
                     ],

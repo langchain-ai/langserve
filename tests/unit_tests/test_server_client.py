@@ -2853,7 +2853,7 @@ async def test_token_feedback_included_in_responses() -> None:
                         {
                             "expires_at": "2023-01-01T00:00:00",
                             "key": "foo",
-                            "token_url": None,
+                            "token_url": "feedback_id",
                         }
                     ],
                     "run_id": run_id,
@@ -2883,7 +2883,7 @@ async def test_token_feedback_included_in_responses() -> None:
                                 {
                                     "expires_at": "2023-01-01T00:00:00",
                                     "key": "foo",
-                                    "token_url": None,
+                                    "token_url": "feedback_id",
                                 }
                             ]
                         },
@@ -2892,7 +2892,7 @@ async def test_token_feedback_included_in_responses() -> None:
                                 {
                                     "expires_at": "2023-01-01T00:00:00",
                                     "key": "foo",
-                                    "token_url": None,
+                                    "token_url": "feedback_id",
                                 }
                             ]
                         },
