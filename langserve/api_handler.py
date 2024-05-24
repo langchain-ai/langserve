@@ -139,7 +139,7 @@ def _create_metadata_event(
         data["feedback_tokens"] = [
             {
                 "key": feedback_key,
-                "token_url": feedback_ingest_token.token_url,
+                "token_url": feedback_ingest_token.url,
                 "expires_at": expires_at,
             }
         ]
@@ -852,7 +852,7 @@ class APIHandler:
                     feedback_tokens=[
                         FeedbackToken(
                             key=feedback_key,
-                            url=feedback_token.token_url,
+                            token_url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
                     ]
@@ -999,7 +999,7 @@ class APIHandler:
                     feedback_tokens=[
                         FeedbackToken(
                             key=feedback_key,
-                            url=feedback_token.token_url,
+                            token_url=feedback_token.url,
                             expires_at=feedback_token.expires_at.isoformat(),
                         )
                     ],
