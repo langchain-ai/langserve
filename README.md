@@ -6,7 +6,7 @@
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
 🚩 We will be releasing a hosted version of LangServe for one-click deployments of
-LangChain applications. [Sign up here](https://docs.google.com/forms/d/e/1FAIpQLSel1KJ1kXUrfHxFUkkGg0y6XR5m6Qkw_48uEGOAN-wfa_SMcw/viewform)
+LangChain applications. [Sign up here](https://forms.gle/KC13Nzn76UeLaghK7)
 to get on the waitlist.
 
 ## Overview
@@ -53,7 +53,7 @@ in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 
 We will be releasing a hosted version of LangServe for one-click deployments of
 LangChain
-applications. [Sign up here](https://docs.google.com/forms/d/e/1FAIpQLSel1KJ1kXUrfHxFUkkGg0y6XR5m6Qkw_48uEGOAN-wfa_SMcw/viewform)
+applications. [Sign up here](https://forms.gle/KC13Nzn76UeLaghK7)
 to get on the waitlist.
 
 ## Security
