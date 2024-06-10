@@ -4042,10 +4042,10 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 
 [extras]
 all = ["fastapi", "sse-starlette"]
-client = []
+client = ["fastapi"]
 server = ["fastapi", "sse-starlette"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "5a3e72b44fdea68f4070b9a6e891618fed0761b59b0a7850f0c89e257f6b5e43"
+content-hash = "977dc6680008cf9a04eb19176e58c00fb61436e90a957846963b787cb1f3e1ea"
