@@ -24,8 +24,6 @@ jupyterlab = "^3.6.1"
 fastapi = ">=0.90.1"
 sse-starlette = "^1.3.0"
 
-[tool.poetry.group.typing.dependencies]
-
 [tool.poetry.group.lint.dependencies]
 ruff = "^0.1.4"
 codespell = "^2.2.0"
@@ -40,10 +38,12 @@ pytest-watch = "^4.2.0"
 pytest-timeout = "^2.2.0"
 
 [tool.poetry.group.examples.dependencies]
-openai = "^0.28.0"
+openai = ">=1.26.0,<2.0.0"
 uvicorn = {extras = ["standard"], version = "^0.23.2"}
 fastapi = ">=0.90.1"
 sse-starlette = "^1.3.0"
+langchain-openai = "^0.1.8"
+langchain = "^0.2.3"
 
 [tool.poetry.extras]
 # Extras that are used for client
