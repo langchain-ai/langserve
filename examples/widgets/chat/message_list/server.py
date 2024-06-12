@@ -4,6 +4,7 @@ state back and forth between server and client.
 """
 from typing import List, Union
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_anthropic import ChatAnthropic
@@ -14,12 +15,13 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langserve import add_routes
 from langserve.pydantic_v1 import BaseModel, Field
 
+load_dotenv()
+
 app = FastAPI(
     title="LangChain Server",
     version="1.0",
     description="Spin up a simple api server using Langchain's Runnable interfaces",
 )
-
 
 # Set all CORS enabled origins
 app.add_middleware(
@@ -31,7 +33,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-
 # Declare a chain
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -40,7 +41,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2") | StrOutputParser()
+chain = prompt | ChatAnthropic(model="claude-2.1") | StrOutputParser()
 
 
 class InputChat(BaseModel):
