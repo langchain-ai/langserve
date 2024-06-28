@@ -5,10 +5,6 @@
 [![Open Issues](https://img.shields.io/github/issues-raw/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/issues)
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
-🚩 We will be releasing a hosted version of LangServe for one-click deployments of
-LangChain applications. [Sign up here](https://forms.gle/KC13Nzn76UeLaghK7)
-to get on the waitlist.
-
 ## Overview
 
 [LangServe](https://github.com/langchain-ai/langserve) helps developers
@@ -48,13 +44,6 @@ in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 - OpenAPI docs will not be generated when using Pydantic V2. Fast API does not
   support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360).
   See section below for more details.
-
-## Hosted LangServe
-
-We will be releasing a hosted version of LangServe for one-click deployments of
-LangChain
-applications. [Sign up here](https://forms.gle/KC13Nzn76UeLaghK7)
-to get on the waitlist.
 
 ## Security
 
