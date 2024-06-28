@@ -776,7 +776,7 @@ class APIHandler:
             # using configuration.
             schema = self._runnable.with_config(config).input_schema
             input_ = schema.validate(body.input)
-            return config, _unpack_input(input_)
+            return config, _unpack_input(body.input)
         except ValidationError as e:
             raise RequestValidationError(e.errors(), body=body)
 
