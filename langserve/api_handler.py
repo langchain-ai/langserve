@@ -1140,7 +1140,10 @@ class APIHandler:
                     if ServerSentEvent is not Any and isinstance(
                         chunk, ServerSentEvent
                     ):
-                        yield chunk
+                        yield {
+                            "event": chunk.event,
+                            "data": self._serializer.dumps(chunk.data).decode("utf-8"),
+                        }
                         continue
 
                     yield {
