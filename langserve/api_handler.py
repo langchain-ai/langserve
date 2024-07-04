@@ -834,6 +834,9 @@ class APIHandler:
             output = await invoke_coro
             feedback_token = None
 
+        if ServerSentEvent is not Any and isinstance(output, ServerSentEvent):
+            output = output.data
+
         if self._include_callback_events:
             callback_events = [
                 _scrub_exceptions_in_event(event)
