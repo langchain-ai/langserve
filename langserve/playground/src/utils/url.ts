@@ -7,8 +7,9 @@ export function getStateFromUrl(path: string) {
     basePath = basePath.slice(0, -1);
   }
 
-  if (basePath.endsWith("/playground")) {
-    basePath = basePath.slice(0, -"/playground".length);
+  const newBasePath = basePath.replace(/\/playground(\/index.html)?$/, "");
+  if (newBasePath !== basePath) {
+    basePath = newBasePath;
   }
 
   // check if we can omit the last segment
