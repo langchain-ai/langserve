@@ -468,7 +468,7 @@ gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthentic
 LangServe provides support for Pydantic 2 with some limitations.
 
 1. OpenAPI docs will not be generated for invoke/batch/stream/stream_log when using
-   Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces].
+   Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces]. To fix this, use `pip install pydantic==1.10.17`.
 2. LangChain uses the v1 namespace in Pydantic v2. Please read
    the [following guidelines to ensure compatibility with LangChain](https://github.com/langchain-ai/langchain/discussions/9337)
 
