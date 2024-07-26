@@ -43,7 +43,7 @@ in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 LangServe is designed to primarily deploy simple Runnables and wok with well-known primitives in langchain-core.
 
 If you need a deployment option for LangGraph, you should instead be looking at [LangGraph Cloud (beta)](https://langchain-ai.github.io/langgraph/cloud/) which will
-be better suited suited for deploying LangGraph applications.
+be better suited for deploying LangGraph applications.
 
 ## Limitations
 
