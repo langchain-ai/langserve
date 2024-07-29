@@ -78,9 +78,10 @@ from langserve.validation import (
 from langserve.version import __version__
 
 try:
-    from sse_starlette import EventSourceResponse
+    from sse_starlette import EventSourceResponse, ServerSentEvent
 except ImportError:
     EventSourceResponse = Any
+    ServerSentEvent = Any
 
 
 def _is_hosted() -> bool:
@@ -833,6 +834,9 @@ class APIHandler:
             output = await invoke_coro
             feedback_token = None
 
+        if ServerSentEvent is not Any and isinstance(output, ServerSentEvent):
+            output = output.data
+
         if self._include_callback_events:
             callback_events = [
                 _scrub_exceptions_in_event(event)
@@ -1111,7 +1115,7 @@ class APIHandler:
             feedback_key = None
             task = None
 
-        async def _stream() -> AsyncIterator[dict]:
+        async def _stream() -> AsyncIterator[dict | ServerSentEvent]:
             """Stream the output of the runnable."""
             try:
                 config_w_callbacks = config.copy()
@@ -1135,6 +1139,15 @@ class APIHandler:
                         yield _create_metadata_event(
                             run_id, feedback_key, feedback_token
                         )
+
+                    if ServerSentEvent is not Any and isinstance(
+                        chunk, ServerSentEvent
+                    ):
+                        yield {
+                            "event": chunk.event,
+                            "data": self._serializer.dumps(chunk.data).decode("utf-8"),
+                        }
+                        continue
 
                     yield {
                         # EventSourceResponse expects a string for data
