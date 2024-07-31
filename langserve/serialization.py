@@ -10,6 +10,7 @@ By default, exceptions are serialized as a generic exception without
 any information about the exception. This is done to prevent leaking
 sensitive information from the server to the client.
 """
+
 import abc
 import logging
 from functools import lru_cache
@@ -38,6 +39,7 @@ from langchain_core.outputs import (
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
+from langgraph.constants import Send
 
 from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
@@ -87,6 +89,8 @@ def default(obj) -> Any:
     """Default serialization for well known objects."""
     if isinstance(obj, BaseModel):
         return obj.dict()
+    if isinstance(obj, Send):
+        return {"node": obj.node, "arg": obj.arg}
     return super().default(obj)
 
 
