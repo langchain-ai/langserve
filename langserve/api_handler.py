@@ -307,12 +307,9 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
         __config__=model.__config__,
         **{
             fieldname: (
-                (
-                    _rename_pydantic_model(field.annotation, prefix)
-                    if isclass(field.annotation)
-                    and issubclass(field.annotation, BaseModel)
-                    else field.annotation
-                ),
+                _rename_pydantic_model(field.annotation, prefix)
+                if isclass(field.annotation) and issubclass(field.annotation, BaseModel)
+                else field.annotation,
                 Field(
                     field.default,
                     title=fieldname,
@@ -852,17 +849,15 @@ class APIHandler:
                 callback_events=callback_events,
                 metadata=InvokeResponseMetadata(
                     run_id=run_id,
-                    feedback_tokens=(
-                        [
-                            FeedbackToken(
-                                key=feedback_key,
-                                token_url=feedback_token.url,
-                                expires_at=feedback_token.expires_at.isoformat(),
-                            )
-                        ]
-                        if feedback_token
-                        else []
-                    ),
+                    feedback_tokens=[
+                        FeedbackToken(
+                            key=feedback_key,
+                            token_url=feedback_token.url,
+                            expires_at=feedback_token.expires_at.isoformat(),
+                        )
+                    ]
+                    if feedback_token
+                    else [],
                 ),
             ),
         )
