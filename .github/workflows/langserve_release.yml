@@ -10,4 +10,5 @@ jobs:
       ./.github/workflows/_release.yml
     with:
       working-directory: .
+    permissions: write-all
     secrets: inherit
