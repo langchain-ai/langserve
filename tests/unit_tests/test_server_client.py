@@ -421,6 +421,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_start",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -430,6 +431,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_stream",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -439,6 +441,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_end",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -467,7 +470,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     assert response.status_code == 200
     assert response.json()["output"] == {
         "tags": ["another-one", "test"],
-        "configurable": None,
+        "configurable": {},
     }
 
     # Test batch
@@ -477,7 +480,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json()["output"] == [
-        {"tags": ["another-one", "test"], "configurable": None}
+        {"tags": ["another-one", "test"], "configurable": {}}
     ]
 
     # Test stream
@@ -490,7 +493,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     response_with_run_id_replaced = _replace_run_id_in_stream_resp(response.text)
     assert (
         response_with_run_id_replaced
-        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags":["another-one","test"],"configurable":null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags":["another-one","test"],"configurable":{}}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 
@@ -2236,54 +2239,63 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 2},
                 "event": "on_chain_stream",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"input": 1, "output": 2},
                 "event": "on_chain_end",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 4},
                 "event": "on_chain_stream",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 4},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"input": 2, "output": 4},
                 "event": "on_chain_end",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": 4},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2380,12 +2392,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_start",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2397,12 +2411,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_stream",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2415,18 +2431,21 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "foo"},
                 "event": "on_chain_stream",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "foo"},
                 "event": "on_chain_stream",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2439,12 +2458,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": "foo"},
                 "event": "on_chain_end",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2460,6 +2481,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_start",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2468,6 +2490,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_stream",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2476,6 +2499,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2522,12 +2546,14 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_prompt_start",
                 "name": "ChatPromptTemplate",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2542,6 +2568,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_prompt_end",
                 "name": "ChatPromptTemplate",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2557,66 +2584,77 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chat_model_start",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content="Hello", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_parser_start",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content=" ", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content="World!", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2646,6 +2684,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chat_model_end",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2655,12 +2694,14 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_parser_end",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": "Hello World!"},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2785,7 +2826,7 @@ async def test_remote_configurable_remote_runnable() -> None:
             history_messages_key="history",
         )
         result = await chain_with_history.ainvoke(
-            {"question": "hi"}, {"configurable": {"session_id": "1"}}
+            {"question": "hi", "ability": "foo"}, {"configurable": {"session_id": "1"}}
         )
         assert result == AIMessage(content="Hello World!", id=AnyStr())
         assert store == {

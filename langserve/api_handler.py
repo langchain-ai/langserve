@@ -29,6 +29,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from langchain_core._api.beta_decorator import warn_beta
 from langchain_core.callbacks.base import AsyncCallbackHandler
+from langchain_core.callbacks.manager import BaseCallbackManager
 from langchain_core.load.serializable import Serializable
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.runnables.config import (
@@ -470,7 +471,12 @@ def _add_callbacks(
     """Add the callback aggregator to the config."""
     if "callbacks" not in config:
         config["callbacks"] = []
-    config["callbacks"].extend(callbacks)
+    if "callbacks" in config:
+        if isinstance(config["callbacks"], list):
+            config["callbacks"].extend(callbacks)
+        elif isinstance(config["callbacks"], BaseCallbackManager):
+            for callback in callbacks:
+                config["callbacks"].add_handler(callback, inherit=True)
 
 
 _MODEL_REGISTRY = {}
