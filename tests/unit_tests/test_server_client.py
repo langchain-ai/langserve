@@ -509,13 +509,18 @@ def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     # Test tracing
     tracer = FakeTracer()
     assert sync_remote_runnable.invoke(1, config={"callbacks": [tracer]}) == 2
-    assert len(tracer.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    # Picking up the run from the server side, and client side should also log a run
+    # from the RemoteRunnable that will have as a child the server side run.
+    assert len(tracer.runs) == 2
+
+    first_run = tracer.runs[0]
+
+    remote_runnable_run = (
+        tracer.runs[0] if first_run.name == "RemoteRunnable" else tracer.runs[1]
     )
+    assert remote_runnable_run.name == "RemoteRunnable"
+
+    assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
@@ -577,13 +582,18 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # Test tracing
     tracer = FakeTracer()
     assert await async_remote_runnable.ainvoke(1, config={"callbacks": [tracer]}) == 2
-    assert len(tracer.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    # Picking up the run from the server side, and client side should also log a run
+    # from the RemoteRunnable that will have as a child the server side run.
+    assert len(tracer.runs) == 2
+
+    first_run = tracer.runs[0]
+
+    remote_runnable_run = (
+        tracer.runs[0] if first_run.name == "RemoteRunnable" else tracer.runs[1]
     )
+    assert remote_runnable_run.name == "RemoteRunnable"
+
+    assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
 async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
@@ -1060,9 +1070,7 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         ) == StringPromptValue(text="What is your name? Bob")
 
 
-async def test_input_validation(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_input_validation(mocker: MockerFixture) -> None:
     """Test client side and server side exceptions."""
 
     async def add_one(x: int) -> int:
@@ -1415,6 +1423,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {"question": {"title": "Question", "type": "string"}},
             "title": "PromptInput",
             "type": "object",
+            "required": ["question"],
         }
 
         response = await async_client.get("/prompt_2/input_schema")
@@ -1422,6 +1431,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {"name": {"title": "Name", "type": "string"}},
             "title": "PromptInput",
             "type": "object",
+            "required": ["name"],
         }
 
         # output schema
