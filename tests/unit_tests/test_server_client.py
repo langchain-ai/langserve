@@ -571,6 +571,9 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     )
 
 
+import sys
+
+
 async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     """Test async invoke."""
     assert await async_remote_runnable.ainvoke(1) == 2
@@ -582,9 +585,14 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # Test tracing
     tracer = FakeTracer()
     assert await async_remote_runnable.ainvoke(1, config={"callbacks": [tracer]}) == 2
-    # Picking up the run from the server side, and client side should also log a run
-    # from the RemoteRunnable that will have as a child the server side run.
-    if len(tracer.runs) == 2:
+    # This code has some funkiness from the test code running the client and the
+    # server in the same process AND the fact that we use contextvars to propagate
+    # config information.
+    # The behavior is also different between python < 3.10 and python >= 3.10
+    # due to asyncio supporting contextvars starting from 3.10.
+    # check the python version now
+    if sys.version_info >= (3, 10):
+        assert len(tracer.runs) == 2
         first_run = tracer.runs[0]
 
         remote_runnable_run = (
@@ -593,13 +601,10 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
         assert remote_runnable_run.name == "RemoteRunnable"
 
         assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
-    elif len(tracer.runs) == 1:
+    elif sys.version_info <= (3, 9):
+        assert len(tracer.runs) == 1
         remote_runnable = tracer.runs[0]
-        assert remote_runnable.child_runs[0].name == "add_one_or_passthrough"
-    else:
-        # TODO(0.3): Need to investigate this test -- getting two
-        # different behaviors between CI and local.
-        raise AssertionError("Expected 1 or 2 runs")
+        assert remote_runnable.child_runs[0].extras == "add_one_or_passthrough"
 
 
 async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
