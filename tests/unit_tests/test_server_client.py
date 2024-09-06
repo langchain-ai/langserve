@@ -1121,7 +1121,6 @@ async def test_input_validation(mocker: MockerFixture) -> None:
         return x + 1
 
     server_runnable = RunnableLambda(func=add_one)
-    server_runnable2 = RunnableLambda(func=add_one)
 
     app = FastAPI()
     add_routes(
