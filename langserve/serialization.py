@@ -34,7 +34,6 @@ from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
-    LLMResult,
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue

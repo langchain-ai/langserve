@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
-from langchain_core.outputs import ChatGeneration
 from pydantic import BaseModel
 
 from langserve.serialization import (

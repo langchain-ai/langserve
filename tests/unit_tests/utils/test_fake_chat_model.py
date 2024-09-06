@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
 from langchain_core.callbacks.base import AsyncCallbackHandler
-from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 
 from tests.unit_tests.utils.llms import GenericFakeChatModel

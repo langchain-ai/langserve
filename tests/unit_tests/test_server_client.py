@@ -38,7 +38,6 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.outputs import ChatGenerationChunk, LLMResult
 from langchain_core.prompt_values import StringPromptValue
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -75,7 +74,7 @@ from langserve.schema import CustomUserType
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
 from tests.unit_tests.utils.serde import recursive_dump
-from tests.unit_tests.utils.stubs import _AnyIdAIMessage, _AnyIdAIMessageChunk
+from tests.unit_tests.utils.stubs import _AnyIdAIMessage
 from tests.unit_tests.utils.tracer import FakeTracer
 
 
