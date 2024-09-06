@@ -26,11 +26,7 @@ from typing_extensions import Type
 
 from langserve.schema import BatchResponseMetadata, InvokeResponseMetadata
 
-try:
-    from pydantic.v1 import BaseModel, Field, create_model
-except ImportError:
-    from pydantic import BaseModel, Field, create_model
-
+from pydantic import BaseModel, Field, RootModel, create_model
 
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.
@@ -566,8 +562,8 @@ class OnRetrieverEnd(BaseModel):
     type: Literal["on_retriever_end"] = "on_retriever_end"
 
 
-class CallbackEvent(BaseModel):
-    __root__: Union[
+CallbackEvent = RootModel[
+    Union[
         OnChainStart,
         OnChainEnd,
         OnChainError,
@@ -581,3 +577,4 @@ class CallbackEvent(BaseModel):
         OnRetrieverEnd,
         OnRetrieverError,
     ]
+]

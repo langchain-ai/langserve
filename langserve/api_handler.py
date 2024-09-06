@@ -41,6 +41,7 @@ from langchain_core.tracers import RunLogPatch
 from langsmith import client as ls_client
 from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
+from pydantic import BaseModel, Field, ValidationError, create_model
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
@@ -48,7 +49,6 @@ from typing_extensions import TypedDict
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from pydantic import BaseModel, Field, ValidationError, create_model
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,

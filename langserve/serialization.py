@@ -38,8 +38,7 @@ from langchain_core.outputs import (
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
-from pydantic import BaseModel, ValidationError
-from pydantic import RootModel
+from pydantic import BaseModel, RootModel, ValidationError
 
 from langserve.validation import CallbackEvent
 

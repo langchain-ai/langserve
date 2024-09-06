@@ -16,6 +16,7 @@ from typing import (
 )
 
 from langchain_core.runnables import Runnable
+from pydantic import BaseModel
 from typing_extensions import Annotated
 
 from langserve.api_handler import (
@@ -24,7 +25,6 @@ from langserve.api_handler import (
     TokenFeedbackConfig,
     _is_hosted,
 )
-from pydantic import BaseModel
 
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request, Response

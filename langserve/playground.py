@@ -6,7 +6,6 @@ from typing import Literal, Sequence, Type
 
 from fastapi.responses import Response
 from langchain_core.runnables import Runnable
-
 from pydantic import BaseModel
 
 

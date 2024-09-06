@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel  # Floats between v1 and v2
-
+from pydantic import (
+    BaseModel,
+    Field,
+)
 from pydantic import BaseModel as BaseModelV1
-from pydantic import Field
 
 
 class CustomUserType(BaseModelV1):
