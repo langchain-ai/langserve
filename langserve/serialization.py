@@ -13,7 +13,7 @@ sensitive information from the server to the client.
 import abc
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Union
+from typing import Annotated, Any, Dict, List, Union
 
 import orjson
 from langchain_core.agents import AgentAction, AgentActionMessageLog, AgentFinish
@@ -38,7 +38,7 @@ from langchain_core.outputs import (
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
-from pydantic import BaseModel, RootModel, ValidationError
+from pydantic import BaseModel, Field, RootModel, ValidationError
 
 from langserve.validation import CallbackEvent
 
@@ -55,27 +55,29 @@ def _log_error_message_once(error_message: str) -> None:
 # A pydantic model that defines what constitutes a well known LangChain object.
 # All well-known objects are allowed to be serialized and de-serialized.
 WellKnownLCObject = RootModel[
-    Union[
-        Document,
-        HumanMessage,
-        SystemMessage,
-        ChatMessage,
-        FunctionMessage,
-        AIMessage,
-        HumanMessageChunk,
-        SystemMessageChunk,
-        ChatMessageChunk,
-        FunctionMessageChunk,
-        AIMessageChunk,
-        StringPromptValue,
-        ChatPromptValueConcrete,
-        AgentAction,
-        AgentFinish,
-        AgentActionMessageLog,
-        LLMResult,
-        ChatGeneration,
-        Generation,
-        ChatGenerationChunk,
+    Annotated[
+        Union[
+            Document,
+            HumanMessage,
+            SystemMessage,
+            ChatMessage,
+            FunctionMessage,
+            AIMessage,
+            HumanMessageChunk,
+            SystemMessageChunk,
+            ChatMessageChunk,
+            FunctionMessageChunk,
+            AIMessageChunk,
+            StringPromptValue,
+            ChatPromptValueConcrete,
+            AgentAction,
+            AgentFinish,
+            AgentActionMessageLog,
+            ChatGeneration,
+            Generation,
+            ChatGenerationChunk,
+        ],
+        Field(discriminator="type"),
     ]
 ]
 
