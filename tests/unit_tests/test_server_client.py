@@ -59,6 +59,7 @@ from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from langsmith.client import Client
 from langsmith.schemas import FeedbackIngestToken
+from pydantic import BaseModel, Field
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import Annotated, TypedDict
@@ -72,11 +73,9 @@ from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
-from tests.unit_tests.utils.stubs import AnyStr
-
-from pydantic import BaseModel, Field
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
+from tests.unit_tests.utils.stubs import AnyStr
 from tests.unit_tests.utils.tracer import FakeTracer
 
 

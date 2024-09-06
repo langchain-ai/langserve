@@ -5,11 +5,9 @@ import pytest
 from fastapi import Request
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import ConfigurableField
-
-from langserve.api_handler import _unpack_request_config
-
 from pydantic import BaseModel, ValidationError
 
+from langserve.api_handler import _unpack_request_config
 from langserve.validation import (
     create_batch_request_model,
     create_invoke_request_model,
