@@ -93,12 +93,12 @@ def _decode_lc_objects(value: Any) -> Any:
         v = {key: _decode_lc_objects(v) for key, v in value.items()}
 
         try:
-            obj = WellKnownLCObject.parse_obj(v)
+            obj = WellKnownLCObject.model_validate(v)
             parsed = obj.root
             if set(parsed.dict()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
-        except (ValidationError, ValueError):
+        except (ValidationError, ValueError, TypeError):
             return v
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]

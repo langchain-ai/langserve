@@ -46,6 +46,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
 
+from langserve._pydantic import _create_root_model
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
@@ -305,7 +306,7 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
     """Rename the given pydantic model to the given name."""
     return create_model(
         prefix + model.__name__,
-        __config__=model.__config__,
+        __config__=model.model_config,
         **{
             fieldname: (
                 _rename_pydantic_model(field.annotation, prefix)
@@ -314,10 +315,10 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
                 Field(
                     field.default,
                     title=fieldname,
-                    description=field.field_info.description,
+                    description=field.description,
                 ),
             )
-            for fieldname, field in model.__fields__.items()
+            for fieldname, field in model.model_fields.items()
         },
     )
 
@@ -334,7 +335,7 @@ def _resolve_model(
     if isclass(type_) and issubclass(type_, BaseModel):
         model = type_
     else:
-        model = create_model(default_name, __root__=(type_, ...))
+        model = _create_root_model(default_name, type_)
 
     hash_ = model.schema_json()
 

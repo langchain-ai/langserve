@@ -74,7 +74,7 @@ from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
-from tests.unit_tests.utils.stubs import _AnyIdAIMessageChunk, _AnyIdAIMessage
+from tests.unit_tests.utils.stubs import _AnyIdAIMessage, _AnyIdAIMessageChunk
 from tests.unit_tests.utils.tracer import FakeTracer
 
 
@@ -2692,7 +2692,9 @@ async def test_astream_events_with_prompt_model_parser_chain(
                             [
                                 ChatGenerationChunk(
                                     text="Hello World!",
-                                    message=_AnyIdAIMessageChunk(content="Hello World!"),
+                                    message=_AnyIdAIMessageChunk(
+                                        content="Hello World!"
+                                    ),
                                 )
                             ]
                         ],
