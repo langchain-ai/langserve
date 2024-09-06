@@ -590,7 +590,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # due to asyncio supporting contextvars starting from 3.10.
     # check the python version now
     if sys.version_info >= (3, 10):
-        assert len(tracer.runs) == 2
+        assert len(tracer.runs) == 2, "Failed for python >= 3.10"
         first_run = tracer.runs[0]
 
         remote_runnable_run = (
@@ -600,7 +600,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
 
         assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
     elif sys.version_info < (3, 10):
-        assert len(tracer.runs) == 1
+        assert len(tracer.runs) == 1, "Failed for python < 3.10"
         remote_runnable = tracer.runs[0]
         assert (
             remote_runnable.child_runs[0].extra["kwargs"]["name"]
