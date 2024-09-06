@@ -22,11 +22,10 @@ from uuid import UUID
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGeneration, Generation, RunInfo
+from pydantic import BaseModel, Field, RootModel, create_model
 from typing_extensions import Type
 
 from langserve.schema import BatchResponseMetadata, InvokeResponseMetadata
-
-from pydantic import BaseModel, Field, RootModel, create_model
 
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.

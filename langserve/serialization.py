@@ -94,7 +94,7 @@ def _decode_lc_objects(value: Any) -> Any:
 
         try:
             obj = WellKnownLCObject.parse_obj(v)
-            parsed = obj.__root__
+            parsed = obj.root
             if set(parsed.dict()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
@@ -121,11 +121,11 @@ def _decode_event_data(value: Any) -> Any:
     if isinstance(value, dict):
         try:
             obj = CallbackEvent.parse_obj(value)
-            return obj.__root__
+            return obj.root
         except ValidationError:
             try:
                 obj = WellKnownLCObject.parse_obj(value)
-                return obj.__root__
+                return obj.root
             except ValidationError:
                 return {key: _decode_event_data(v) for key, v in value.items()}
     elif isinstance(value, list):
@@ -214,7 +214,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
             _log_error_message_once(msg)
             continue
 
-        decoded_event_data = _project_top_level(full_event.__root__)
+        decoded_event_data = _project_top_level(full_event.root)
 
         if decoded_event_data["type"].endswith("_error"):
             # Data is validated by this point, so we can assume that the shape
