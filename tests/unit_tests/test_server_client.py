@@ -33,7 +33,6 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.documents import Document
 from langchain_core.messages import (
     AIMessage,
-    AIMessageChunk,
     BaseMessage,
     HumanMessage,
     SystemMessage,
@@ -75,7 +74,7 @@ from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
-from tests.unit_tests.utils.stubs import AnyStr
+from tests.unit_tests.utils.stubs import _AnyIdAIMessageChunk, _AnyIdAIMessage
 from tests.unit_tests.utils.tracer import FakeTracer
 
 
@@ -2609,7 +2608,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "parent_ids": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="Hello", id=AnyStr())},
+                "data": {"chunk": _AnyIdAIMessageChunk(content="Hello")},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2637,7 +2636,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "parent_ids": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content=" ", id=AnyStr())},
+                "data": {"chunk": _AnyIdAIMessageChunk(content=" ")},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2658,7 +2657,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "parent_ids": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="World!", id=AnyStr())},
+                "data": {"chunk": _AnyIdAIMessageChunk(content="World!")},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
@@ -2693,9 +2692,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                             [
                                 ChatGenerationChunk(
                                     text="Hello World!",
-                                    message=AIMessageChunk(
-                                        content="Hello World!", id=AnyStr()
-                                    ),
+                                    message=_AnyIdAIMessageChunk(content="Hello World!"),
                                 )
                             ]
                         ],
@@ -2710,7 +2707,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
             },
             {
                 "data": {
-                    "input": AIMessageChunk(content="Hello World!", id=AnyStr()),
+                    "input": _AnyIdAIMessageChunk(content="Hello World!"),
                     "output": "Hello World!",
                 },
                 "event": "on_parser_end",
@@ -2850,12 +2847,12 @@ async def test_remote_configurable_remote_runnable() -> None:
         result = await chain_with_history.ainvoke(
             {"question": "hi", "ability": "foo"}, {"configurable": {"session_id": "1"}}
         )
-        assert result == AIMessage(content="Hello World!", id=AnyStr())
+        assert result == _AnyIdAIMessage(content="Hello World!")
         assert store == {
             "1": InMemoryHistory(
                 messages=[
                     HumanMessage(content="hi"),
-                    AIMessage(content="Hello World!", id=AnyStr()),
+                    _AnyIdAIMessage(content="Hello World!"),
                 ]
             )
         }
