@@ -74,10 +74,7 @@ from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
 from tests.unit_tests.utils.stubs import AnyStr
 
-try:
-    from pydantic.v1 import BaseModel, Field
-except ImportError:
-    from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
 from tests.unit_tests.utils.tracer import FakeTracer

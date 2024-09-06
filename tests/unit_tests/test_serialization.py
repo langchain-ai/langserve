@@ -7,10 +7,7 @@ import pytest
 from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
 from langchain_core.outputs import ChatGeneration
 
-try:
-    from pydantic.v1 import BaseModel
-except ImportError:
-    from pydantic import BaseModel
+from pydantic import BaseModel
 
 from langserve.serialization import WellKnownLCSerializer, load_events
 

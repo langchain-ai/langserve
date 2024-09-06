@@ -41,7 +41,7 @@ from langchain_core.tracers import RunLogPatch
 from langsmith import client as ls_client
 from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
-from pydantic import BaseModel, Field, ValidationError, create_model
+from pydantic import BaseModel, Field, RootModel, ValidationError, create_model
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
@@ -280,8 +280,8 @@ def _update_config_with_defaults(
 
 def _unpack_input(validated_model: BaseModel) -> Any:
     """Unpack the decoded input from the validated model."""
-    if hasattr(validated_model, "__root__"):
-        model = validated_model.__root__
+    if isinstance(validated_model, RootModel):
+        model = validated_model.root
     else:
         model = validated_model
 
@@ -420,27 +420,27 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
 
     if isinstance(model, InvokeBaseResponse):
         # Invoke Response
-        # Collapse '__root__' from output field if it exists. This is done
+        # Collapse 'root' from output field if it exists. This is done
         # automatically by fastapi when annotating request and response with
         # We need to do this manually since we're using vanilla JSONResponse
-        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
-            obj["output"] = obj["output"]["__root__"]
+        if isinstance(obj["output"], dict) and "root" in obj["output"]:
+            obj["output"] = obj["output"]["root"]
 
         if "callback_events" in obj:
             for idx, callback_event in enumerate(obj["callback_events"]):
-                if isinstance(callback_event, dict) and "__root__" in callback_event:
-                    obj["callback_events"][idx] = callback_event["__root__"]
+                if isinstance(callback_event, dict) and "root" in callback_event:
+                    obj["callback_events"][idx] = callback_event["root"]
     elif isinstance(model, BatchBaseResponse):
         if not isinstance(obj["output"], list):
             raise AssertionError("Expected output to be a list")
 
-        # Collapse '__root__' from output field if it exists. This is done
+        # Collapse 'root' from output field if it exists. This is done
         # automatically by fastapi when annotating request and response with
         # We need to do this manually since we're using vanilla JSONResponse
         outputs = obj["output"]
         for idx, output in enumerate(outputs):
-            if isinstance(output, dict) and "__root__" in output:
-                outputs[idx] = output["__root__"]
+            if isinstance(output, dict) and "root" in output:
+                outputs[idx] = output["root"]
 
         if "callback_events" in obj:
             if not isinstance(obj["callback_events"], list):
@@ -448,11 +448,8 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
 
             for callback_events in obj["callback_events"]:
                 for idx, callback_event in enumerate(callback_events):
-                    if (
-                        isinstance(callback_event, dict)
-                        and "__root__" in callback_event
-                    ):
-                        callback_events[idx] = callback_event["__root__"]
+                    if isinstance(callback_event, dict) and "root" in callback_event:
+                        callback_events[idx] = callback_event["root"]
     else:
         raise AssertionError(
             f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"

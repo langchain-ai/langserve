@@ -8,10 +8,7 @@ from langchain_core.runnables import ConfigurableField
 
 from langserve.api_handler import _unpack_request_config
 
-try:
-    from pydantic.v1 import BaseModel, ValidationError
-except ImportError:
-    from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError
 
 from langserve.validation import (
     create_batch_request_model,
