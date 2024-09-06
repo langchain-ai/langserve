@@ -586,11 +586,11 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # This code has some funkiness from the test code running the client and the
     # server in the same process AND the fact that we use contextvars to propagate
     # config information.
-    # The behavior is also different between python < 3.10 and python >= 3.10
-    # due to asyncio supporting contextvars starting from 3.10.
+    # The behavior is also different between python < 3.11 and python >= 3.11
+    # due to asyncio supporting contextvars starting from 3.11.
     # check the python version now
-    if sys.version_info >= (3, 10):
-        assert len(tracer.runs) == 2, "Failed for python >= 3.10"
+    if sys.version_info >= (3, 11):
+        assert len(tracer.runs) == 2, "Failed for python >= 3.11"
         first_run = tracer.runs[0]
 
         remote_runnable_run = (
@@ -599,8 +599,8 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
         assert remote_runnable_run.name == "RemoteRunnable"
 
         assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
-    elif sys.version_info < (3, 10):
-        assert len(tracer.runs) == 1, "Failed for python < 3.10"
+    elif sys.version_info < (3, 11):
+        assert len(tracer.runs) == 1, "Failed for python < 3.11"
         remote_runnable = tracer.runs[0]
         assert (
             remote_runnable.child_runs[0].extra["kwargs"]["name"]
