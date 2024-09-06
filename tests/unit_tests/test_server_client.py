@@ -1070,6 +1070,49 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         ) == StringPromptValue(text="What is your name? Bob")
 
 
+async def test_config_keys_validation(mocker: MockerFixture) -> None:
+    """This test should not use a RemoteRunnable.
+
+    RemoteRunnable runs in the same process as the server during unit tests
+    and there's unfortunately an interaction between the config contextvars
+    that makes it difficult to test this behavior correctly using a RemoteRunnable.
+
+    Instead the behavior can be tested correctly by making a regular http request
+    using a FastAPI test client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(
+        app,
+        server_runnable,
+        input_type=int,
+        config_keys=["metadata"],
+    )
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+        server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
+        response = await async_client.post(
+            "/invoke",
+            json={"input": 1, "config": {"tags": ["hello"], "metadata": {"a": 5}}},
+        )
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        config_seen = server_runnable_spy.call_args[0][1]
+        assert "metadata" in config_seen
+        assert "a" in config_seen["metadata"]
+        assert config_seen["tags"] == []
+        assert "__useragent" in config_seen["metadata"]
+        assert "__langserve_version" in config_seen["metadata"]
+        assert "__langserve_endpoint" in config_seen["metadata"]
+        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
+
+
 async def test_input_validation(mocker: MockerFixture) -> None:
     """Test client side and server side exceptions."""
 
@@ -1088,14 +1131,6 @@ async def test_input_validation(mocker: MockerFixture) -> None:
         path="/add_one",
     )
 
-    add_routes(
-        app,
-        server_runnable2,
-        input_type=int,
-        path="/add_one_config",
-        config_keys=["tags", "metadata"],
-    )
-
     async with get_async_remote_runnable(
         app, path="/add_one", raise_app_exceptions=False
     ) as runnable:
@@ -1107,38 +1142,6 @@ async def test_input_validation(mocker: MockerFixture) -> None:
 
         with pytest.raises(httpx.HTTPError):
             await runnable.abatch(["hello"])
-
-    config = {"tags": ["test"], "metadata": {"a": 5}}
-
-    server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
-    # Verify config is handled correctly
-    async with get_async_remote_runnable(app, path="/add_one") as runnable1:
-        # Verify that can be invoked with valid input
-        # Config ignored for runnable1
-        assert await runnable1.ainvoke(1, config=config) == 2
-        # Config should be ignored but default debug information
-        # will still be added
-        config_seen = server_runnable_spy.call_args[0][1]
-        assert "metadata" in config_seen
-        assert "a" not in config_seen["metadata"]
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
-        assert "__langserve_endpoint" in config_seen["metadata"]
-        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
-
-    server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
-    async with get_async_remote_runnable(app, path="/add_one_config") as runnable2:
-        # Config accepted for runnable2
-        assert await runnable2.ainvoke(1, config=config) == 2
-        # Config ignored
-
-        config_seen = server_runnable2_spy.call_args[0][1]
-        assert config_seen["tags"] == ["test"]
-        assert config_seen["metadata"]["a"] == 5
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
-        assert "__langserve_endpoint" in config_seen["metadata"]
-        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
 
 
 async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:

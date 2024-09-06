@@ -181,6 +181,9 @@ async def _unpack_request_config(
             credentials to a runnable. The RunnableConfig is presented in its
             dictionary form. Note that only keys in `config_keys` will be
             modifiable by this function.
+        config_keys: keys that are accepted by the server. This is used to
+            make sure that the server doesn't allow any keys that it doesn't want
+            to allow.
     """
     config_dicts = []
     for config in client_sent_configs:
@@ -192,6 +195,7 @@ async def _unpack_request_config(
             config_dicts.append(model(**config).dict())
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
+
     config = merge_configs(*config_dicts)
     if "configurable" in config and config["configurable"]:
         if "configurable" not in config_keys:
@@ -228,7 +232,7 @@ def _update_config_with_defaults(
     """Set up some baseline configuration for the underlying runnable."""
 
     # Currently all defaults are non-overridable
-    overridable_default_config = RunnableConfig()
+    overridable_default_config: RunnableConfig = {}
 
     metadata = {
         "__useragent": request.headers.get("user-agent"),
@@ -256,11 +260,10 @@ def _update_config_with_defaults(
         }
         metadata.update(hosted_metadata)
 
-    non_overridable_default_config = RunnableConfig(
-        run_name=run_name,
-        metadata=metadata,
-    )
-
+    non_overridable_default_config: RunnableConfig = {
+        "run_name": run_name,
+        "metadata": metadata,
+    }
     # merge_configs is last-writer-wins, so we specifically pass in the
     # overridable configs first, then the user provided configs, then
     # finally the non-overridable configs
@@ -269,7 +272,6 @@ def _update_config_with_defaults(
         incoming_config,
         non_overridable_default_config,
     )
-
     # run_id may have been set by user (and accepted by server) or
     # it may have been by the user on the server request path.
     # If it's not set, we'll generate a new one.
@@ -803,6 +805,8 @@ class APIHandler:
                 with any other configuration. It's the last to be written, so
                 it will override any other configuration.
         """
+        from langchain_core.runnables.config import var_child_runnable_config
+
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
         config, input_ = await self._get_config_and_input(
