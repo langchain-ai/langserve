@@ -403,7 +403,7 @@ def _with_validation_error_translation() -> Generator[None, None, None]:
     try:
         yield
     except ValidationError as e:
-        raise RequestValidationError(e.errors(), body=e.model)
+        raise RequestValidationError(e.errors())
 
 
 def _json_encode_response(model: BaseModel) -> JSONResponse:

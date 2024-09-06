@@ -170,7 +170,7 @@ async def test_invoke_request_with_runnables() -> None:
             "configurable": {"template": "goodbye {name}"},
         },
     )
-    assert request.input == {"name": "bob"}
+    assert dict(request.input) == {"name": "bob"}
     assert request.config.tags == ["hello"]
     assert request.config.run_name == "run"
     assert isinstance(request.config.configurable, BaseModel)

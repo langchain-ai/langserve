@@ -74,6 +74,7 @@ from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
+from tests.unit_tests.utils.serde import recursive_dump
 from tests.unit_tests.utils.stubs import _AnyIdAIMessage, _AnyIdAIMessageChunk
 from tests.unit_tests.utils.tracer import FakeTracer
 
@@ -1474,7 +1475,12 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_two_custom/config_schema")
         assert response.json() == {
             "properties": {
-                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
+                "tags": {
+                    "default": None,
+                    "items": {"type": "string"},
+                    "title": "Tags",
+                    "type": "array",
+                }
             },
             "title": "add_two_config",
             "type": "object",
@@ -1482,12 +1488,17 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
 
         response = await async_client.get("/prompt_2/config_schema")
         assert response.json() == {
-            "definitions": {
+            "$defs": {
                 "Configurable": {
                     "properties": {
                         "template": {
                             "default": "say {name}",
-                            "description": "The template to use for the prompt",
+                            "description": "The "
+                            "template "
+                            "to use "
+                            "for "
+                            "the "
+                            "prompt",
                             "title": "Template",
                             "type": "string",
                         }
@@ -1497,8 +1508,16 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 }
             },
             "properties": {
-                "configurable": {"$ref": "#/definitions/Configurable"},
-                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
+                "configurable": {
+                    "allOf": [{"$ref": "#/$defs/Configurable"}],
+                    "default": None,
+                },
+                "tags": {
+                    "default": None,
+                    "items": {"type": "string"},
+                    "title": "Tags",
+                    "type": "array",
+                },
             },
             "title": "RunnableConfigurableFieldsConfig",
             "type": "object",
@@ -1520,8 +1539,7 @@ async def test_input_schema_typed_dict() -> None:
     async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
         res = await client.get("/input_schema")
         assert res.json() == {
-            "$ref": "#/definitions/InputType",
-            "definitions": {
+            "$defs": {
                 "InputType": {
                     "properties": {
                         "bar": {
@@ -1536,6 +1554,7 @@ async def test_input_schema_typed_dict() -> None:
                     "type": "object",
                 }
             },
+            "allOf": [{"$ref": "#/$defs/InputType"}],
             "title": "passthrough_dict_input",
         }
 
@@ -2561,168 +2580,262 @@ async def test_astream_events_with_prompt_model_parser_chain(
             )
         ]
         _clean_up_events(events)
-        assert events == [
+        assert recursive_dump(events) == [
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_prompt_start",
                 "name": "ChatPromptTemplate",
-                "tags": ["seq:step:1"],
                 "parent_ids": [],
+                "tags": ["seq:step:1"],
             },
             {
                 "data": {
                     "input": {"question": "hello"},
                     "output": {
                         "messages": [
-                            SystemMessage(content="You are a cat."),
-                            HumanMessage(content="hello"),
+                            {
+                                "additional_kwargs": {},
+                                "content": "You are a cat.",
+                                "name": None,
+                                "response_metadata": {},
+                                "type": "system",
+                            },
+                            {
+                                "additional_kwargs": {},
+                                "content": "hello",
+                                "name": None,
+                                "response_metadata": {},
+                                "type": "human",
+                            },
                         ]
                     },
                 },
                 "event": "on_prompt_end",
                 "name": "ChatPromptTemplate",
-                "tags": ["seq:step:1"],
                 "parent_ids": [],
+                "tags": ["seq:step:1"],
             },
             {
                 "data": {
                     "input": {
                         "messages": [
                             [
-                                SystemMessage(content="You are a cat."),
-                                HumanMessage(content="hello"),
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "You are a cat.",
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "system",
+                                },
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "hello",
+                                    "example": False,
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "human",
+                                },
                             ]
                         ]
                     }
                 },
                 "event": "on_chat_model_start",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
-                "data": {"chunk": _AnyIdAIMessageChunk(content="Hello")},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": "Hello",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {},
                 "event": "on_parser_start",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
-                "data": {"chunk": _AnyIdAIMessageChunk(content=" ")},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": " ",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
-                "data": {"chunk": _AnyIdAIMessageChunk(content="World!")},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": "World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
                 "data": {
                     "input": {
                         "messages": [
                             [
-                                SystemMessage(content="You are a cat."),
-                                HumanMessage(content="hello"),
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "You are a cat.",
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "system",
+                                },
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "hello",
+                                    "example": False,
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "human",
+                                },
                             ]
                         ]
                     },
-                    "output": LLMResult(
-                        generations=[
+                    "output": {
+                        "generations": [
                             [
-                                ChatGenerationChunk(
-                                    text="Hello World!",
-                                    message=_AnyIdAIMessageChunk(
-                                        content="Hello World!"
-                                    ),
-                                )
+                                {
+                                    "generation_info": None,
+                                    "message": {
+                                        "additional_kwargs": {},
+                                        "content": "Hello World!",
+                                        "name": None,
+                                        "response_metadata": {},
+                                        "type": "AIMessageChunk",
+                                    },
+                                    "text": "Hello World!",
+                                    "type": "ChatGenerationChunk",
+                                }
                             ]
                         ],
-                        llm_output=None,
-                        run=None,
-                    ),
+                        "llm_output": None,
+                        "run": None,
+                    },
                 },
                 "event": "on_chat_model_end",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {
-                    "input": _AnyIdAIMessageChunk(content="Hello World!"),
+                    "input": {
+                        "additional_kwargs": {},
+                        "content": "Hello World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    },
                     "output": "Hello World!",
                 },
                 "event": "on_parser_end",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"output": "Hello World!"},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
         ]
 
