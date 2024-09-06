@@ -68,11 +68,6 @@ def test_serialization(data: Any) -> None:
     ) == _get_full_representation(data)
 
 
-def test_fail_03():
-    assert "LLMResult" == "WellKnocnLCOBject contains it"  # Requires type
-    assert "CHatGeneration_Deserialized correct" == "UNcomment test above"
-
-
 def _get_full_representation(data: Any) -> Any:
     """Get the full representation of the data, replacing pydantic models with schema.
 
@@ -194,3 +189,10 @@ def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
     """
     lc_serializer = WellKnownLCSerializer()
     assert lc_serializer.dumpd(obj) == expected
+
+
+@pytest.mark.xfail(reason="0.3")
+def test_fail_03() -> None:
+    """This test will fail on purposes. It contains a TODO list for 0.3 release."""
+    assert "LLMResult" == "WellKnocnLCOBject contains it"  # Requires type
+    assert "CHatGeneration_Deserialized correct" == "UNcomment test above"
