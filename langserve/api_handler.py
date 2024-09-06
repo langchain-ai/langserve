@@ -257,10 +257,12 @@ def _update_config_with_defaults(
         }
         metadata.update(hosted_metadata)
 
-    non_overridable_default_config = RunnableConfig(
-        run_name=run_name,
-        metadata=metadata,
-    )
+    non_overridable_default_config: RunnableConfig = {
+        "metadata": metadata,
+    }
+
+    if run_name:
+        non_overridable_default_config["run_name"] = run_name
 
     # merge_configs is last-writer-wins, so we specifically pass in the
     # overridable configs first, then the user provided configs, then
