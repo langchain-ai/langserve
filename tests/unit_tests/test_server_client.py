@@ -599,10 +599,15 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
         assert remote_runnable_run.name == "RemoteRunnable"
 
         assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
-    elif sys.version_info <= (3, 9):
+    elif sys.version_info < (3, 10):
         assert len(tracer.runs) == 1
         remote_runnable = tracer.runs[0]
-        assert remote_runnable.child_runs[0].extras == "add_one_or_passthrough"
+        assert (
+            remote_runnable.child_runs[0].extra["kwargs"]["name"]
+            == "add_one_or_passthrough"
+        )
+    else:
+        raise AssertionError(f"Unsupported python version {sys.version_info}")
 
 
 async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
