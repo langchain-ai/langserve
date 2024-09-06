@@ -2,6 +2,7 @@
 import asyncio
 import datetime
 import json
+import sys
 import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
@@ -569,9 +570,6 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
         tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
         == "add_one_or_passthrough"
     )
-
-
-import sys
 
 
 async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
