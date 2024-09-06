@@ -1596,6 +1596,7 @@ class APIHandler:
             score=create_request.score,
             value=create_request.value,
             comment=create_request.comment,
+            correction=create_request.correction,
             metadata=metadata,
         )
 

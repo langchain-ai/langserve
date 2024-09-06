@@ -3119,7 +3119,8 @@ async def test_token_feedback_endpoint() -> None:
             local_app, raise_app_exceptions=True
         ) as async_client:
             response = await async_client.post(
-                "/token_feedback", json={"token_or_url": "some_url", "score": 3}
+                "/token_feedback",
+                json={"token_or_url": "some_url", "score": 3},
             )
             assert response.status_code == 200
 
@@ -3130,4 +3131,5 @@ async def test_token_feedback_endpoint() -> None:
                 "metadata": {"from_langserve": True},
                 "score": 3,
                 "value": None,
+                "correction": None,
             }
