@@ -24,11 +24,7 @@ from langserve.api_handler import (
     TokenFeedbackConfig,
     _is_hosted,
 )
-from langserve.pydantic_v1 import (
-    _PYDANTIC_MAJOR_VERSION,
-    PYDANTIC_VERSION,
-    BaseModel,
-)
+from pydantic import BaseModel
 
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request, Response
@@ -236,20 +232,6 @@ def _setup_global_app_handlers(
                 print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
                 print(f'{green("LANGSERVE:")}')
         print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
-
-        if _PYDANTIC_MAJOR_VERSION == 2:
-            print()
-            print(f'{orange("LANGSERVE:")} ', end="")
-            print(
-                f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
-                f"OpenAPI docs for invoke, batch, stream, stream_log "
-                f"endpoints will not be generated. API endpoints and playground "
-                f"should work as expected. "
-                f"If you need to see the docs, you can downgrade to pydantic 1. "
-                "For example, `pip install pydantic==1.10.13`. "
-                f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
-            )
-        print()
 
 
 # PUBLIC API
@@ -473,35 +455,9 @@ def add_routes(
     if hasattr(app, "openapi_tags") and (path or (app not in _APP_SEEN)):
         if not path:
             _APP_SEEN.add(app)
-
-        if _PYDANTIC_MAJOR_VERSION == 1:
-            # Documentation for the default endpoints
-            default_endpoint_tags = {
-                "name": route_tags[0] if route_tags else "default",
-            }
-        elif _PYDANTIC_MAJOR_VERSION == 2:
-            # When using pydantic v2, we cannot generate openapi docs for
-            # the invoke/batch/stream/stream_log endpoints since the underlying
-            # models are from the pydantic.v1 namespace and cannot be supported
-            # by FastAPI's.
-            # https://github.com/tiangolo/fastapi/issues/10360
-            default_endpoint_tags = {
-                "name": route_tags[0] if route_tags else "default",
-                "description": (
-                    f"⚠️ Using pydantic {PYDANTIC_VERSION}. "
-                    f"OpenAPI docs for `invoke`, `batch`, `stream`, `stream_log` "
-                    f"endpoints will not be generated. API endpoints and playground "
-                    f"should work as expected. "
-                    f"If you need to see the docs, you can downgrade to pydantic 1. "
-                    "For example, `pip install pydantic==1.10.13`"
-                    f"See https://github.com/tiangolo/fastapi/issues/10360 for details."
-                ),
-            }
-        else:
-            raise AssertionError(
-                f"Expected pydantic major version 1 or 2, got {_PYDANTIC_MAJOR_VERSION}"
-            )
-
+        default_endpoint_tags = {
+            "name": route_tags[0] if route_tags else "default",
+        }
         if endpoint_configuration.is_config_hash_enabled:
             app.openapi_tags = [
                 *(getattr(app, "openapi_tags", []) or []),
@@ -778,329 +734,326 @@ def add_routes(
     # Documentation variants of end points.
     #######################################
     # At the moment, we only support pydantic 1.x for documentation
-    if _PYDANTIC_MAJOR_VERSION == 1:
-        InvokeRequest = api_handler.InvokeRequest
-        InvokeResponse = api_handler.InvokeResponse
-        BatchRequest = api_handler.BatchRequest
-        BatchResponse = api_handler.BatchResponse
-        StreamRequest = api_handler.StreamRequest
-        StreamLogRequest = api_handler.StreamLogRequest
-        StreamEventsRequest = api_handler.StreamEventsRequest
+    InvokeRequest = api_handler.InvokeRequest
+    InvokeResponse = api_handler.InvokeResponse
+    BatchRequest = api_handler.BatchRequest
+    BatchResponse = api_handler.BatchResponse
+    StreamRequest = api_handler.StreamRequest
+    StreamLogRequest = api_handler.StreamLogRequest
+    StreamEventsRequest = api_handler.StreamEventsRequest
 
-        if endpoint_configuration.is_invoke_enabled:
+    if endpoint_configuration.is_invoke_enabled:
 
-            async def _invoke_docs(
-                invoke_request: Annotated[InvokeRequest, InvokeRequest],
-                config_hash: str = "",
-            ) -> InvokeResponse:
-                """Invoke the runnable with the given input and config."""
-                raise AssertionError("This endpoint should not be reachable.")
+        async def _invoke_docs(
+            invoke_request: Annotated[InvokeRequest, InvokeRequest],
+            config_hash: str = "",
+        ) -> InvokeResponse:
+            """Invoke the runnable with the given input and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-            invoke_docs = app.post(
-                f"{namespace}/invoke",
+        invoke_docs = app.post(
+            f"{namespace}/invoke",
+            response_model=api_handler.InvokeResponse,
+            tags=route_tags,
+            name=_route_name("invoke"),
+            dependencies=dependencies,
+        )(_invoke_docs)
+
+        if endpoint_configuration.is_config_hash_enabled:
+            app.post(
+                namespace + "/c/{config_hash}/invoke",
                 response_model=api_handler.InvokeResponse,
-                tags=route_tags,
-                name=_route_name("invoke"),
+                tags=route_tags_with_config,
+                name=_route_name_with_config("invoke"),
                 dependencies=dependencies,
-            )(_invoke_docs)
+                description=(
+                    "This endpoint is to be used with share links generated by the "
+                    "LangServe playground. "
+                    "The hash is an LZString compressed JSON string. "
+                    "For regular use cases, use the /invoke endpoint without "
+                    "the `c/{config_hash}` path parameter."
+                ),
+            )(invoke_docs)
 
-            if endpoint_configuration.is_config_hash_enabled:
-                app.post(
-                    namespace + "/c/{config_hash}/invoke",
-                    response_model=api_handler.InvokeResponse,
-                    tags=route_tags_with_config,
-                    name=_route_name_with_config("invoke"),
-                    dependencies=dependencies,
-                    description=(
-                        "This endpoint is to be used with share links generated by the "
-                        "LangServe playground. "
-                        "The hash is an LZString compressed JSON string. "
-                        "For regular use cases, use the /invoke endpoint without "
-                        "the `c/{config_hash}` path parameter."
-                    ),
-                )(invoke_docs)
+    if endpoint_configuration.is_batch_enabled:
 
-        if endpoint_configuration.is_batch_enabled:
+        async def _batch_docs(
+            batch_request: Annotated[BatchRequest, BatchRequest],
+            config_hash: str = "",
+        ) -> BatchResponse:
+            """Batch invoke the runnable with the given inputs and config."""
+            raise AssertionError("This endpoint should not be reachable.")
 
-            async def _batch_docs(
-                batch_request: Annotated[BatchRequest, BatchRequest],
-                config_hash: str = "",
-            ) -> BatchResponse:
-                """Batch invoke the runnable with the given inputs and config."""
-                raise AssertionError("This endpoint should not be reachable.")
+        batch_docs = app.post(
+            f"{namespace}/batch",
+            response_model=BatchResponse,
+            tags=route_tags,
+            name=_route_name("batch"),
+            dependencies=dependencies,
+        )(_batch_docs)
 
-            batch_docs = app.post(
-                f"{namespace}/batch",
+        if endpoint_configuration.is_config_hash_enabled:
+            app.post(
+                namespace + "/c/{config_hash}/batch",
                 response_model=BatchResponse,
-                tags=route_tags,
-                name=_route_name("batch"),
+                tags=route_tags_with_config,
+                name=_route_name_with_config("batch"),
                 dependencies=dependencies,
-            )(_batch_docs)
+                description=(
+                    "This endpoint is to be used with share links generated by the "
+                    "LangServe playground. "
+                    "The hash is an LZString compressed JSON string. "
+                    "For regular use cases, use the /batch endpoint without "
+                    "the `c/{config_hash}` path parameter."
+                ),
+            )(batch_docs)
 
-            if endpoint_configuration.is_config_hash_enabled:
-                app.post(
-                    namespace + "/c/{config_hash}/batch",
-                    response_model=BatchResponse,
-                    tags=route_tags_with_config,
-                    name=_route_name_with_config("batch"),
-                    dependencies=dependencies,
-                    description=(
-                        "This endpoint is to be used with share links generated by the "
-                        "LangServe playground. "
-                        "The hash is an LZString compressed JSON string. "
-                        "For regular use cases, use the /batch endpoint without "
-                        "the `c/{config_hash}` path parameter."
-                    ),
-                )(batch_docs)
+    if endpoint_configuration.is_stream_enabled:
 
-        if endpoint_configuration.is_stream_enabled:
+        async def _stream_docs(
+            stream_request: Annotated[StreamRequest, StreamRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream the output.
 
-            async def _stream_docs(
-                stream_request: Annotated[StreamRequest, StreamRequest],
-                config_hash: str = "",
-            ) -> EventSourceResponse:
-                """Invoke the runnable stream the output.
+            This endpoint allows to stream the output of the runnable.
 
-                This endpoint allows to stream the output of the runnable.
+            The endpoint uses a server sent event stream to stream the output.
 
-                The endpoint uses a server sent event stream to stream the output.
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
-                https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+            Important: Set the "text/event-stream" media type for request headers if
+                not using an existing SDK.
 
-                Important: Set the "text/event-stream" media type for request headers if
-                    not using an existing SDK.
+            The events that the endpoint uses are the following:
+            * "data" -- used for streaming the output of the runnale
+            * "error" -- signaling an error while streaming and ends the stream.
+            * "end" -- used for signaling the end of the stream
+            * "metadata" -- used for sending metadata about the run; e.g., run id.
 
-                The events that the endpoint uses are the following:
-                * "data" -- used for streaming the output of the runnale
-                * "error" -- signaling an error while streaming and ends the stream.
-                * "end" -- used for signaling the end of the stream
-                * "metadata" -- used for sending metadata about the run; e.g., run id.
-
-                The event type is in the "event" field of the event.
-                The payload associated with the event is in the "data" field
-                of the event, and it is JSON encoded.
+            The event type is in the "event" field of the event.
+            The payload associated with the event is in the "data" field
+            of the event, and it is JSON encoded.
 
 
-                Here are some examples of events that the endpoint can send:
+            Here are some examples of events that the endpoint can send:
 
-                Regular streaming event:
+            Regular streaming event:
+            {
+                "event": "data",
+                "data": {
+                    ...
+                }
+            }
+
+            Internal server error:
+            {
+                "event": "error",
+                "data": {
+                    "status_code": 500,
+                    "message": "Internal Server Error"
+                }
+            }
+
+            Streaming ended so client should stop listening for events:
+            {
+                "event": "end",
+            }
+            """
+            raise AssertionError("This endpoint should not be reachable.")
+
+        stream_docs = app.post(
+            f"{namespace}/stream",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream"),
+            dependencies=dependencies,
+            description=(
+                "This endpoint allows to stream the output of the runnable. "
+                "The endpoint uses a server sent event stream to stream the "
+                "output. "
+                "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+            ),
+        )(_stream_docs)
+
+        if endpoint_configuration.is_config_hash_enabled:
+            app.post(
+                namespace + "/c/{config_hash}/stream",
+                include_in_schema=True,
+                tags=route_tags_with_config,
+                name=_route_name_with_config("stream"),
+                dependencies=dependencies,
+                description=(
+                    "This endpoint is to be used with share links generated by the "
+                    "LangServe playground. "
+                    "The hash is an LZString compressed JSON string. "
+                    "For regular use cases, use the /stream endpoint without "
+                    "the `c/{config_hash}` path parameter."
+                ),
+            )(stream_docs)
+
+    if endpoint_configuration.is_stream_log_enabled:
+
+        async def _stream_log_docs(
+            stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Invoke the runnable stream_log the output.
+
+            This endpoint allows to stream the output of the runnable, including
+            the output of all intermediate steps.
+
+            The endpoint uses a server sent event stream to stream the output.
+
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+            Important: Set the "text/event-stream" media type for request headers if
+                       not using an existing SDK.
+
+            This endpoint uses two different types of events:
+
+            * data - for streaming the output of the runnable
+
                 {
                     "event": "data",
                     "data": {
-                        ...
+                    ...
                     }
                 }
 
-                Internal server error:
-                {
-                    "event": "error",
-                    "data": {
-                        "status_code": 500,
-                        "message": "Internal Server Error"
-                    }
-                }
+            * error - for signaling an error in the stream, also ends the stream.
 
-                Streaming ended so client should stop listening for events:
+            {
+                "event": "error",
+                "data": {
+                    "status_code": 500,
+                    "message": "Internal Server Error"
+                }
+            }
+
+            * end - for signaling the end of the stream.
+
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
+
                 {
                     "event": "end",
                 }
-                """
-                raise AssertionError("This endpoint should not be reachable.")
+            """
+            raise AssertionError("This endpoint should not be reachable.")
 
-            stream_docs = app.post(
-                f"{namespace}/stream",
-                include_in_schema=True,
-                tags=route_tags,
-                name=_route_name("stream"),
-                dependencies=dependencies,
-                description=(
-                    "This endpoint allows to stream the output of the runnable. "
-                    "The endpoint uses a server sent event stream to stream the "
-                    "output. "
-                    "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
-                ),
-            )(_stream_docs)
+        app.post(
+            f"{namespace}/stream_log",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream_log"),
+            dependencies=dependencies,
+        )(_stream_log_docs)
 
-            if endpoint_configuration.is_config_hash_enabled:
-                app.post(
-                    namespace + "/c/{config_hash}/stream",
-                    include_in_schema=True,
-                    tags=route_tags_with_config,
-                    name=_route_name_with_config("stream"),
-                    dependencies=dependencies,
-                    description=(
-                        "This endpoint is to be used with share links generated by the "
-                        "LangServe playground. "
-                        "The hash is an LZString compressed JSON string. "
-                        "For regular use cases, use the /stream endpoint without "
-                        "the `c/{config_hash}` path parameter."
-                    ),
-                )(stream_docs)
-
-        if endpoint_configuration.is_stream_log_enabled:
-
-            async def _stream_log_docs(
-                stream_log_request: Annotated[StreamLogRequest, StreamLogRequest],
-                config_hash: str = "",
-            ) -> EventSourceResponse:
-                """Invoke the runnable stream_log the output.
-
-                This endpoint allows to stream the output of the runnable, including
-                the output of all intermediate steps.
-
-                The endpoint uses a server sent event stream to stream the output.
-
-                https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-
-                Important: Set the "text/event-stream" media type for request headers if
-                           not using an existing SDK.
-
-                This endpoint uses two different types of events:
-
-                * data - for streaming the output of the runnable
-
-                    {
-                        "event": "data",
-                        "data": {
-                        ...
-                        }
-                    }
-
-                * error - for signaling an error in the stream, also ends the stream.
-
-                {
-                    "event": "error",
-                    "data": {
-                        "status_code": 500,
-                        "message": "Internal Server Error"
-                    }
-                }
-
-                * end - for signaling the end of the stream.
-
-                    This helps the client to know when to stop listening for events and
-                    know that the streaming has ended successfully.
-
-                    {
-                        "event": "end",
-                    }
-                """
-                raise AssertionError("This endpoint should not be reachable.")
-
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
-                f"{namespace}/stream_log",
+                namespace + "/c/{config_hash}/stream_log",
                 include_in_schema=True,
-                tags=route_tags,
-                name=_route_name("stream_log"),
+                tags=route_tags_with_config,
+                name=_route_name_with_config("stream_log"),
+                description=(
+                    "This endpoint is to be used with share links generated by the "
+                    "LangServe playground. "
+                    "The hash is an LZString compressed JSON string. "
+                    "For regular use cases, use the /stream_log endpoint without "
+                    "the `c/{config_hash}` path parameter."
+                ),
                 dependencies=dependencies,
             )(_stream_log_docs)
 
-            if endpoint_configuration.is_config_hash_enabled:
-                app.post(
-                    namespace + "/c/{config_hash}/stream_log",
-                    include_in_schema=True,
-                    tags=route_tags_with_config,
-                    name=_route_name_with_config("stream_log"),
-                    description=(
-                        "This endpoint is to be used with share links generated by the "
-                        "LangServe playground. "
-                        "The hash is an LZString compressed JSON string. "
-                        "For regular use cases, use the /stream_log endpoint without "
-                        "the `c/{config_hash}` path parameter."
-                    ),
-                    dependencies=dependencies,
-                )(_stream_log_docs)
+    if has_astream_events and endpoint_configuration.is_stream_events_enabled:
 
-        if has_astream_events and endpoint_configuration.is_stream_events_enabled:
+        async def _stream_events_docs(
+            stream_events_request: Annotated[StreamEventsRequest, StreamEventsRequest],
+            config_hash: str = "",
+        ) -> EventSourceResponse:
+            """Stream events from the given runnable.
 
-            async def _stream_events_docs(
-                stream_events_request: Annotated[
-                    StreamEventsRequest, StreamEventsRequest
-                ],
-                config_hash: str = "",
-            ) -> EventSourceResponse:
-                """Stream events from the given runnable.
+            This endpoint allows to stream events from the runnable, including
+            events from all intermediate steps.
 
-                This endpoint allows to stream events from the runnable, including
-                events from all intermediate steps.
+            **Attention**
 
-                **Attention**
+                This is a new endpoint that only works for langchain-core >= 0.1.14.
 
-                    This is a new endpoint that only works for langchain-core >= 0.1.14.
+                It belongs to a Beta API that may change in the future.
 
-                    It belongs to a Beta API that may change in the future.
+            **Important**
+                Specify filters to the events you want to receive by setting
+                the appropriate filters in the request body.
 
-                **Important**
-                    Specify filters to the events you want to receive by setting
-                    the appropriate filters in the request body.
+                This will help avoid sending too much data over the network.
 
-                    This will help avoid sending too much data over the network.
+                It will also prevent serialization issues with
+                any unsupported types since it won't need to serialize events
+                that aren't transmitted.
 
-                    It will also prevent serialization issues with
-                    any unsupported types since it won't need to serialize events
-                    that aren't transmitted.
+            The endpoint uses a server sent event stream to stream the output.
 
-                The endpoint uses a server sent event stream to stream the output.
+            https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
-                https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+            The encoding of events follows the following format:
 
-                The encoding of events follows the following format:
-
-                * data - for streaming the output of the runnable
-
-                    {
-                        "event": "data",
-                        "data": {
-                        ...
-                        }
-                    }
-
-                * error - for signaling an error in the stream, also ends the stream.
+            * data - for streaming the output of the runnable
 
                 {
-                    "event": "error",
+                    "event": "data",
                     "data": {
-                        "status_code": 500,
-                        "message": "Internal Server Error"
+                    ...
                     }
                 }
 
-                * end - for signaling the end of the stream.
+            * error - for signaling an error in the stream, also ends the stream.
 
-                    This helps the client to know when to stop listening for events and
-                    know that the streaming has ended successfully.
+            {
+                "event": "error",
+                "data": {
+                    "status_code": 500,
+                    "message": "Internal Server Error"
+                }
+            }
 
-                    {
-                        "event": "end",
-                    }
+            * end - for signaling the end of the stream.
 
-                `data` for the `data` event is a JSON object that corresponds
-                to a serialized representation of a StreamEvent.
+                This helps the client to know when to stop listening for events and
+                know that the streaming has ended successfully.
 
-                See LangChain documentation for more information about astream_events.
-                """
-                raise AssertionError("This endpoint should not be reachable.")
+                {
+                    "event": "end",
+                }
 
+            `data` for the `data` event is a JSON object that corresponds
+            to a serialized representation of a StreamEvent.
+
+            See LangChain documentation for more information about astream_events.
+            """
+            raise AssertionError("This endpoint should not be reachable.")
+
+        app.post(
+            f"{namespace}/stream_events",
+            include_in_schema=True,
+            tags=route_tags,
+            name=_route_name("stream_events"),
+            dependencies=dependencies,
+        )(_stream_events_docs)
+
+        if endpoint_configuration.is_config_hash_enabled:
             app.post(
-                f"{namespace}/stream_events",
+                namespace + "/c/{config_hash}/stream_events",
                 include_in_schema=True,
-                tags=route_tags,
-                name=_route_name("stream_events"),
+                tags=route_tags_with_config,
+                name=_route_name_with_config("stream_events"),
+                description=(
+                    "This endpoint is to be used with share links generated by the "
+                    "LangServe playground. "
+                    "The hash is an LZString compressed JSON string. "
+                    "For regular use cases, use the /stream_events endpoint "
+                    "without the `c/{config_hash}` path parameter."
+                ),
                 dependencies=dependencies,
             )(_stream_events_docs)
-
-            if endpoint_configuration.is_config_hash_enabled:
-                app.post(
-                    namespace + "/c/{config_hash}/stream_events",
-                    include_in_schema=True,
-                    tags=route_tags_with_config,
-                    name=_route_name_with_config("stream_events"),
-                    description=(
-                        "This endpoint is to be used with share links generated by the "
-                        "LangServe playground. "
-                        "The hash is an LZString compressed JSON string. "
-                        "For regular use cases, use the /stream_events endpoint "
-                        "without the `c/{config_hash}` path parameter."
-                    ),
-                    dependencies=dependencies,
-                )(_stream_events_docs)

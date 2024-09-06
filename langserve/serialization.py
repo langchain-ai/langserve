@@ -38,8 +38,9 @@ from langchain_core.outputs import (
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
+from pydantic import BaseModel, ValidationError
+from pydantic import RootModel
 
-from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
 
 logger = logging.getLogger(__name__)
@@ -51,15 +52,11 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
-class WellKnownLCObject(BaseModel):
-    """A well known LangChain object.
-
-    A pydantic model that defines what constitutes a well known LangChain object.
-
-    All well-known objects are allowed to be serialized and de-serialized.
-    """
-
-    __root__: Union[
+# A well known LangChain object.
+# A pydantic model that defines what constitutes a well known LangChain object.
+# All well-known objects are allowed to be serialized and de-serialized.
+WellKnownLCObject = RootModel[
+    Union[
         Document,
         HumanMessage,
         SystemMessage,
@@ -81,6 +78,7 @@ class WellKnownLCObject(BaseModel):
         Generation,
         ChatGenerationChunk,
     ]
+]
 
 
 def default(obj) -> Any:

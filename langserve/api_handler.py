@@ -48,7 +48,7 @@ from typing_extensions import TypedDict
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model
+from pydantic import BaseModel, Field, ValidationError, create_model
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -367,11 +367,7 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
         A new model with name prepended with the given namespace.
     """
     model_with_unique_name = _rename_pydantic_model(model, namespace)
-    if "run_id" in model_with_unique_name.__annotations__:
-        # Help resolve reference by providing namespace references
-        model_with_unique_name.update_forward_refs(uuid=uuid)
-    else:
-        model_with_unique_name.update_forward_refs()
+    model_with_unique_name.model_rebuild()
     return model_with_unique_name
 
 

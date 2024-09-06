@@ -7,7 +7,7 @@ from typing import Literal, Sequence, Type
 from fastapi.responses import Response
 from langchain_core.runnables import Runnable
 
-from langserve.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 
 
 class PlaygroundTemplate(Template):

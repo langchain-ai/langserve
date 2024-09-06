@@ -66,7 +66,7 @@ def create_invoke_request_model(
             ),
         ),
     )
-    invoke_request_type.update_forward_refs()
+    invoke_request_type.model_rebuild()
     return invoke_request_type
 
 
@@ -97,7 +97,7 @@ def create_stream_request_model(
             ),
         ),
     )
-    stream_request_model.update_forward_refs()
+    stream_request_model.model_rebuild()
     return stream_request_model
 
 
@@ -129,7 +129,7 @@ def create_batch_request_model(
             ),
         ),
     )
-    batch_request_type.update_forward_refs()
+    batch_request_type.model_rebuild()
     return batch_request_type
 
 
@@ -187,7 +187,7 @@ def create_stream_log_request_model(
         ),
         kwargs=(dict, Field(default_factory=dict)),
     )
-    stream_log_request.update_forward_refs()
+    stream_log_request.model_rebuild()
     return stream_log_request
 
 
@@ -245,7 +245,7 @@ def create_stream_events_request_model(
         ),
         kwargs=(dict, Field(default_factory=dict)),
     )
-    stream_events_request.update_forward_refs()
+    stream_events_request.model_rebuild()
     return stream_events_request
 
 
@@ -297,7 +297,7 @@ def create_invoke_response_model(
         __base__=InvokeBaseResponse,
         **fields,
     )
-    invoke_response_type.update_forward_refs()
+    invoke_response_type.model_rebuild()
     return invoke_response_type
 
 
@@ -347,7 +347,7 @@ def create_batch_response_model(
         __base__=BatchBaseResponse,
         **fields,
     )
-    batch_response_type.update_forward_refs()
+    batch_response_type.model_rebuild()
     return batch_response_type
 
 
