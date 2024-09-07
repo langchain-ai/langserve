@@ -2,6 +2,7 @@
 import asyncio
 import datetime
 import json
+import sys
 import uuid
 from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
@@ -421,6 +422,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_start",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -430,6 +432,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_stream",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -439,6 +442,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
                     "event": "on_chain_end",
                     "name": "add_one_or_passthrough",
                     "tags": [],
+                    "parent_ids": [],
                 },
                 "type": "data",
             },
@@ -467,7 +471,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     assert response.status_code == 200
     assert response.json()["output"] == {
         "tags": ["another-one", "test"],
-        "configurable": None,
+        "configurable": {},
     }
 
     # Test batch
@@ -477,7 +481,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     )
     assert response.status_code == 200
     assert response.json()["output"] == [
-        {"tags": ["another-one", "test"], "configurable": None}
+        {"tags": ["another-one", "test"], "configurable": {}}
     ]
 
     # Test stream
@@ -490,7 +494,7 @@ async def test_server_bound_async(app_for_config: FastAPI) -> None:
     response_with_run_id_replaced = _replace_run_id_in_stream_resp(response.text)
     assert (
         response_with_run_id_replaced
-        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags":["another-one","test"],"configurable":null}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
+        == """event: metadata\r\ndata: {"run_id": "<REPLACED>"}\r\n\r\nevent: data\r\ndata: {"tags":["another-one","test"],"configurable":{}}\r\n\r\nevent: end\r\n\r\n"""  # noqa: E501
     )
 
 
@@ -506,13 +510,18 @@ def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     # Test tracing
     tracer = FakeTracer()
     assert sync_remote_runnable.invoke(1, config={"callbacks": [tracer]}) == 2
-    assert len(tracer.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
+    # Picking up the run from the server side, and client side should also log a run
+    # from the RemoteRunnable that will have as a child the server side run.
+    assert len(tracer.runs) == 2
+
+    first_run = tracer.runs[0]
+
+    remote_runnable_run = (
+        tracer.runs[0] if first_run.name == "RemoteRunnable" else tracer.runs[1]
     )
+    assert remote_runnable_run.name == "RemoteRunnable"
+
+    assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
@@ -574,13 +583,31 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # Test tracing
     tracer = FakeTracer()
     assert await async_remote_runnable.ainvoke(1, config={"callbacks": [tracer]}) == 2
-    assert len(tracer.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
+    # This code has some funkiness from the test code running the client and the
+    # server in the same process AND the fact that we use contextvars to propagate
+    # config information.
+    # The behavior is also different between python < 3.11 and python >= 3.11
+    # due to asyncio supporting contextvars starting from 3.11.
+    # check the python version now
+    if sys.version_info >= (3, 11):
+        assert len(tracer.runs) == 2, "Failed for python >= 3.11"
+        first_run = tracer.runs[0]
+
+        remote_runnable_run = (
+            tracer.runs[0] if first_run.name == "RemoteRunnable" else tracer.runs[1]
+        )
+        assert remote_runnable_run.name == "RemoteRunnable"
+
+        assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
+    elif sys.version_info < (3, 11):
+        assert len(tracer.runs) == 1, "Failed for python < 3.11"
+        remote_runnable = tracer.runs[0]
+        assert (
+            remote_runnable.child_runs[0].extra["kwargs"]["name"]
+            == "add_one_or_passthrough"
+        )
+    else:
+        raise AssertionError(f"Unsupported python version {sys.version_info}")
 
 
 async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
@@ -1057,9 +1084,50 @@ async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
         ) == StringPromptValue(text="What is your name? Bob")
 
 
-async def test_input_validation(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_config_keys_validation(mocker: MockerFixture) -> None:
+    """This test should not use a RemoteRunnable.
+
+    RemoteRunnable runs in the same process as the server during unit tests
+    and there's unfortunately an interaction between the config contextvars
+    that makes it difficult to test this behavior correctly using a RemoteRunnable.
+
+    Instead the behavior can be tested correctly by making a regular http request
+    using a FastAPI test client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(
+        app,
+        server_runnable,
+        input_type=int,
+        config_keys=["metadata"],
+    )
+    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+        server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
+        response = await async_client.post(
+            "/invoke",
+            json={"input": 1, "config": {"tags": ["hello"], "metadata": {"a": 5}}},
+        )
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        config_seen = server_runnable_spy.call_args[0][1]
+        assert "metadata" in config_seen
+        assert "a" in config_seen["metadata"]
+        assert config_seen["tags"] == []
+        assert "__useragent" in config_seen["metadata"]
+        assert "__langserve_version" in config_seen["metadata"]
+        assert "__langserve_endpoint" in config_seen["metadata"]
+        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
+
+
+async def test_input_validation(mocker: MockerFixture) -> None:
     """Test client side and server side exceptions."""
 
     async def add_one(x: int) -> int:
@@ -1067,7 +1135,6 @@ async def test_input_validation(
         return x + 1
 
     server_runnable = RunnableLambda(func=add_one)
-    server_runnable2 = RunnableLambda(func=add_one)
 
     app = FastAPI()
     add_routes(
@@ -1075,14 +1142,6 @@ async def test_input_validation(
         server_runnable,
         input_type=int,
         path="/add_one",
-    )
-
-    add_routes(
-        app,
-        server_runnable2,
-        input_type=int,
-        path="/add_one_config",
-        config_keys=["tags", "metadata"],
     )
 
     async with get_async_remote_runnable(
@@ -1096,38 +1155,6 @@ async def test_input_validation(
 
         with pytest.raises(httpx.HTTPError):
             await runnable.abatch(["hello"])
-
-    config = {"tags": ["test"], "metadata": {"a": 5}}
-
-    server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
-    # Verify config is handled correctly
-    async with get_async_remote_runnable(app, path="/add_one") as runnable1:
-        # Verify that can be invoked with valid input
-        # Config ignored for runnable1
-        assert await runnable1.ainvoke(1, config=config) == 2
-        # Config should be ignored but default debug information
-        # will still be added
-        config_seen = server_runnable_spy.call_args[0][1]
-        assert "metadata" in config_seen
-        assert "a" not in config_seen["metadata"]
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
-        assert "__langserve_endpoint" in config_seen["metadata"]
-        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
-
-    server_runnable2_spy = mocker.spy(server_runnable2, "ainvoke")
-    async with get_async_remote_runnable(app, path="/add_one_config") as runnable2:
-        # Config accepted for runnable2
-        assert await runnable2.ainvoke(1, config=config) == 2
-        # Config ignored
-
-        config_seen = server_runnable2_spy.call_args[0][1]
-        assert config_seen["tags"] == ["test"]
-        assert config_seen["metadata"]["a"] == 5
-        assert "__useragent" in config_seen["metadata"]
-        assert "__langserve_version" in config_seen["metadata"]
-        assert "__langserve_endpoint" in config_seen["metadata"]
-        assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
 
 
 async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:
@@ -1412,6 +1439,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {"question": {"title": "Question", "type": "string"}},
             "title": "PromptInput",
             "type": "object",
+            "required": ["question"],
         }
 
         response = await async_client.get("/prompt_2/input_schema")
@@ -1419,6 +1447,7 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
             "properties": {"name": {"title": "Name", "type": "string"}},
             "title": "PromptInput",
             "type": "object",
+            "required": ["name"],
         }
 
         # output schema
@@ -2236,54 +2265,63 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 2},
                 "event": "on_chain_stream",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"input": 1, "output": 2},
                 "event": "on_chain_end",
                 "name": "add_one",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 4},
                 "event": "on_chain_stream",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": 4},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"input": 2, "output": 4},
                 "event": "on_chain_end",
                 "name": "mul_two",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": 4},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2380,12 +2418,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_start",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2397,12 +2437,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_stream",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_chain_start",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2415,18 +2457,21 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "to_document",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "foo"},
                 "event": "on_chain_stream",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "foo"},
                 "event": "on_chain_stream",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2439,12 +2484,14 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "from_document",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": "foo"},
                 "event": "on_chain_end",
                 "name": "/doc_types",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2460,6 +2507,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_start",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2468,6 +2516,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_stream",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2476,6 +2525,7 @@ async def test_astream_events_with_serialization(
                 "event": "on_chain_end",
                 "name": "/get_pets",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2522,12 +2572,14 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_prompt_start",
                 "name": "ChatPromptTemplate",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2542,6 +2594,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_prompt_end",
                 "name": "ChatPromptTemplate",
                 "tags": ["seq:step:1"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2557,66 +2610,77 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chat_model_start",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content="Hello", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {},
                 "event": "on_parser_start",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content=" ", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": AIMessageChunk(content="World!", id=AnyStr())},
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2646,6 +2710,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_chat_model_end",
                 "name": "GenericFakeChatModel",
                 "tags": ["seq:step:2"],
+                "parent_ids": [],
             },
             {
                 "data": {
@@ -2655,12 +2720,14 @@ async def test_astream_events_with_prompt_model_parser_chain(
                 "event": "on_parser_end",
                 "name": "StrOutputParser",
                 "tags": ["seq:step:3"],
+                "parent_ids": [],
             },
             {
                 "data": {"output": "Hello World!"},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
                 "tags": [],
+                "parent_ids": [],
             },
         ]
 
@@ -2785,7 +2852,7 @@ async def test_remote_configurable_remote_runnable() -> None:
             history_messages_key="history",
         )
         result = await chain_with_history.ainvoke(
-            {"question": "hi"}, {"configurable": {"session_id": "1"}}
+            {"question": "hi", "ability": "foo"}, {"configurable": {"session_id": "1"}}
         )
         assert result == AIMessage(content="Hello World!", id=AnyStr())
         assert store == {

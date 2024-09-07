@@ -431,11 +431,15 @@ class RemoteRunnable(Runnable[Input, Output]):
         self,
         inputs: List[Input],
         config: Optional[RunnableConfig] = None,
+        *,
+        return_exceptions: bool = False,
         **kwargs: Any,
     ) -> List[Output]:
         if kwargs:
-            raise NotImplementedError("kwargs not implemented yet.")
-        return self._batch_with_config(self._batch, inputs, config)
+            raise NotImplementedError(f"kwargs not implemented yet. Got {kwargs}")
+        return self._batch_with_config(
+            self._batch, inputs, config, return_exceptions=return_exceptions
+        )
 
     async def _abatch(
         self,
