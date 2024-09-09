@@ -84,7 +84,7 @@ WellKnownLCObject = RootModel[
 def default(obj) -> Any:
     """Default serialization for well known objects."""
     if isinstance(obj, BaseModel):
-        return obj.dict()
+        return obj.model_dump()
     return super().default(obj)
 
 
@@ -96,7 +96,7 @@ def _decode_lc_objects(value: Any) -> Any:
         try:
             obj = WellKnownLCObject.model_validate(v)
             parsed = obj.root
-            if set(parsed.dict()) != set(value):
+            if set(parsed.model_dump()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
         except (ValidationError, ValueError, TypeError):

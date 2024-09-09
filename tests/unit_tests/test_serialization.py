@@ -18,7 +18,7 @@ from langserve.serialization import (
 def test_document_serialization() -> None:
     """Simple test. Exhaustive tests follow below."""
     doc = Document(page_content="hello")
-    d = doc.dict()
+    d = doc.model_dump()
     WellKnownLCObject.model_validate(d)
 
 

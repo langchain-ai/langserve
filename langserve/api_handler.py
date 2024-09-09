@@ -186,11 +186,11 @@ async def _unpack_request_config(
     config_dicts = []
     for config in client_sent_configs:
         if isinstance(config, str):
-            config_dicts.append(model(**_config_from_hash(config)).dict())
+            config_dicts.append(model(**_config_from_hash(config)).model_dump())
         elif isinstance(config, BaseModel):
-            config_dicts.append(config.dict())
+            config_dicts.append(config.model_dump())
         elif isinstance(config, Mapping):
-            config_dicts.append(model(**config).dict())
+            config_dicts.append(model(**config).model_dump())
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
