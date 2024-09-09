@@ -339,7 +339,7 @@ def _resolve_model(
     else:
         model = _create_root_model(default_name, type_)
 
-    hash_ = model.schema_json()
+    hash_ = json.dumps(model.model_json_schema(), sort_keys=True, indent=False)
 
     if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
         # If the model name has been seen before, but the model itself is different
@@ -1407,7 +1407,7 @@ class APIHandler:
                 self._run_name, user_provided_config, request
             )
 
-        return self._runnable.get_input_schema(config).schema()
+        return self._runnable.get_input_schema(config).model_json_schema()
 
     async def output_schema(
         self,
@@ -1434,7 +1434,7 @@ class APIHandler:
             config = _update_config_with_defaults(
                 self._run_name, user_provided_config, request
             )
-        return self._runnable.get_output_schema(config).schema()
+        return self._runnable.get_output_schema(config).model_json_schema()
 
     async def config_schema(
         self,
@@ -1464,7 +1464,7 @@ class APIHandler:
         return (
             self._runnable.with_config(config)
             .config_schema(include=self._config_keys)
-            .schema()
+            .model_json_schema()
         )
 
     async def playground(

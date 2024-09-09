@@ -89,10 +89,12 @@ async def serve_playground(
                     if base_url.startswith("/")
                     else base_url,
                     LANGSERVE_CONFIG_SCHEMA=json.dumps(
-                        runnable.config_schema(include=config_keys).schema()
+                        runnable.config_schema(include=config_keys).model_json_schema()
                     ),
-                    LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.schema()),
-                    LANGSERVE_OUTPUT_SCHEMA=json.dumps(output_schema.schema()),
+                    LANGSERVE_INPUT_SCHEMA=json.dumps(input_schema.model_json_schema()),
+                    LANGSERVE_OUTPUT_SCHEMA=json.dumps(
+                        output_schema.model_json_schema()
+                    ),
                     LANGSERVE_FEEDBACK_ENABLED=json.dumps(
                         "true" if feedback_enabled else "false"
                     ),

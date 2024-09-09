@@ -87,7 +87,7 @@ def _get_full_representation(data: Any) -> Any:
     elif isinstance(data, list):
         return [_get_full_representation(value) for value in data]
     elif isinstance(data, BaseModel):
-        return data.schema()
+        return data.model_json_schema()
     else:
         return data
 
