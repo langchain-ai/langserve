@@ -176,7 +176,7 @@ class WellKnownLCSerializer(Serializer):
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:
     """Project the top level of the model as dict."""
-    return {key: getattr(model, key) for key in model.__fields__}
+    return {key: getattr(model, key) for key in model.model_fields}
 
 
 def load_events(events: Any) -> List[Dict[str, Any]]:
