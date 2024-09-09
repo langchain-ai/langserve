@@ -330,6 +330,11 @@ def _replace_non_alphanumeric_with_underscores(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "_", s)
 
 
+def _schema_json(model: Type[BaseModel]) -> str:
+    """Return the JSON representation of the model schema."""
+    return json.dumps(model.model_json_schema(), sort_keys=True, indent=False)
+
+
 def _resolve_model(
     type_: Union[Type, BaseModel], default_name: str, namespace: str
 ) -> Type[BaseModel]:
@@ -339,13 +344,13 @@ def _resolve_model(
     else:
         model = _create_root_model(default_name, type_)
 
-    hash_ = json.dumps(model.model_json_schema(), sort_keys=True, indent=False)
+    hash_ = _schema_json(model)
 
     if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
         # If the model name has been seen before, but the model itself is different
         # generate a new name for the model.
         model_to_use = _rename_pydantic_model(model, namespace)
-        hash_ = model_to_use.schema_json()
+        hash_ = _schema_json(model_to_use)
     else:
         model_to_use = model
 
@@ -755,7 +760,7 @@ class APIHandler:
         except json.JSONDecodeError:
             raise RequestValidationError(errors=["Invalid JSON body"])
         try:
-            body = InvokeRequestShallowValidator.validate(body)
+            body = InvokeRequestShallowValidator.model_validate(body)
 
             # Merge the config from the path with the config from the body.
             user_provided_config = await _unpack_request_config(
