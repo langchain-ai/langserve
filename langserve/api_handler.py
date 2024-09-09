@@ -298,7 +298,7 @@ def _unpack_input(validated_model: BaseModel) -> Any:
         # This logic should be applied recursively to nested models.
         return {
             fieldname: _unpack_input(getattr(model, fieldname))
-            for fieldname in model.__fields__.keys()
+            for fieldname in model.model_fields.keys()
         }
 
     return model
