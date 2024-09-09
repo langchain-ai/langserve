@@ -5,14 +5,9 @@ import pytest
 from fastapi import Request
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import ConfigurableField
+from pydantic import BaseModel, ValidationError
 
 from langserve.api_handler import _unpack_request_config
-
-try:
-    from pydantic.v1 import BaseModel, ValidationError
-except ImportError:
-    from pydantic import BaseModel, ValidationError
-
 from langserve.validation import (
     create_batch_request_model,
     create_invoke_request_model,
@@ -175,7 +170,7 @@ async def test_invoke_request_with_runnables() -> None:
             "configurable": {"template": "goodbye {name}"},
         },
     )
-    assert request.input == {"name": "bob"}
+    assert dict(request.input) == {"name": "bob"}
     assert request.config.tags == ["hello"]
     assert request.config.run_name == "run"
     assert isinstance(request.config.configurable, BaseModel)

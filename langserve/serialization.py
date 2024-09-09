@@ -13,7 +13,7 @@ sensitive information from the server to the client.
 import abc
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Union
+from typing import Annotated, Any, Dict, List, Union
 
 import orjson
 from langchain_core.agents import AgentAction, AgentActionMessageLog, AgentFinish
@@ -34,12 +34,11 @@ from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
-    LLMResult,
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
+from pydantic import BaseModel, Field, RootModel, ValidationError
 
-from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
 
 logger = logging.getLogger(__name__)
@@ -51,36 +50,35 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
-class WellKnownLCObject(BaseModel):
-    """A well known LangChain object.
-
-    A pydantic model that defines what constitutes a well known LangChain object.
-
-    All well-known objects are allowed to be serialized and de-serialized.
-    """
-
-    __root__: Union[
-        Document,
-        HumanMessage,
-        SystemMessage,
-        ChatMessage,
-        FunctionMessage,
-        AIMessage,
-        HumanMessageChunk,
-        SystemMessageChunk,
-        ChatMessageChunk,
-        FunctionMessageChunk,
-        AIMessageChunk,
-        StringPromptValue,
-        ChatPromptValueConcrete,
-        AgentAction,
-        AgentFinish,
-        AgentActionMessageLog,
-        LLMResult,
-        ChatGeneration,
-        Generation,
-        ChatGenerationChunk,
+# A well known LangChain object.
+# A pydantic model that defines what constitutes a well known LangChain object.
+# All well-known objects are allowed to be serialized and de-serialized.
+WellKnownLCObject = RootModel[
+    Annotated[
+        Union[
+            Document,
+            HumanMessage,
+            SystemMessage,
+            ChatMessage,
+            FunctionMessage,
+            AIMessage,
+            HumanMessageChunk,
+            SystemMessageChunk,
+            ChatMessageChunk,
+            FunctionMessageChunk,
+            AIMessageChunk,
+            StringPromptValue,
+            ChatPromptValueConcrete,
+            AgentAction,
+            AgentFinish,
+            AgentActionMessageLog,
+            ChatGeneration,
+            Generation,
+            ChatGenerationChunk,
+        ],
+        Field(discriminator="type"),
     ]
+]
 
 
 def default(obj) -> Any:
@@ -96,12 +94,12 @@ def _decode_lc_objects(value: Any) -> Any:
         v = {key: _decode_lc_objects(v) for key, v in value.items()}
 
         try:
-            obj = WellKnownLCObject.parse_obj(v)
-            parsed = obj.__root__
+            obj = WellKnownLCObject.model_validate(v)
+            parsed = obj.root
             if set(parsed.dict()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
-        except (ValidationError, ValueError):
+        except (ValidationError, ValueError, TypeError):
             return v
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]
@@ -124,11 +122,11 @@ def _decode_event_data(value: Any) -> Any:
     if isinstance(value, dict):
         try:
             obj = CallbackEvent.parse_obj(value)
-            return obj.__root__
+            return obj.root
         except ValidationError:
             try:
                 obj = WellKnownLCObject.parse_obj(value)
-                return obj.__root__
+                return obj.root
             except ValidationError:
                 return {key: _decode_event_data(v) for key, v in value.items()}
     elif isinstance(value, list):
@@ -217,7 +215,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
             _log_error_message_once(msg)
             continue
 
-        decoded_event_data = _project_top_level(full_event.__root__)
+        decoded_event_data = _project_top_level(full_event.root)
 
         if decoded_event_data["type"].endswith("_error"):
             # Data is validated by this point, so we can assume that the shape

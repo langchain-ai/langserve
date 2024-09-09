@@ -41,14 +41,15 @@ from langchain_core.tracers import RunLogPatch
 from langsmith import client as ls_client
 from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
+from pydantic import BaseModel, Field, RootModel, ValidationError, create_model
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
 
+from langserve._pydantic import _create_root_model
 from langserve.callbacks import AsyncEventAggregatorCallback, CallbackEventDict
 from langserve.lzstring import LZString
 from langserve.playground import serve_playground
-from langserve.pydantic_v1 import BaseModel, Field, ValidationError, create_model
 from langserve.schema import (
     BatchResponseMetadata,
     CustomUserType,
@@ -256,10 +257,12 @@ def _update_config_with_defaults(
         }
         metadata.update(hosted_metadata)
 
-    non_overridable_default_config = RunnableConfig(
-        run_name=run_name,
-        metadata=metadata,
-    )
+    non_overridable_default_config: RunnableConfig = {
+        "metadata": metadata,
+    }
+
+    if run_name:
+        non_overridable_default_config["run_name"] = run_name
 
     # merge_configs is last-writer-wins, so we specifically pass in the
     # overridable configs first, then the user provided configs, then
@@ -280,8 +283,8 @@ def _update_config_with_defaults(
 
 def _unpack_input(validated_model: BaseModel) -> Any:
     """Unpack the decoded input from the validated model."""
-    if hasattr(validated_model, "__root__"):
-        model = validated_model.__root__
+    if isinstance(validated_model, RootModel):
+        model = validated_model.root
     else:
         model = validated_model
 
@@ -305,7 +308,7 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
     """Rename the given pydantic model to the given name."""
     return create_model(
         prefix + model.__name__,
-        __config__=model.__config__,
+        __config__=model.model_config,
         **{
             fieldname: (
                 _rename_pydantic_model(field.annotation, prefix)
@@ -314,10 +317,10 @@ def _rename_pydantic_model(model: Type[BaseModel], prefix: str) -> Type[BaseMode
                 Field(
                     field.default,
                     title=fieldname,
-                    description=field.field_info.description,
+                    description=field.description,
                 ),
             )
-            for fieldname, field in model.__fields__.items()
+            for fieldname, field in model.model_fields.items()
         },
     )
 
@@ -334,7 +337,7 @@ def _resolve_model(
     if isclass(type_) and issubclass(type_, BaseModel):
         model = type_
     else:
-        model = create_model(default_name, __root__=(type_, ...))
+        model = _create_root_model(default_name, type_)
 
     hash_ = model.schema_json()
 
@@ -367,11 +370,7 @@ def _add_namespace_to_model(namespace: str, model: Type[BaseModel]) -> Type[Base
         A new model with name prepended with the given namespace.
     """
     model_with_unique_name = _rename_pydantic_model(model, namespace)
-    if "run_id" in model_with_unique_name.__annotations__:
-        # Help resolve reference by providing namespace references
-        model_with_unique_name.update_forward_refs(uuid=uuid)
-    else:
-        model_with_unique_name.update_forward_refs()
+    model_with_unique_name.model_rebuild()
     return model_with_unique_name
 
 
@@ -404,7 +403,7 @@ def _with_validation_error_translation() -> Generator[None, None, None]:
     try:
         yield
     except ValidationError as e:
-        raise RequestValidationError(e.errors(), body=e.model)
+        raise RequestValidationError(e.errors())
 
 
 def _json_encode_response(model: BaseModel) -> JSONResponse:
@@ -424,27 +423,27 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
 
     if isinstance(model, InvokeBaseResponse):
         # Invoke Response
-        # Collapse '__root__' from output field if it exists. This is done
+        # Collapse 'root' from output field if it exists. This is done
         # automatically by fastapi when annotating request and response with
         # We need to do this manually since we're using vanilla JSONResponse
-        if isinstance(obj["output"], dict) and "__root__" in obj["output"]:
-            obj["output"] = obj["output"]["__root__"]
+        if isinstance(obj["output"], dict) and "root" in obj["output"]:
+            obj["output"] = obj["output"]["root"]
 
         if "callback_events" in obj:
             for idx, callback_event in enumerate(obj["callback_events"]):
-                if isinstance(callback_event, dict) and "__root__" in callback_event:
-                    obj["callback_events"][idx] = callback_event["__root__"]
+                if isinstance(callback_event, dict) and "root" in callback_event:
+                    obj["callback_events"][idx] = callback_event["root"]
     elif isinstance(model, BatchBaseResponse):
         if not isinstance(obj["output"], list):
             raise AssertionError("Expected output to be a list")
 
-        # Collapse '__root__' from output field if it exists. This is done
+        # Collapse 'root' from output field if it exists. This is done
         # automatically by fastapi when annotating request and response with
         # We need to do this manually since we're using vanilla JSONResponse
         outputs = obj["output"]
         for idx, output in enumerate(outputs):
-            if isinstance(output, dict) and "__root__" in output:
-                outputs[idx] = output["__root__"]
+            if isinstance(output, dict) and "root" in output:
+                outputs[idx] = output["root"]
 
         if "callback_events" in obj:
             if not isinstance(obj["callback_events"], list):
@@ -452,11 +451,8 @@ def _json_encode_response(model: BaseModel) -> JSONResponse:
 
             for callback_events in obj["callback_events"]:
                 for idx, callback_event in enumerate(callback_events):
-                    if (
-                        isinstance(callback_event, dict)
-                        and "__root__" in callback_event
-                    ):
-                        callback_events[idx] = callback_event["__root__"]
+                    if isinstance(callback_event, dict) and "root" in callback_event:
+                        callback_events[idx] = callback_event["root"]
     else:
         raise AssertionError(
             f"Expected a InvokeBaseResponse or BatchBaseResponse got: {type(model)}"

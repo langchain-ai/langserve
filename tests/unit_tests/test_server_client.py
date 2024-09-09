@@ -33,13 +33,11 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.documents import Document
 from langchain_core.messages import (
     AIMessage,
-    AIMessageChunk,
     BaseMessage,
     HumanMessage,
     SystemMessage,
 )
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.outputs import ChatGenerationChunk, LLMResult
 from langchain_core.prompt_values import StringPromptValue
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -59,6 +57,7 @@ from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from langsmith.client import Client
 from langsmith.schemas import FeedbackIngestToken
+from pydantic import BaseModel, Field, __version__
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import Annotated, TypedDict
@@ -72,15 +71,13 @@ from langserve.callbacks import AsyncEventAggregatorCallback
 from langserve.client import RemoteRunnable
 from langserve.lzstring import LZString
 from langserve.schema import CustomUserType
-from tests.unit_tests.utils.stubs import AnyStr
-
-try:
-    from pydantic.v1 import BaseModel, Field
-except ImportError:
-    from pydantic import BaseModel, Field
 from langserve.server import add_routes
 from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
+from tests.unit_tests.utils.serde import recursive_dump
+from tests.unit_tests.utils.stubs import _AnyIdAIMessage
 from tests.unit_tests.utils.tracer import FakeTracer
+
+PYDANTIC_VERSION = tuple(map(int, __version__.split(".")))
 
 
 def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
@@ -1479,35 +1476,90 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         response = await async_client.get("/add_two_custom/config_schema")
         assert response.json() == {
             "properties": {
-                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"}
+                "tags": {
+                    "default": None,
+                    "items": {"type": "string"},
+                    "title": "Tags",
+                    "type": "array",
+                }
             },
             "title": "add_two_config",
             "type": "object",
         }
 
         response = await async_client.get("/prompt_2/config_schema")
-        assert response.json() == {
-            "definitions": {
-                "Configurable": {
-                    "properties": {
-                        "template": {
-                            "default": "say {name}",
-                            "description": "The template to use for the prompt",
-                            "title": "Template",
-                            "type": "string",
-                        }
+        if PYDANTIC_VERSION < (2, 9):
+            assert response.json() == {
+                "$defs": {
+                    "Configurable": {
+                        "properties": {
+                            "template": {
+                                "default": "say {name}",
+                                "description": "The "
+                                "template "
+                                "to use "
+                                "for "
+                                "the "
+                                "prompt",
+                                "title": "Template",
+                                "type": "string",
+                            }
+                        },
+                        "title": "Configurable",
+                        "type": "object",
+                    }
+                },
+                "properties": {
+                    "configurable": {
+                        "allOf": [{"$ref": "#/$defs/Configurable"}],
+                        "default": None,
                     },
-                    "title": "Configurable",
-                    "type": "object",
-                }
-            },
-            "properties": {
-                "configurable": {"$ref": "#/definitions/Configurable"},
-                "tags": {"items": {"type": "string"}, "title": "Tags", "type": "array"},
-            },
-            "title": "RunnableConfigurableFieldsConfig",
-            "type": "object",
-        }
+                    "tags": {
+                        "default": None,
+                        "items": {"type": "string"},
+                        "title": "Tags",
+                        "type": "array",
+                    },
+                },
+                "title": "RunnableConfigurableFieldsConfig",
+                "type": "object",
+            }
+        else:
+            assert response.json() == {
+                "$defs": {
+                    "Configurable": {
+                        "properties": {
+                            "template": {
+                                "default": "say {name}",
+                                "description": "The "
+                                "template "
+                                "to use "
+                                "for "
+                                "the "
+                                "prompt",
+                                "title": "Template",
+                                "type": "string",
+                            }
+                        },
+                        "title": "Configurable",
+                        "type": "object",
+                    }
+                },
+                "properties": {
+                    "configurable": {
+                        "$ref": "#/$defs/Configurable",
+                        "default": None,
+                    },
+                    "tags": {
+                        "default": None,
+                        "items": {"type": "string"},
+                        "title": "Tags",
+                        "type": "array",
+                    },
+                },
+                "title": "RunnableConfigurableFieldsConfig",
+                "type": "object",
+            }
 
 
 async def test_input_schema_typed_dict() -> None:
@@ -1524,25 +1576,46 @@ async def test_input_schema_typed_dict() -> None:
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
         res = await client.get("/input_schema")
-        assert res.json() == {
-            "$ref": "#/definitions/InputType",
-            "definitions": {
-                "InputType": {
-                    "properties": {
-                        "bar": {
-                            "items": {"type": "integer"},
-                            "title": "Bar",
-                            "type": "array",
+        if PYDANTIC_VERSION < (2, 9):
+            assert res.json() == {
+                "$defs": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
                         },
-                        "foo": {"title": "Foo", "type": "string"},
-                    },
-                    "required": ["foo", "bar"],
-                    "title": "InputType",
-                    "type": "object",
-                }
-            },
-            "title": "passthrough_dict_input",
-        }
+                        "required": ["foo", "bar"],
+                        "title": "InputType",
+                        "type": "object",
+                    }
+                },
+                "allOf": [{"$ref": "#/$defs/InputType"}],
+                "title": "passthrough_dict_input",
+            }
+        else:
+            assert res.json() == {
+                "$defs": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
+                        },
+                        "required": ["foo", "bar"],
+                        "title": "InputType",
+                        "type": "object",
+                    }
+                },
+                "$ref": "#/$defs/InputType",
+                "title": "passthrough_dict_input",
+            }
 
 
 class StreamingRunnable(Runnable):
@@ -2566,168 +2639,262 @@ async def test_astream_events_with_prompt_model_parser_chain(
             )
         ]
         _clean_up_events(events)
-        assert events == [
+        assert recursive_dump(events) == [
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_chain_start",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
                 "data": {"input": {"question": "hello"}},
                 "event": "on_prompt_start",
                 "name": "ChatPromptTemplate",
-                "tags": ["seq:step:1"],
                 "parent_ids": [],
+                "tags": ["seq:step:1"],
             },
             {
                 "data": {
                     "input": {"question": "hello"},
                     "output": {
                         "messages": [
-                            SystemMessage(content="You are a cat."),
-                            HumanMessage(content="hello"),
+                            {
+                                "additional_kwargs": {},
+                                "content": "You are a cat.",
+                                "name": None,
+                                "response_metadata": {},
+                                "type": "system",
+                            },
+                            {
+                                "additional_kwargs": {},
+                                "content": "hello",
+                                "name": None,
+                                "response_metadata": {},
+                                "type": "human",
+                            },
                         ]
                     },
                 },
                 "event": "on_prompt_end",
                 "name": "ChatPromptTemplate",
-                "tags": ["seq:step:1"],
                 "parent_ids": [],
+                "tags": ["seq:step:1"],
             },
             {
                 "data": {
                     "input": {
                         "messages": [
                             [
-                                SystemMessage(content="You are a cat."),
-                                HumanMessage(content="hello"),
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "You are a cat.",
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "system",
+                                },
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "hello",
+                                    "example": False,
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "human",
+                                },
                             ]
                         ]
                     }
                 },
                 "event": "on_chat_model_start",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="Hello", id=AnyStr())},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": "Hello",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {},
                 "event": "on_parser_start",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "Hello"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content=" ", id=AnyStr())},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": " ",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": " "},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
-                "data": {"chunk": AIMessageChunk(content="World!", id=AnyStr())},
+                "data": {
+                    "chunk": {
+                        "additional_kwargs": {},
+                        "content": "World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    }
+                },
                 "event": "on_chat_model_stream",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_parser_stream",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"chunk": "World!"},
                 "event": "on_chain_stream",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
             {
                 "data": {
                     "input": {
                         "messages": [
                             [
-                                SystemMessage(content="You are a cat."),
-                                HumanMessage(content="hello"),
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "You are a cat.",
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "system",
+                                },
+                                {
+                                    "additional_kwargs": {},
+                                    "content": "hello",
+                                    "example": False,
+                                    "name": None,
+                                    "response_metadata": {},
+                                    "type": "human",
+                                },
                             ]
                         ]
                     },
-                    "output": LLMResult(
-                        generations=[
+                    "output": {
+                        "generations": [
                             [
-                                ChatGenerationChunk(
-                                    text="Hello World!",
-                                    message=AIMessageChunk(
-                                        content="Hello World!", id=AnyStr()
-                                    ),
-                                )
+                                {
+                                    "generation_info": None,
+                                    "message": {
+                                        "additional_kwargs": {},
+                                        "content": "Hello World!",
+                                        "name": None,
+                                        "response_metadata": {},
+                                        "type": "AIMessageChunk",
+                                    },
+                                    "text": "Hello World!",
+                                    "type": "ChatGenerationChunk",
+                                }
                             ]
                         ],
-                        llm_output=None,
-                        run=None,
-                    ),
+                        "llm_output": None,
+                        "run": None,
+                    },
                 },
                 "event": "on_chat_model_end",
                 "name": "GenericFakeChatModel",
-                "tags": ["seq:step:2"],
                 "parent_ids": [],
+                "tags": ["seq:step:2"],
             },
             {
                 "data": {
-                    "input": AIMessageChunk(content="Hello World!", id=AnyStr()),
+                    "input": {
+                        "additional_kwargs": {},
+                        "content": "Hello World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
+                    },
                     "output": "Hello World!",
                 },
                 "event": "on_parser_end",
                 "name": "StrOutputParser",
-                "tags": ["seq:step:3"],
                 "parent_ids": [],
+                "tags": ["seq:step:3"],
             },
             {
                 "data": {"output": "Hello World!"},
                 "event": "on_chain_end",
                 "name": "RunnableSequence",
-                "tags": [],
                 "parent_ids": [],
+                "tags": [],
             },
         ]
 
@@ -2797,6 +2964,8 @@ async def test_path_dependencies() -> None:
             )
 
 
+# TODO(0.3): Fix in langchain-core and re-release for 0.3
+@pytest.mark.xfail(reason="Bug in AnyMessage in langchain-core.dev4")
 async def test_remote_configurable_remote_runnable() -> None:
     """Test that a configurable a client runnable that's configurable works.
 
@@ -2842,7 +3011,7 @@ async def test_remote_configurable_remote_runnable() -> None:
     add_routes(app, chain)
 
     # Invoke request
-    async with get_async_remote_runnable(app, raise_app_exceptions=False) as client:
+    async with get_async_remote_runnable(app, raise_app_exceptions=True) as client:
         chain_with_history = RunnableWithMessageHistory(
             client,
             # Uses the get_by_session_id function defined in the example
@@ -2854,12 +3023,12 @@ async def test_remote_configurable_remote_runnable() -> None:
         result = await chain_with_history.ainvoke(
             {"question": "hi", "ability": "foo"}, {"configurable": {"session_id": "1"}}
         )
-        assert result == AIMessage(content="Hello World!", id=AnyStr())
+        assert result == _AnyIdAIMessage(content="Hello World!")
         assert store == {
             "1": InMemoryHistory(
                 messages=[
                     HumanMessage(content="hi"),
-                    AIMessage(content="Hello World!", id=AnyStr()),
+                    _AnyIdAIMessage(content="Hello World!"),
                 ]
             )
         }
