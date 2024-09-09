@@ -457,7 +457,10 @@ async def test_server_astream_events(app: FastAPI) -> None:
 
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
-    async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
+    async_client = AsyncClient(
+        base_url="http://localhost:9999",
+        transport=httpx.ASGITransport(app=app_for_config),
+    )
     config_hash = LZString.compressToEncodedURIComponent(json.dumps({"tags": ["test"]}))
 
     # Test invoke
@@ -1105,7 +1108,9 @@ async def test_config_keys_validation(mocker: MockerFixture) -> None:
         input_type=int,
         config_keys=["metadata"],
     )
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
         response = await async_client.post(
             "/invoke",
@@ -1289,7 +1294,9 @@ async def test_openapi_docs_with_identical_runnables(
         config_keys=["tags"],
     )
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         response = await async_client.get("/openapi.json")
         assert response.status_code == 200
 
@@ -1423,7 +1430,9 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     )
     add_routes(app, template, path="/prompt_2", config_keys=["tags", "configurable"])
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         # input schema
         response = await async_client.get("/add_one/input_schema")
         assert response.json() == {"title": "add_one_input", "type": "integer"}
@@ -1574,7 +1583,9 @@ async def test_input_schema_typed_dict() -> None:
     app = FastAPI()
     add_routes(app, runnable_lambda, input_type=InputType, config_keys=["tags"])
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as client:
         res = await client.get("/input_schema")
         if PYDANTIC_VERSION < (2, 9):
             assert res.json() == {
