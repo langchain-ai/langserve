@@ -1,5 +1,6 @@
 """Test the playground API."""
 
+import httpx
 from fastapi import APIRouter, FastAPI
 from httpx import AsyncClient
 from langchain_core.runnables import RunnableLambda
@@ -15,7 +16,9 @@ async def test_serve_playground() -> None:
         RunnableLambda(lambda foo: "hello"),
     )
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as client:
         response = await client.get("/playground/index.html")
         assert response.status_code == 200
         # Test that we can't access files that do not exist.
@@ -42,7 +45,9 @@ async def test_serve_playground_with_api_router() -> None:
 
     app.include_router(router)
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as client:
         response = await client.get("/langserve_runnables/chat/playground/index.html")
         assert response.status_code == 200
 
@@ -64,7 +69,9 @@ async def test_serve_playground_with_api_router_in_api_router() -> None:
     # Now add parent router to the app
     app.include_router(parent_router)
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as client:
         response = await client.get("/parent/bar/foo/playground/index.html")
         assert response.status_code == 200
 
@@ -88,7 +95,9 @@ async def test_root_path_on_playground() -> None:
         )
         app.include_router(router)
 
-        async_client = AsyncClient(app=app, base_url="http://localhost:9999")
+        async_client = AsyncClient(
+            base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+        )
 
         response = await async_client.get("/chat/playground/index.html")
         assert response.status_code == 200
