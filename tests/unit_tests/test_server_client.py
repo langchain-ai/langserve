@@ -57,7 +57,7 @@ from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from langsmith.client import Client
 from langsmith.schemas import FeedbackIngestToken
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, __version__
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
 from typing_extensions import Annotated, TypedDict
@@ -76,6 +76,8 @@ from tests.unit_tests.utils.llms import FakeListLLM, GenericFakeChatModel
 from tests.unit_tests.utils.serde import recursive_dump
 from tests.unit_tests.utils.stubs import _AnyIdAIMessage
 from tests.unit_tests.utils.tracer import FakeTracer
+
+PYDANTIC_VERSION = tuple(map(int, __version__.split(".")))
 
 
 def _decode_eventstream(text: str) -> List[Dict[str, Any]]:
@@ -1558,11 +1560,6 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
                 "title": "RunnableConfigurableFieldsConfig",
                 "type": "object",
             }
-
-
-from pydantic import __version__
-
-PYDANTIC_VERSION = tuple(map(int, __version__.split(".")))
 
 
 async def test_input_schema_typed_dict() -> None:
