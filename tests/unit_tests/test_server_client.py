@@ -1486,41 +1486,83 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
         }
 
         response = await async_client.get("/prompt_2/config_schema")
-        assert response.json() == {
-            "$defs": {
-                "Configurable": {
-                    "properties": {
-                        "template": {
-                            "default": "say {name}",
-                            "description": "The "
-                            "template "
-                            "to use "
-                            "for "
-                            "the "
-                            "prompt",
-                            "title": "Template",
-                            "type": "string",
-                        }
+        if PYDANTIC_VERSION < (2, 9):
+            assert response.json() == {
+                "$defs": {
+                    "Configurable": {
+                        "properties": {
+                            "template": {
+                                "default": "say {name}",
+                                "description": "The "
+                                "template "
+                                "to use "
+                                "for "
+                                "the "
+                                "prompt",
+                                "title": "Template",
+                                "type": "string",
+                            }
+                        },
+                        "title": "Configurable",
+                        "type": "object",
+                    }
+                },
+                "properties": {
+                    "configurable": {
+                        "allOf": [{"$ref": "#/$defs/Configurable"}],
+                        "default": None,
                     },
-                    "title": "Configurable",
-                    "type": "object",
-                }
-            },
-            "properties": {
-                "configurable": {
-                    "allOf": [{"$ref": "#/$defs/Configurable"}],
-                    "default": None,
+                    "tags": {
+                        "default": None,
+                        "items": {"type": "string"},
+                        "title": "Tags",
+                        "type": "array",
+                    },
                 },
-                "tags": {
-                    "default": None,
-                    "items": {"type": "string"},
-                    "title": "Tags",
-                    "type": "array",
+                "title": "RunnableConfigurableFieldsConfig",
+                "type": "object",
+            }
+        else:
+            assert response.json() == {
+                "$defs": {
+                    "Configurable": {
+                        "properties": {
+                            "template": {
+                                "default": "say {name}",
+                                "description": "The "
+                                "template "
+                                "to use "
+                                "for "
+                                "the "
+                                "prompt",
+                                "title": "Template",
+                                "type": "string",
+                            }
+                        },
+                        "title": "Configurable",
+                        "type": "object",
+                    }
                 },
-            },
-            "title": "RunnableConfigurableFieldsConfig",
-            "type": "object",
-        }
+                "properties": {
+                    "configurable": {
+                        "$ref": "#/$defs/Configurable",
+                        "default": None,
+                    },
+                    "tags": {
+                        "default": None,
+                        "items": {"type": "string"},
+                        "title": "Tags",
+                        "type": "array",
+                    },
+                },
+                "title": "RunnableConfigurableFieldsConfig",
+                "type": "object",
+            }
+
+
+from pydantic import __version__
+
+PYDANTIC_VERSION = tuple(map(int, __version__.split(".")))
 
 
 async def test_input_schema_typed_dict() -> None:
@@ -1537,25 +1579,46 @@ async def test_input_schema_typed_dict() -> None:
 
     async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
         res = await client.get("/input_schema")
-        assert res.json() == {
-            "$defs": {
-                "InputType": {
-                    "properties": {
-                        "bar": {
-                            "items": {"type": "integer"},
-                            "title": "Bar",
-                            "type": "array",
+        if PYDANTIC_VERSION < (2, 9):
+            assert res.json() == {
+                "$defs": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
                         },
-                        "foo": {"title": "Foo", "type": "string"},
-                    },
-                    "required": ["foo", "bar"],
-                    "title": "InputType",
-                    "type": "object",
-                }
-            },
-            "allOf": [{"$ref": "#/$defs/InputType"}],
-            "title": "passthrough_dict_input",
-        }
+                        "required": ["foo", "bar"],
+                        "title": "InputType",
+                        "type": "object",
+                    }
+                },
+                "allOf": [{"$ref": "#/$defs/InputType"}],
+                "title": "passthrough_dict_input",
+            }
+        else:
+            assert res.json() == {
+                "$defs": {
+                    "InputType": {
+                        "properties": {
+                            "bar": {
+                                "items": {"type": "integer"},
+                                "title": "Bar",
+                                "type": "array",
+                            },
+                            "foo": {"title": "Foo", "type": "string"},
+                        },
+                        "required": ["foo", "bar"],
+                        "title": "InputType",
+                        "type": "object",
+                    }
+                },
+                "$ref": "#/$defs/InputType",
+                "title": "passthrough_dict_input",
+            }
 
 
 class StreamingRunnable(Runnable):
