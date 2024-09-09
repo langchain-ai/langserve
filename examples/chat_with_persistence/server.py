@@ -18,9 +18,9 @@ from langchain_community.chat_message_histories import FileChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel, Field
 
 
 def _is_valid_identifier(value: str) -> bool:

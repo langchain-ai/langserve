@@ -36,9 +36,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_core.utils.function_calling import format_tool_to_openai_tool
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel, Field
 
 prompt = ChatPromptTemplate.from_messages(
     [

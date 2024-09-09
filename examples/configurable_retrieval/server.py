@@ -15,9 +15,9 @@ from langchain_core.runnables import (
 )
 from langchain_core.vectorstores import VectorStore
 from langchain_openai import OpenAIEmbeddings
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel, Field
 
 vectorstore1 = FAISS.from_texts(
     ["cats like fish", "dogs like sticks"], embedding=OpenAIEmbeddings()
