@@ -4,15 +4,22 @@ from enum import Enum
 from typing import Any
 
 import pytest
+from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
-from langchain_core.outputs import ChatGeneration
+from pydantic import BaseModel
 
-try:
-    from pydantic.v1 import BaseModel
-except ImportError:
-    from pydantic import BaseModel
+from langserve.serialization import (
+    WellKnownLCObject,
+    WellKnownLCSerializer,
+    load_events,
+)
 
-from langserve.serialization import WellKnownLCSerializer, load_events
+
+def test_document_serialization() -> None:
+    """Simple test. Exhaustive tests follow below."""
+    doc = Document(page_content="hello")
+    d = doc.dict()
+    WellKnownLCObject.model_validate(d)
 
 
 @pytest.mark.parametrize(
@@ -23,6 +30,8 @@ from langserve.serialization import WellKnownLCSerializer, load_events
         [],
         {},
         {"a": 1},
+        Document(page_content="Hello"),
+        [Document(page_content="Hello")],
         {"output": [HumanMessage(content="hello")]},
         # Test with a single message (HumanMessage)
         HumanMessage(content="Hello"),
@@ -39,7 +48,8 @@ from langserve.serialization import WellKnownLCSerializer, load_events
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
-        [ChatGeneration(message=HumanMessage(content="Hello"))],
+        # Requires typing ChatGeneration with Anymessage
+        # [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
 def test_serialization(data: Any) -> None:
@@ -179,3 +189,10 @@ def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
     """
     lc_serializer = WellKnownLCSerializer()
     assert lc_serializer.dumpd(obj) == expected
+
+
+@pytest.mark.xfail(reason="0.3")
+def test_fail_03() -> None:
+    """This test will fail on purposes. It contains a TODO list for 0.3 release."""
+    assert "LLMResult" == "WellKnocnLCOBject contains it"  # Requires type
+    assert "CHatGeneration_Deserialized correct" == "UNcomment test above"

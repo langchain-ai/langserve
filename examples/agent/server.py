@@ -23,12 +23,12 @@ from fastapi import FastAPI
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
-from langchain.pydantic_v1 import BaseModel
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_core.utils.function_calling import format_tool_to_openai_function
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from pydantic import BaseModel
 
 from langserve import add_routes
 

@@ -22,15 +22,10 @@ from uuid import UUID
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGeneration, Generation, RunInfo
+from pydantic import BaseModel, Field, RootModel, create_model
 from typing_extensions import Type
 
 from langserve.schema import BatchResponseMetadata, InvokeResponseMetadata
-
-try:
-    from pydantic.v1 import BaseModel, Field, create_model
-except ImportError:
-    from pydantic import BaseModel, Field, create_model
-
 
 # Type that is either a python annotation or a pydantic model that can be
 # used to validate the input or output of a runnable.
@@ -66,7 +61,7 @@ def create_invoke_request_model(
             ),
         ),
     )
-    invoke_request_type.update_forward_refs()
+    invoke_request_type.model_rebuild()
     return invoke_request_type
 
 
@@ -97,7 +92,7 @@ def create_stream_request_model(
             ),
         ),
     )
-    stream_request_model.update_forward_refs()
+    stream_request_model.model_rebuild()
     return stream_request_model
 
 
@@ -129,7 +124,7 @@ def create_batch_request_model(
             ),
         ),
     )
-    batch_request_type.update_forward_refs()
+    batch_request_type.model_rebuild()
     return batch_request_type
 
 
@@ -187,7 +182,7 @@ def create_stream_log_request_model(
         ),
         kwargs=(dict, Field(default_factory=dict)),
     )
-    stream_log_request.update_forward_refs()
+    stream_log_request.model_rebuild()
     return stream_log_request
 
 
@@ -245,7 +240,7 @@ def create_stream_events_request_model(
         ),
         kwargs=(dict, Field(default_factory=dict)),
     )
-    stream_events_request.update_forward_refs()
+    stream_events_request.model_rebuild()
     return stream_events_request
 
 
@@ -297,7 +292,7 @@ def create_invoke_response_model(
         __base__=InvokeBaseResponse,
         **fields,
     )
-    invoke_response_type.update_forward_refs()
+    invoke_response_type.model_rebuild()
     return invoke_response_type
 
 
@@ -347,7 +342,7 @@ def create_batch_response_model(
         __base__=BatchBaseResponse,
         **fields,
     )
-    batch_response_type.update_forward_refs()
+    batch_response_type.model_rebuild()
     return batch_response_type
 
 
@@ -566,8 +561,8 @@ class OnRetrieverEnd(BaseModel):
     type: Literal["on_retriever_end"] = "on_retriever_end"
 
 
-class CallbackEvent(BaseModel):
-    __root__: Union[
+CallbackEvent = RootModel[
+    Union[
         OnChainStart,
         OnChainEnd,
         OnChainError,
@@ -581,3 +576,4 @@ class CallbackEvent(BaseModel):
         OnRetrieverEnd,
         OnRetrieverError,
     ]
+]

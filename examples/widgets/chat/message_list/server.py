@@ -10,9 +10,9 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from pydantic import BaseModel, Field
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel, Field
 
 app = FastAPI(
     title="LangChain Server",

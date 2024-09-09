@@ -15,10 +15,10 @@ allowing one to upload a binary file using the langserve playground UI.
 import base64
 
 from fastapi import FastAPI
-from langchain.pydantic_v1 import Field
 from langchain_community.document_loaders.parsers.pdf import PDFMinerParser
 from langchain_core.document_loaders import Blob
 from langchain_core.runnables import RunnableLambda
+from pydantic import Field
 
 from langserve import CustomUserType, add_routes
 

@@ -45,10 +45,10 @@ from langchain_core.runnables import (
 )
 from langchain_core.vectorstores import VectorStore
 from langchain_openai import OpenAIEmbeddings
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import Annotated
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel
 
 
 class User(BaseModel):
@@ -147,10 +147,9 @@ class PerUserVectorstore(RunnableSerializable):
     user_id: Optional[str]
     vectorstore: VectorStore
 
-    class Config:
-        # Allow arbitrary types since VectorStore is an abstract interface
-        # and not a pydantic model
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
     def _invoke(
         self, input: str, config: Optional[RunnableConfig] = None, **kwargs: Any
