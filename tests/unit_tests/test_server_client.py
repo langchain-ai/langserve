@@ -2964,6 +2964,8 @@ async def test_path_dependencies() -> None:
             )
 
 
+# TODO(0.3): Fix in langchain-core and re-release for 0.3
+@pytest.mark.xfail(reason="Bug in AnyMessage in langchain-core.dev4")
 async def test_remote_configurable_remote_runnable() -> None:
     """Test that a configurable a client runnable that's configurable works.
 
@@ -3009,7 +3011,7 @@ async def test_remote_configurable_remote_runnable() -> None:
     add_routes(app, chain)
 
     # Invoke request
-    async with get_async_remote_runnable(app, raise_app_exceptions=False) as client:
+    async with get_async_remote_runnable(app, raise_app_exceptions=True) as client:
         chain_with_history = RunnableWithMessageHistory(
             client,
             # Uses the get_by_session_id function defined in the example
