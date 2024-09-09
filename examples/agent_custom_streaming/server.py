@@ -57,9 +57,9 @@ from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import tool
 from langchain_core.utils.function_calling import format_tool_to_openai_tool
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel
 
 from langserve import add_routes
-from langserve.pydantic_v1 import BaseModel
 
 prompt = ChatPromptTemplate.from_messages(
     [

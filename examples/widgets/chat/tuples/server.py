@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.pydantic_v1 import BaseModel, Field
 from langchain_community.document_loaders.parsers.pdf import PDFMinerParser
 from langchain_core.document_loaders import Blob
 from langchain_core.messages import (
@@ -17,6 +16,7 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from langserve import CustomUserType
 from langserve.server import add_routes
