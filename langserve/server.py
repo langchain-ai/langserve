@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import warnings
 import weakref
 from typing import (
     Any,
@@ -201,37 +202,47 @@ def _register_path_for_app(
 def _setup_global_app_handlers(
     app: Union[FastAPI, APIRouter], endpoint_configuration: _EndpointConfiguration
 ) -> None:
-    @app.on_event("startup")
-    async def startup_event():
-        LANGSERVE = r"""
- __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
-|  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
-|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
-|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
-|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
-|_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""  # noqa: E501
+    with warnings.catch_warnings():
+        # We are using deprecated functionality here.
+        # This code should be re-written to simply construct a pydantic model
+        # using inspect.signature and create_model.
+        warnings.filterwarnings(
+            "ignore",
+            "[\\s.]*on_event is deprecated[\\s.]*",
+            category=DeprecationWarning,
+        )
 
-        def green(text: str) -> str:
-            """Return the given text in green."""
-            return "\x1b[1;32;40m" + text + "\x1b[0m"
+        @app.on_event("startup")
+        async def startup_event():
+            LANGSERVE = r"""
+     __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
+    |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
+    |  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
+    |  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
+    |  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
+    |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
+    """  # noqa: E501
 
-        def orange(text: str) -> str:
-            """Return the given text in orange."""
-            return "\x1b[1;31;40m" + text + "\x1b[0m"
+            def green(text: str) -> str:
+                """Return the given text in green."""
+                return "\x1b[1;32;40m" + text + "\x1b[0m"
 
-        paths = _APP_TO_PATHS[app]
-        print(LANGSERVE)
-        for path in paths:
-            if endpoint_configuration.is_playground_enabled:
-                print(
-                    f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
-                    f"live at:"
-                )
-                print(f'{green("LANGSERVE:")}  │')
-                print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
-                print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+            def orange(text: str) -> str:
+                """Return the given text in orange."""
+                return "\x1b[1;31;40m" + text + "\x1b[0m"
+
+            paths = _APP_TO_PATHS[app]
+            print(LANGSERVE)
+            for path in paths:
+                if endpoint_configuration.is_playground_enabled:
+                    print(
+                        f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" '
+                        f'is live at:'
+                    )
+                    print(f'{green("LANGSERVE:")}  │')
+                    print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
+                    print(f'{green("LANGSERVE:")}')
+            print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
 
 
 # PUBLIC API
