@@ -223,7 +223,7 @@ async def get_async_test_client(
         app=server,
         raise_app_exceptions=raise_app_exceptions,
     )
-    async_client = AsyncClient(app=server, base_url=url, transport=transport)
+    async_client = AsyncClient(base_url=url, transport=transport)
     try:
         yield async_client
     finally:

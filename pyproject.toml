@@ -94,3 +94,7 @@ addopts = "--strict-markers --strict-config --durations=5 -vv"
 # take more than 5 seconds
 timeout = 5
 asyncio_mode = "auto"
+filterwarnings =  [
+    "ignore::langchain_core._api.beta_decorator.LangChainBetaWarning",
+]
+
