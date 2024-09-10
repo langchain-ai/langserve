@@ -204,8 +204,8 @@ def _setup_global_app_handlers(
 ) -> None:
     with warnings.catch_warnings():
         # We are using deprecated functionality here.
-        # This code should be re-written to simply construct a pydantic model
-        # using inspect.signature and create_model.
+        # We should re-write to use lifetime events at some point, and yielding
+        # an APIRouter instance to the caller.
         warnings.filterwarnings(
             "ignore",
             "[\\s.]*on_event is deprecated[\\s.]*",
@@ -226,10 +226,6 @@ def _setup_global_app_handlers(
             def green(text: str) -> str:
                 """Return the given text in green."""
                 return "\x1b[1;32;40m" + text + "\x1b[0m"
-
-            def orange(text: str) -> str:
-                """Return the given text in orange."""
-                return "\x1b[1;31;40m" + text + "\x1b[0m"
 
             paths = _APP_TO_PATHS[app]
             print(LANGSERVE)
