@@ -380,7 +380,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2")
+chain = prompt | ChatAnthropic(model="claude-2.1")
 
 
 class InputChat(BaseModel):
@@ -772,7 +772,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2")
+chain = prompt | ChatAnthropic(model="claude-2.1")
 
 
 class MessageListInput(BaseModel):

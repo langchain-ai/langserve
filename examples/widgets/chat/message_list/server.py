@@ -40,7 +40,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2") | StrOutputParser()
+chain = prompt | ChatAnthropic(model="claude-2.1") | StrOutputParser()
 
 
 class InputChat(BaseModel):
