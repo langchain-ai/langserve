@@ -236,8 +236,8 @@ def _setup_global_app_handlers(
             for path in paths:
                 if endpoint_configuration.is_playground_enabled:
                     print(
-                        f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
-                        f"live at:"
+                        f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" '
+                        f'is live at:'
                     )
                     print(f'{green("LANGSERVE:")}  │')
                     print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
