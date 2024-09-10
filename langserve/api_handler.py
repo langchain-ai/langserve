@@ -782,7 +782,7 @@ class APIHandler:
             # This takes into account changes in the input type when
             # using configuration.
             schema = self._runnable.with_config(config).input_schema
-            input_ = schema.validate(body.input)
+            input_ = schema.model_validate(body.input)
             return config, _unpack_input(input_)
         except ValidationError as e:
             raise RequestValidationError(e.errors(), body=body)
@@ -892,7 +892,7 @@ class APIHandler:
             raise RequestValidationError(errors=["Invalid JSON body"])
 
         with _with_validation_error_translation():
-            body = BatchRequestShallowValidator.validate(body)
+            body = BatchRequestShallowValidator.model_validate(body)
             config = body.config
 
             # First unpack the config
@@ -943,7 +943,7 @@ class APIHandler:
 
         inputs = [
             _unpack_input(
-                self._runnable.with_config(config_).input_schema.validate(input_)
+                self._runnable.with_config(config_).input_schema.model_validate(input_)
             )
             for config_, input_ in zip(configs_, inputs_)
         ]
