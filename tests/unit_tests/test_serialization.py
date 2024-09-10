@@ -18,7 +18,7 @@ from langserve.serialization import (
 def test_document_serialization() -> None:
     """Simple test. Exhaustive tests follow below."""
     doc = Document(page_content="hello")
-    d = doc.dict()
+    d = doc.model_dump()
     WellKnownLCObject.model_validate(d)
 
 
@@ -87,7 +87,7 @@ def _get_full_representation(data: Any) -> Any:
     elif isinstance(data, list):
         return [_get_full_representation(value) for value in data]
     elif isinstance(data, BaseModel):
-        return data.schema()
+        return data.model_json_schema()
     else:
         return data
 

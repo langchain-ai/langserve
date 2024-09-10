@@ -84,7 +84,7 @@ WellKnownLCObject = RootModel[
 def default(obj) -> Any:
     """Default serialization for well known objects."""
     if isinstance(obj, BaseModel):
-        return obj.dict()
+        return obj.model_dump()
     return super().default(obj)
 
 
@@ -96,7 +96,7 @@ def _decode_lc_objects(value: Any) -> Any:
         try:
             obj = WellKnownLCObject.model_validate(v)
             parsed = obj.root
-            if set(parsed.dict()) != set(value):
+            if set(parsed.model_dump()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
         except (ValidationError, ValueError, TypeError):
@@ -121,11 +121,11 @@ def _decode_event_data(value: Any) -> Any:
     """Decode the event data from a JSON object representation."""
     if isinstance(value, dict):
         try:
-            obj = CallbackEvent.parse_obj(value)
+            obj = CallbackEvent.model_validate(value)
             return obj.root
         except ValidationError:
             try:
-                obj = WellKnownLCObject.parse_obj(value)
+                obj = WellKnownLCObject.model_validate(value)
                 return obj.root
             except ValidationError:
                 return {key: _decode_event_data(v) for key, v in value.items()}
@@ -176,7 +176,7 @@ class WellKnownLCSerializer(Serializer):
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:
     """Project the top level of the model as dict."""
-    return {key: getattr(model, key) for key in model.__fields__}
+    return {key: getattr(model, key) for key in model.model_fields}
 
 
 def load_events(events: Any) -> List[Dict[str, Any]]:
@@ -207,7 +207,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
 
         # Then validate the event
         try:
-            full_event = CallbackEvent.parse_obj(decoded_event_data)
+            full_event = CallbackEvent.model_validate(decoded_event_data)
         except ValidationError as e:
             msg = f"Encountered an invalid event: {e}"
             if "type" in decoded_event_data:
