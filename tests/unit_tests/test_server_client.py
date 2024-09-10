@@ -333,7 +333,7 @@ async def test_server_async(app: FastAPI) -> None:
     # test bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test invoke
-        response = await async_client.post("/invoke", data="bad json []")
+        response = await async_client.post("/invoke", content="bad json []")
         # Client side error bad json.
         assert response.status_code == 422
 
@@ -353,7 +353,7 @@ async def test_server_async(app: FastAPI) -> None:
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test invoke
         # Test bad batch requests
-        response = await async_client.post("/batch", data="bad json []")
+        response = await async_client.post("/batch", content="bad json []")
         # Client side error bad json.
         assert response.status_code == 422
 
@@ -378,7 +378,7 @@ async def test_server_async(app: FastAPI) -> None:
     # test stream bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test bad stream requests
-        response = await async_client.post("/stream", data="bad json []")
+        response = await async_client.post("/stream", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream", json={})
@@ -386,7 +386,7 @@ async def test_server_async(app: FastAPI) -> None:
 
     # test stream_log bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
-        response = await async_client.post("/stream_log", data="bad json []")
+        response = await async_client.post("/stream_log", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream_log", json={})
@@ -448,7 +448,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
 
     # test stream_events with bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
-        response = await async_client.post("/stream_events", data="bad json []")
+        response = await async_client.post("/stream_events", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream_events", json={})
