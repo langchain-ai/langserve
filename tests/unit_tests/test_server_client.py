@@ -123,7 +123,7 @@ def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
     return streamed_resp.replace(uuid, "<REPLACED>")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop()
@@ -134,7 +134,7 @@ def event_loop():
 
 
 @pytest.fixture()
-def app(event_loop: AbstractEventLoop) -> FastAPI:
+def app() -> FastAPI:
     """A simple server that wraps a Runnable and exposes it as an API."""
 
     async def add_one_or_passthrough(
@@ -158,7 +158,7 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
 
 
 @pytest.fixture()
-def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
+def app_for_config() -> FastAPI:
     """A simple server that wraps a Runnable and exposes it as an API."""
 
     async def return_config(
@@ -854,7 +854,7 @@ async def test_streaming_with_errors() -> None:
         assert e.value.response.status_code == 500
 
 
-async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
+async def test_astream_log_allowlist() -> None:
     """Test async stream with an allowlist."""
 
     async def add_one(x: int) -> int:
@@ -1035,7 +1035,7 @@ async def test_invoke_as_part_of_sequence_async(
     }
 
 
-async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
+async def test_multiple_runnables() -> None:
     """Test serving multiple runnables."""
 
     async def add_one(x: int) -> int:
@@ -1159,7 +1159,7 @@ async def test_input_validation(mocker: MockerFixture) -> None:
             await runnable.abatch(["hello"])
 
 
-async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:
+async def test_input_validation_with_lc_types() -> None:
     """Test client side and server side exceptions."""
 
     app = FastAPI()
@@ -1252,9 +1252,7 @@ async def test_async_client_close() -> None:
     assert async_client.is_closed is True
 
 
-async def test_openapi_docs_with_identical_runnables(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_openapi_docs_with_identical_runnables(mocker: MockerFixture) -> None:
     """Test client side and server side exceptions."""
 
     async def add_one(x: int) -> int:
@@ -1301,7 +1299,7 @@ async def test_openapi_docs_with_identical_runnables(
         assert response.status_code == 200
 
 
-async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
+async def test_configurable_runnables() -> None:
     """Add tests for using langchain's configurable runnables"""
 
     template = PromptTemplate.from_template("say {name}").configurable_fields(
@@ -1391,7 +1389,7 @@ def test_rename_pydantic_model() -> None:
     assert Model.__name__ == "BarFoo"
 
 
-async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
+async def test_input_config_output_schemas() -> None:
     """Test schemas returned for different configurations."""
     # TODO(Fix me): need to fix handling of global state -- we get problems
     # gives inconsistent results when running multiple tests / results
@@ -1753,7 +1751,7 @@ async def test_server_side_error() -> None:
         #     assert e.response.text == "Internal Server Error"
 
 
-def test_server_side_error_sync(event_loop: AbstractEventLoop) -> None:
+def test_server_side_error_sync() -> None:
     """Test server side error handling."""
 
     app = FastAPI()
@@ -1982,7 +1980,7 @@ async def test_enforce_trailing_slash_in_client() -> None:
     assert r.url == "nosuchurl/"
 
 
-async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> None:
+async def test_per_request_config_modifier() -> None:
     """Test updating the config based on the raw request object."""
 
     async def add_one(x: int) -> int:
@@ -2025,9 +2023,7 @@ async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> Non
         assert response.json()["output"] == 2
 
 
-async def test_per_request_config_modifier_endpoints(
-    event_loop: AbstractEventLoop,
-) -> None:
+async def test_per_request_config_modifier_endpoints() -> None:
     """Verify that per request modifier is only applied for the expected endpoints."""
 
     # this test verifies that per request modifier is only
@@ -2097,7 +2093,7 @@ async def test_per_request_config_modifier_endpoints(
                 assert response.status_code != 500
 
 
-async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
+async def test_uuid_serialization() -> None:
     """Test updating the config based on the raw request object."""
     import datetime
 
