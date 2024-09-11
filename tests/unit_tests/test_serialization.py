@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
+from langchain_core.outputs import ChatGeneration
 from pydantic import BaseModel
 
 from langserve.serialization import (
@@ -48,8 +49,7 @@ def test_document_serialization() -> None:
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
-        # Requires typing ChatGeneration with Anymessage
-        # [ChatGeneration(message=HumanMessage(content="Hello"))],
+        [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
 def test_serialization(data: Any) -> None:
