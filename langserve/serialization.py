@@ -13,9 +13,10 @@ sensitive information from the server to the client.
 import abc
 import logging
 from functools import lru_cache
-from typing import Annotated, Any, Dict, List, Union
-
+from typing import Any, Dict, List, Union
+import pandas as pd
 import orjson
+
 from langchain_core.agents import AgentAction, AgentActionMessageLog, AgentFinish
 from langchain_core.documents import Document
 from langchain_core.messages import (
@@ -34,11 +35,12 @@ from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
+    LLMResult,
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
-from pydantic import BaseModel, Field, RootModel, ValidationError
 
+from langserve.pydantic_v1 import BaseModel, ValidationError
 from langserve.validation import CallbackEvent
 
 logger = logging.getLogger(__name__)
@@ -50,41 +52,44 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
-# A well known LangChain object.
-# A pydantic model that defines what constitutes a well known LangChain object.
-# All well-known objects are allowed to be serialized and de-serialized.
-WellKnownLCObject = RootModel[
-    Annotated[
-        Union[
-            Document,
-            HumanMessage,
-            SystemMessage,
-            ChatMessage,
-            FunctionMessage,
-            AIMessage,
-            HumanMessageChunk,
-            SystemMessageChunk,
-            ChatMessageChunk,
-            FunctionMessageChunk,
-            AIMessageChunk,
-            StringPromptValue,
-            ChatPromptValueConcrete,
-            AgentAction,
-            AgentFinish,
-            AgentActionMessageLog,
-            ChatGeneration,
-            Generation,
-            ChatGenerationChunk,
-        ],
-        Field(discriminator="type"),
+class WellKnownLCObject(BaseModel):
+    """A well known LangChain object.
+
+    A pydantic model that defines what constitutes a well known LangChain object.
+
+    All well-known objects are allowed to be serialized and de-serialized.
+    """
+
+    __root__: Union[
+        Document,
+        HumanMessage,
+        SystemMessage,
+        ChatMessage,
+        FunctionMessage,
+        AIMessage,
+        HumanMessageChunk,
+        SystemMessageChunk,
+        ChatMessageChunk,
+        FunctionMessageChunk,
+        AIMessageChunk,
+        StringPromptValue,
+        ChatPromptValueConcrete,
+        AgentAction,
+        AgentFinish,
+        AgentActionMessageLog,
+        LLMResult,
+        ChatGeneration,
+        Generation,
+        ChatGenerationChunk,
     ]
-]
 
 
 def default(obj) -> Any:
     """Default serialization for well known objects."""
     if isinstance(obj, BaseModel):
-        return obj.model_dump()
+        return obj.dict()
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_json(orient='records')
     return super().default(obj)
 
 
@@ -94,12 +99,12 @@ def _decode_lc_objects(value: Any) -> Any:
         v = {key: _decode_lc_objects(v) for key, v in value.items()}
 
         try:
-            obj = WellKnownLCObject.model_validate(v)
-            parsed = obj.root
-            if set(parsed.model_dump()) != set(value):
+            obj = WellKnownLCObject.parse_obj(v)
+            parsed = obj.__root__
+            if set(parsed.dict()) != set(value):
                 raise ValueError("Invalid object")
             return parsed
-        except (ValidationError, ValueError, TypeError):
+        except (ValidationError, ValueError):
             return v
     elif isinstance(value, list):
         return [_decode_lc_objects(item) for item in value]
@@ -121,12 +126,12 @@ def _decode_event_data(value: Any) -> Any:
     """Decode the event data from a JSON object representation."""
     if isinstance(value, dict):
         try:
-            obj = CallbackEvent.model_validate(value)
-            return obj.root
+            obj = CallbackEvent.parse_obj(value)
+            return obj.__root__
         except ValidationError:
             try:
-                obj = WellKnownLCObject.model_validate(value)
-                return obj.root
+                obj = WellKnownLCObject.parse_obj(value)
+                return obj.__root__
             except ValidationError:
                 return {key: _decode_event_data(v) for key, v in value.items()}
     elif isinstance(value, list):
@@ -176,7 +181,7 @@ class WellKnownLCSerializer(Serializer):
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:
     """Project the top level of the model as dict."""
-    return {key: getattr(model, key) for key in model.model_fields}
+    return {key: getattr(model, key) for key in model.__fields__}
 
 
 def load_events(events: Any) -> List[Dict[str, Any]]:
@@ -207,7 +212,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
 
         # Then validate the event
         try:
-            full_event = CallbackEvent.model_validate(decoded_event_data)
+            full_event = CallbackEvent.parse_obj(decoded_event_data)
         except ValidationError as e:
             msg = f"Encountered an invalid event: {e}"
             if "type" in decoded_event_data:
@@ -215,7 +220,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
             _log_error_message_once(msg)
             continue
 
-        decoded_event_data = _project_top_level(full_event.root)
+        decoded_event_data = _project_top_level(full_event.__root__)
 
         if decoded_event_data["type"].endswith("_error"):
             # Data is validated by this point, so we can assume that the shape
