@@ -29,15 +29,18 @@ from langchain_core.messages import (
     HumanMessageChunk,
     SystemMessage,
     SystemMessageChunk,
+    ToolMessage,
+    ToolMessageChunk,
 )
 from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
+    LLMResult,
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
-from pydantic import BaseModel, Field, RootModel, ValidationError
+from pydantic import BaseModel, Discriminator, Field, RootModel, Tag, ValidationError
 
 from langserve.validation import CallbackEvent
 
@@ -50,33 +53,50 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
+def _get_type(v: Any) -> str:
+    """Get the type associated with the object for serialization purposes."""
+    if isinstance(v, dict) and "type" in v:
+        return v["type"]
+    elif hasattr(v, "type"):
+        return v.type
+    else:
+        raise TypeError(
+            f"Expected either a dictionary with a 'type' key or an object "
+            f"with a 'type' attribute. Instead got type {type(v)}."
+        )
+
+
 # A well known LangChain object.
 # A pydantic model that defines what constitutes a well known LangChain object.
 # All well-known objects are allowed to be serialized and de-serialized.
+
 WellKnownLCObject = RootModel[
     Annotated[
         Union[
-            Document,
-            HumanMessage,
-            SystemMessage,
-            ChatMessage,
-            FunctionMessage,
-            AIMessage,
-            HumanMessageChunk,
-            SystemMessageChunk,
-            ChatMessageChunk,
-            FunctionMessageChunk,
-            AIMessageChunk,
-            StringPromptValue,
-            ChatPromptValueConcrete,
-            AgentAction,
-            AgentFinish,
-            AgentActionMessageLog,
-            ChatGeneration,
-            Generation,
-            ChatGenerationChunk,
+            Annotated[AIMessage, Tag(tag="ai")],
+            Annotated[HumanMessage, Tag(tag="human")],
+            Annotated[ChatMessage, Tag(tag="chat")],
+            Annotated[SystemMessage, Tag(tag="system")],
+            Annotated[FunctionMessage, Tag(tag="function")],
+            Annotated[ToolMessage, Tag(tag="tool")],
+            Annotated[AIMessageChunk, Tag(tag="AIMessageChunk")],
+            Annotated[HumanMessageChunk, Tag(tag="HumanMessageChunk")],
+            Annotated[ChatMessageChunk, Tag(tag="ChatMessageChunk")],
+            Annotated[SystemMessageChunk, Tag(tag="SystemMessageChunk")],
+            Annotated[FunctionMessageChunk, Tag(tag="FunctionMessageChunk")],
+            Annotated[ToolMessageChunk, Tag(tag="ToolMessageChunk")],
+            Annotated[Document, Tag(tag="Document")],
+            Annotated[StringPromptValue, Tag(tag="StringPromptValue")],
+            Annotated[ChatPromptValueConcrete, Tag(tag="ChatPromptValueConcrete")],
+            Annotated[AgentAction, Tag(tag="AgentAction")],
+            Annotated[AgentFinish, Tag(tag="AgentFinish")],
+            Annotated[AgentActionMessageLog, Tag(tag="AgentActionMessageLog")],
+            Annotated[ChatGeneration, Tag(tag="ChatGeneration")],
+            Annotated[Generation, Tag(tag="Generation")],
+            Annotated[ChatGenerationChunk, Tag(tag="ChatGenerationChunk")],
+            Annotated[LLMResult, Tag(tag="LLMResult")],
         ],
-        Field(discriminator="type"),
+        Field(discriminator=Discriminator(_get_type)),
     ]
 ]
 
