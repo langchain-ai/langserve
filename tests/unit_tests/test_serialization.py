@@ -194,5 +194,4 @@ def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
 @pytest.mark.xfail(reason="0.3")
 def test_fail_03() -> None:
     """This test will fail on purposes. It contains a TODO list for 0.3 release."""
-    assert "LLMResult" == "WellKnocnLCOBject contains it"  # Requires type
     assert "CHatGeneration_Deserialized correct" == "UNcomment test above"
