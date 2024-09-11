@@ -48,7 +48,7 @@ def test_document_serialization() -> None:
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
-        # # Requires typing ChatGeneration with Anymessage
+        # Requires typing ChatGeneration with Anymessage
         # [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
