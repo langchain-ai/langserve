@@ -2675,6 +2675,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                             {
                                 "additional_kwargs": {},
                                 "content": "hello",
+                                "example": False,
                                 "name": None,
                                 "response_metadata": {},
                                 "type": "human",
@@ -2867,6 +2868,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                         ],
                         "llm_output": None,
                         "run": None,
+                        "type": "LLMResult",
                     },
                 },
                 "event": "on_chat_model_end",
