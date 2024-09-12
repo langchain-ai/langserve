@@ -570,6 +570,7 @@ class APIHandler:
                 If true, the client will be able to show trace information
                 including events that occurred on the server side.
                 Be sure not to include any sensitive information in the callback events.
+                This is a **beta** API.
             enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
                 to LangSmith. Disabled by default. If this flag is disabled or LangSmith
                 tracing is not enabled for the runnable, then 4xx errors will be thrown
@@ -630,6 +631,11 @@ class APIHandler:
         # and when tracing information is logged, we'll be able to see
         # traces for the path /foo/bar.
         self._run_name = self._base_url
+        if include_callback_events:
+            warn_beta(
+                message="Including callback events in the response is in beta. "
+                "This API may change in the future."
+            )
         self._include_callback_events = include_callback_events
         self._per_req_config_modifier = per_req_config_modifier
         self._serializer = WellKnownLCSerializer()
