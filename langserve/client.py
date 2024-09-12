@@ -285,6 +285,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         cert: Optional[CertTypes] = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
         use_server_callback_events: bool = True,
+        serializer: Optional[Serializer] = None,
     ) -> None:
         """Initialize the client.
 
@@ -300,6 +301,8 @@ class RemoteRunnable(Runnable[Input, Output]):
                 and async httpx clients
             use_server_callback_events: Whether to invoke callbacks on any
                 callback events returned by the server.
+            serializer: The serializer to use for serializing and deserializing
+                data. If not provided, a default serializer will be used.
         """
         _client_kwargs = client_kwargs or {}
         # Enforce trailing slash
@@ -327,7 +330,7 @@ class RemoteRunnable(Runnable[Input, Output]):
 
         # Register cleanup handler once RemoteRunnable is garbage collected
         weakref.finalize(self, _close_clients, self.sync_client, self.async_client)
-        self._lc_serializer = WellKnownLCSerializer()
+        self._lc_serializer = serializer or WellKnownLCSerializer()
         self._use_server_callback_events = use_server_callback_events
 
     def _invoke(
