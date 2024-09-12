@@ -42,6 +42,7 @@ from langsmith import client as ls_client
 from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
 from pydantic import BaseModel, Field, RootModel, ValidationError, create_model
+from pydantic.v1 import BaseModel as BaseModelV1
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
@@ -675,15 +676,57 @@ class APIHandler:
 
         model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
-        input_type_ = _resolve_model(
-            runnable.get_input_schema(), "Input", model_namespace
-        )
+        try:
+            input_type_ = _resolve_model(
+                runnable.get_input_schema(), "Input", model_namespace
+            )
+        except Exception as e:
+            # Attempt to surface a more informative user facing error
+            raise_original_error = True
+            try:
+                if isinstance(runnable.get_input_schema(), BaseModelV1):
+                    raise_original_error = False
+                    raise ValueError(
+                        "Found an input type which is a pydantic v1 model."
+                        "Please use pydantic.BaseModel rather than "
+                        "pydantic.v1.BaseModel."
+                    )
+            finally:  # noqa
+                if raise_original_error:
+                    print(
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the input type explicitly "
+                        "using the `with_types` method on the runnable.\n"
+                        "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
+                    )
+                    raise e
 
-        output_type_ = _resolve_model(
-            runnable.get_output_schema(),
-            "Output",
-            model_namespace,
-        )
+        try:
+            output_type_ = _resolve_model(
+                runnable.get_output_schema(),
+                "Output",
+                model_namespace,
+            )
+        except Exception as e:
+            # Attempt to surface a more informative user facing error
+            raise_original_error = True
+            try:
+                if isinstance(runnable.get_output_schema(), BaseModelV1):
+                    raise_original_error = False
+                    raise ValueError(
+                        "Found an output type which is a pydantic v1 model."
+                        "Please use pydantic.BaseModel rather than "
+                        "pydantic.v1.BaseModel."
+                    )
+            finally:  # noqa
+                if raise_original_error:
+                    print(
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the output type explicitly "
+                        "using the `with_types` method on the runnable.\n"
+                        "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
+                    )
+                    raise e
 
         self._ConfigPayload = _add_namespace_to_model(
             model_namespace, runnable.config_schema(include=config_keys)
