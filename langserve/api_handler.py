@@ -694,9 +694,9 @@ class APIHandler:
             finally:  # noqa
                 if raise_original_error:
                     print(
-                        "Encountered an error while resolving the inputs of the Runnable. "
-                        "Try specifying the input type explicitly using the "
-                        "`with_types` method on the runnable.\n"
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the input type explicitly "
+                        "using the `with_types` method on the runnable.\n"
                         "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
                     )
                     raise e
@@ -721,9 +721,9 @@ class APIHandler:
             finally:  # noqa
                 if raise_original_error:
                     print(
-                        "Encountered an error while resolving the inputs of the Runnable. "
-                        "Try specifying the input type explicitly using the "
-                        "`with_types` method on the runnable.\n"
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the output type explicitly "
+                        "using the `with_types` method on the runnable.\n"
                         "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
                     )
                     raise e
