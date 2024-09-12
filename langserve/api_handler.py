@@ -534,6 +534,7 @@ class APIHandler:
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
         playground_type: Literal["default", "chat"] = "default",
+        astream_events_version: Literal["v1", "v2"] = "v2",
     ) -> None:
         """Create an API handler for the given runnable.
 
@@ -595,6 +596,8 @@ class APIHandler:
                 If not provided, then all logs will be allowed to be streamed.
                 Use to also limit the events that can be streamed by the stream_events.
                 TODO: Introduce deprecation for this parameter to rename it
+            astream_events_version: version of the stream events endpoint to use.
+                By default "v2".
         """
         if importlib.util.find_spec("sse_starlette") is None:
             raise ImportError(
@@ -632,6 +635,7 @@ class APIHandler:
         self._enable_feedback_endpoint = enable_feedback_endpoint
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
+        self._astream_events_version = astream_events_version
 
         if token_feedback_config:
             if len(token_feedback_config["key_configs"]) != 1:
@@ -1343,7 +1347,7 @@ class APIHandler:
                     exclude_names=stream_events_request.exclude_names,
                     exclude_types=stream_events_request.exclude_types,
                     exclude_tags=stream_events_request.exclude_tags,
-                    version="v1",
+                    version=self._astream_events_version,
                 ):
                     if (
                         self._names_in_stream_allow_list is None
