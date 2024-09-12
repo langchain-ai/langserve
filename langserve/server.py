@@ -262,6 +262,7 @@ def add_routes(
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
     dependencies: Optional[Sequence[Depends]] = None,
     playground_type: Literal["default", "chat"] = "default",
+    astream_events_version: Literal["v1", "v2"] = "v2",
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -380,14 +381,16 @@ def add_routes(
             - chat: UX is optimized for chat-like interactions. Please review
               the README in langserve for more details about constraints (e.g.,
               which message types are supported etc.)
+        astream_events_version: version of the stream events endpoint to use.
+            By default "v2".
     """  # noqa: E501
     if not isinstance(runnable, Runnable):
         raise TypeError(
             f"Expected a Runnable, got {type(runnable)}. "
-            f"The second argument to add_routes should be a Runnable instance."
-            f"add_route(app, runnable, ...) is the correct usage."
-            f"Please make sure that you are using a runnable which is an instance of "
-            f"langchain_core.runnables.Runnable."
+            "The second argument to add_routes should be a Runnable instance."
+            "add_route(app, runnable, ...) is the correct usage."
+            "Please make sure that you are using a runnable which is an instance of "
+            "langchain_core.runnables.Runnable."
         )
 
     endpoint_configuration = _EndpointConfiguration(

@@ -120,6 +120,12 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
+@lru_cache(maxsize=1_000)  # Will accommodate up to 1_000 different error messages
+def _log_info_message_once(error_message: str) -> None:
+    """Log an error message once."""
+    logger.info(error_message)
+
+
 def _sanitize_request(request: httpx.Request) -> httpx.Request:
     """Remove sensitive headers from the request."""
     accept_headers = {
@@ -752,7 +758,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         input: Any,
         config: Optional[RunnableConfig] = None,
         *,
-        version: Literal["v1"],
+        version: Literal["v1", "v2", None] = None,
         include_names: Optional[Sequence[str]] = None,
         include_types: Optional[Sequence[str]] = None,
         include_tags: Optional[Sequence[str]] = None,
@@ -775,7 +781,8 @@ class RemoteRunnable(Runnable[Input, Output]):
             input: The input to the runnable
             config: The config to use for the runnable
             version: The version of the astream_events to use.
-                     Currently only "v1" is supported.
+                Currently, this input is IGNORED on the client.
+                The server will return whatever format it's configured with.
             include_names: The names of the events to include
             include_types: The types of the events to include
             include_tags: The tags of the events to include
@@ -783,12 +790,17 @@ class RemoteRunnable(Runnable[Input, Output]):
             exclude_types: The types of the events to exclude
             exclude_tags: The tags of the events to exclude
         """
-        if version != "v1":
-            raise ValueError(f"Unsupported version: {version}. Use 'v1'")
-
         # Create a stream handler that will emit Log objects
         config = ensure_config(config)
         callback_manager = get_async_callback_manager_for_config(config)
+
+        if version is not None:
+            _log_info_message_once(
+                "Versioning of the astream_events API is not supported on the client "
+                "side currently. The server will return events in whatever format "
+                "it was configured with in add_routes or APIHandler. "
+                "To stop seeing this message, remove the `version` argument."
+            )
 
         events = []
 
