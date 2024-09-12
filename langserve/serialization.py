@@ -116,8 +116,6 @@ def _decode_lc_objects(value: Any) -> Any:
         try:
             obj = WellKnownLCObject.model_validate(v)
             parsed = obj.root
-            if set(parsed.model_dump()) != set(value):
-                raise ValueError("Invalid object")
             return parsed
         except (ValidationError, ValueError, TypeError):
             return v

@@ -1564,18 +1564,18 @@ test = ["hatch", "ipykernel", "openapi-core (>=0.18.0,<0.19.0)", "openapi-spec-v
 
 [[package]]
 name = "langchain-core"
-version = "0.3.0.dev4"
+version = "0.3.0.dev5"
 description = "Building applications with LLMs through composability"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "langchain_core-0.3.0.dev4-py3-none-any.whl", hash = "sha256:5b2e84b7ab9d3ed93341f44a276f046bfdd4df349801ed50d4201af7a29cf3ac"},
-    {file = "langchain_core-0.3.0.dev4.tar.gz", hash = "sha256:d090e34739599531a1c2597f5522091a647917c009fbd786cedd539dfa7b8a98"},
+    {file = "langchain_core-0.3.0.dev5-py3-none-any.whl", hash = "sha256:8de38ea9dd15f9705d20ee44af7160216052467d47893d5473e0e878861685be"},
+    {file = "langchain_core-0.3.0.dev5.tar.gz", hash = "sha256:d0986b3e2810522d90eb09d048ee4a92b079a334b313f4b7429624b4a062adff"},
 ]
 
 [package.dependencies]
 jsonpatch = ">=1.33,<2.0"
-langsmith = ">=0.1.112,<0.2.0"
+langsmith = ">=0.1.117,<0.2.0"
 packaging = ">=23.2,<25"
 pydantic = ">=2.7.4,<3.0.0"
 PyYAML = ">=5.3"
@@ -3882,4 +3882,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "3a5eccd3cb9078e545ff256d4bf7c38924fee54fd896be3f1524aee089a187ac"
+content-hash = "bee76de01384e265c807d785959226cdf9c788b4d5dfc3772dcce5d70a8f6121"
