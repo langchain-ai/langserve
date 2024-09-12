@@ -27,7 +27,6 @@ from typing import (
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from langchain_core._api import beta
 from langchain_core._api.beta_decorator import warn_beta
 from langchain_core.callbacks.base import AsyncCallbackHandler
 from langchain_core.callbacks.manager import BaseCallbackManager
