@@ -2306,7 +2306,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         # test client side error
         with pytest.raises(httpx.HTTPStatusError) as cb:
             # Invalid input type (expected string but got int)
-            async for _ in runnable.astream_events("foo", version="v1"):
+            async for _ in runnable.astream_events("foo", version="v2"):
                 pass
 
         # Verify that this is a 422 error
@@ -2315,7 +2315,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         with pytest.raises(httpx.HTTPStatusError) as cb:
             # Invalid input type (expected string but got int)
             # include names should not be a list of lists
-            async for _ in runnable.astream_events(1, include_names=[[]], version="v1"):
+            async for _ in runnable.astream_events(1, include_names=[[]], version="v2"):
                 pass
 
         # Verify that this is a 422 error
@@ -2324,7 +2324,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         # Test good requests
         events = []
 
-        async for event in runnable.astream_events(1, version="v1"):
+        async for event in runnable.astream_events(1, version="v2"):
             events.append(event)
 
         # validate events
@@ -2337,6 +2337,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
                 assert not k.startswith("__")
             assert "metadata" in event
             del event["metadata"]
+            event["parent_ids"] = []
 
         assert events == [
             {
@@ -2416,6 +2417,7 @@ def _clean_up_events(events: List[Dict[str, Any]]) -> None:
             assert not k.startswith("__")
         assert "metadata" in event
         del event["metadata"]
+        event["parent_ids"] = []
 
 
 async def test_astream_events_with_serialization(
@@ -2488,7 +2490,7 @@ async def test_astream_events_with_serialization(
         app, raise_app_exceptions=False, path="/doc_types"
     ) as runnable:
         # Test good requests
-        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        events = [event async for event in runnable.astream_events("foo", version="v2")]
         _clean_up_events(events)
 
         assert events == [
@@ -2578,7 +2580,7 @@ async def test_astream_events_with_serialization(
         app, raise_app_exceptions=False, path="/get_pets"
     ) as runnable:
         # Test good requests
-        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        events = [event async for event in runnable.astream_events("foo", version="v2")]
         _clean_up_events(events)
         assert events == [
             {
@@ -2613,7 +2615,7 @@ async def test_astream_events_with_serialization(
     ) as runnable:
         # Test good requests
         with pytest.raises(httpx.HTTPStatusError) as cb:
-            async for event in runnable.astream_events("foo", version="v1"):
+            async for event in runnable.astream_events("foo", version="v2"):
                 pass
         assert cb.value.response.status_code == 500
 
@@ -2641,7 +2643,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
         events = [
             event
             async for event in runnable.astream_events(
-                {"question": "hello"}, version="v1"
+                {"question": "hello"}, version="v2"
             )
         ]
         _clean_up_events(events)
@@ -2850,25 +2852,16 @@ async def test_astream_events_with_prompt_model_parser_chain(
                         ]
                     },
                     "output": {
-                        "generations": [
-                            [
-                                {
-                                    "generation_info": None,
-                                    "message": {
-                                        "additional_kwargs": {},
-                                        "content": "Hello World!",
-                                        "name": None,
-                                        "response_metadata": {},
-                                        "type": "AIMessageChunk",
-                                    },
-                                    "text": "Hello World!",
-                                    "type": "ChatGenerationChunk",
-                                }
-                            ]
-                        ],
-                        "llm_output": None,
-                        "run": None,
-                        "type": "LLMResult",
+                        "additional_kwargs": {},
+                        "content": "Hello World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
                     },
                 },
                 "event": "on_chat_model_end",
