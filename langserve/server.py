@@ -446,7 +446,9 @@ def add_routes(
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
         playground_type=playground_type,
+        astream_events_version=astream_events_version,
     )
+
     namespace = path or ""
 
     route_tags = [path.strip("/")] if path else None
