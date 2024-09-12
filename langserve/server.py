@@ -448,7 +448,7 @@ def add_routes(
         playground_type=playground_type,
         astream_events_version=astream_events_version,
     )
-    
+
     namespace = path or ""
 
     route_tags = [path.strip("/")] if path else None
