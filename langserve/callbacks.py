@@ -48,7 +48,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_chat_model_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         messages: List[List[BaseMessage]],
         *,
         run_id: UUID,
@@ -73,7 +73,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_chain_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         inputs: Dict[str, Any],
         *,
         run_id: UUID,
@@ -138,7 +138,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_retriever_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         query: str,
         *,
         run_id: UUID,
@@ -202,7 +202,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_tool_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         input_str: str,
         *,
         run_id: UUID,
@@ -306,7 +306,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_llm_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         prompts: List[str],
         *,
         run_id: UUID,

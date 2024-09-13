@@ -399,7 +399,7 @@ class StreamEventsParameters(BaseModel):
 class OnChainStart(BaseModel):
     """On Chain Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     inputs: Any
     run_id: UUID
     parent_run_id: Optional[UUID] = None
