@@ -548,10 +548,8 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     # Using a single tracer for both inputs
     tracer = FakeTracer()
     assert sync_remote_runnable.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
-    import pdb
-
-    pdb.set_trace()
     assert len(tracer.runs) == 2
+
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
     assert tracer.runs[0] == {}
@@ -1202,6 +1200,94 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
                 "run_id": None,
             },
             "output": 2,
+        }
+
+
+async def test_include_callback_events_batch() -> None:
+    """This test should not use a RemoteRunnable.
+
+    Check if callback events are being sent back from the server.
+
+    Do so using the raw client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(app, server_runnable, input_type=int, include_callback_events=True)
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
+        response = await async_client.post("/batch", json={"inputs": [1, 2]})
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        decoded_response = response.json()
+        # Remove any run_id from the response recursively
+        _null_run_id_recursively(decoded_response)
+        del decoded_response["metadata"]["run_ids"]
+        assert decoded_response == {
+            "callback_events": [
+                [
+                    {
+                        "inputs": 1,
+                        "kwargs": {"name": "add_one", "run_type": None},
+                        "metadata": {
+                            "__langserve_endpoint": "batch",
+                            "__langserve_version": "0.3.0",
+                            "__useragent": "python-httpx/0.27.2",
+                        },
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "serialized": None,
+                        "tags": [],
+                        "type": "on_chain_start",
+                    },
+                    {
+                        "kwargs": {},
+                        "outputs": 2,
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "tags": [],
+                        "type": "on_chain_end",
+                    },
+                ],
+                [
+                    {
+                        "inputs": 2,
+                        "kwargs": {"name": "add_one", "run_type": None},
+                        "metadata": {
+                            "__langserve_endpoint": "batch",
+                            "__langserve_version": "0.3.0",
+                            "__useragent": "python-httpx/0.27.2",
+                        },
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "serialized": None,
+                        "tags": [],
+                        "type": "on_chain_start",
+                    },
+                    {
+                        "kwargs": {},
+                        "outputs": 3,
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "tags": [],
+                        "type": "on_chain_end",
+                    },
+                ],
+            ],
+            "metadata": {
+                "responses": [
+                    {"feedback_tokens": [], "run_id": None},
+                    {"feedback_tokens": [], "run_id": None},
+                ],
+            },
+            "output": [2, 3],
         }
 
 
