@@ -122,17 +122,17 @@ def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
     return streamed_resp.replace(uuid, "<REPLACED>")
 
 
-def _null_run_id_recursively(decoded_response: Any) -> None:
+def _null_run_id_and_metadata_recursively(decoded_response: Any) -> None:
     """Recursively traverse the object and delete any keys called run_id"""
     if isinstance(decoded_response, dict):
         for key, value in decoded_response.items():
-            if key == "run_id":
+            if key in {"run_id", "__langserve_version"}:
                 decoded_response[key] = None
             else:
-                _null_run_id_recursively(value)
+                _null_run_id_and_metadata_recursively(value)
     elif isinstance(decoded_response, list):
         for item in decoded_response:
-            _null_run_id_recursively(item)
+            _null_run_id_and_metadata_recursively(item)
 
 
 @pytest.fixture(scope="module")
@@ -1141,7 +1141,7 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
         assert response.status_code == 200
         decoded_response = response.json()
         # Remove any run_id from the response recursively
-        _null_run_id_recursively(decoded_response)
+        _null_run_id_and_metadata_recursively(decoded_response)
         assert decoded_response == {
             "callback_events": [
                 {
@@ -1149,7 +1149,7 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
                     "kwargs": {"name": "add_one", "run_type": None},
                     "metadata": {
                         "__langserve_endpoint": "invoke",
-                        "__langserve_version": "0.3.0",
+                        "__langserve_version": None,
                         "__useragent": "python-httpx/0.27.2",
                     },
                     "parent_run_id": None,
@@ -1201,7 +1201,7 @@ async def test_include_callback_events_batch() -> None:
         assert response.status_code == 200
         decoded_response = response.json()
         # Remove any run_id from the response recursively
-        _null_run_id_recursively(decoded_response)
+        _null_run_id_and_metadata_recursively(decoded_response)
         del decoded_response["metadata"]["run_ids"]
         assert decoded_response == {
             "callback_events": [
@@ -1211,7 +1211,7 @@ async def test_include_callback_events_batch() -> None:
                         "kwargs": {"name": "add_one", "run_type": None},
                         "metadata": {
                             "__langserve_endpoint": "batch",
-                            "__langserve_version": "0.3.0",
+                            "__langserve_version": None,
                             "__useragent": "python-httpx/0.27.2",
                         },
                         "parent_run_id": None,
@@ -1236,7 +1236,7 @@ async def test_include_callback_events_batch() -> None:
                         "kwargs": {"name": "add_one", "run_type": None},
                         "metadata": {
                             "__langserve_endpoint": "batch",
-                            "__langserve_version": "0.3.0",
+                            "__langserve_version": None,
                             "__useragent": "python-httpx/0.27.2",
                         },
                         "parent_run_id": None,
