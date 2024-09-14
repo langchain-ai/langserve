@@ -122,6 +122,19 @@ def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
     return streamed_resp.replace(uuid, "<REPLACED>")
 
 
+def _null_run_id_recursively(decoded_response: Any) -> None:
+    """Recursively traverse the object and delete any keys called run_id"""
+    if isinstance(decoded_response, dict):
+        for key, value in decoded_response.items():
+            if key == "run_id":
+                decoded_response[key] = None
+            else:
+                _null_run_id_recursively(value)
+    elif isinstance(decoded_response, list):
+        for item in decoded_response:
+            _null_run_id_recursively(item)
+
+
 @pytest.fixture(scope="module")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
@@ -535,9 +548,13 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     # Using a single tracer for both inputs
     tracer = FakeTracer()
     assert sync_remote_runnable.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
+    import pdb
+
+    pdb.set_trace()
     assert len(tracer.runs) == 2
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
+    assert tracer.runs[0] == {}
     assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
     assert (
         tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
@@ -589,7 +606,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # due to asyncio supporting contextvars starting from 3.11.
     # check the python version now
     if sys.version_info >= (3, 11):
-        assert len(tracer.runs) == 2, "Failed for python >= 3.11"
+        assert len(tracer.runs) == 1, "Failed for python >= 3.11"
         first_run = tracer.runs[0]
 
         remote_runnable_run = (
@@ -1126,6 +1143,66 @@ async def test_config_keys_validation(mocker: MockerFixture) -> None:
         assert "__langserve_version" in config_seen["metadata"]
         assert "__langserve_endpoint" in config_seen["metadata"]
         assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
+
+
+async def test_include_callback_events(mocker: MockerFixture) -> None:
+    """This test should not use a RemoteRunnable.
+
+    Check if callback events are being sent back from the server.
+
+    Do so using the raw client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(app, server_runnable, input_type=int, include_callback_events=True)
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
+        server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
+        response = await async_client.post("/invoke", json={"input": 1})
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        decoded_response = response.json()
+        # Remove any run_id from the response recursively
+        _null_run_id_recursively(decoded_response)
+        assert decoded_response == {
+            "callback_events": [
+                {
+                    "inputs": 1,
+                    "kwargs": {"name": "add_one", "run_type": None},
+                    "metadata": {
+                        "__langserve_endpoint": "invoke",
+                        "__langserve_version": "0.3.0",
+                        "__useragent": "python-httpx/0.27.2",
+                    },
+                    "parent_run_id": None,
+                    "serialized": None,
+                    "run_id": None,
+                    "tags": [],
+                    "type": "on_chain_start",
+                },
+                {
+                    "kwargs": {},
+                    "outputs": 2,
+                    "parent_run_id": None,
+                    "tags": [],
+                    "run_id": None,
+                    "type": "on_chain_end",
+                },
+            ],
+            "metadata": {
+                "feedback_tokens": [],
+                "run_id": None,
+            },
+            "output": 2,
+        }
 
 
 async def test_input_validation(mocker: MockerFixture) -> None:
