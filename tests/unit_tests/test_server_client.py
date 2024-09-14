@@ -1131,7 +1131,6 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
     async with AsyncClient(
         base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
     ) as async_client:
-        server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
         response = await async_client.post("/invoke", json={"input": 1})
         # Config should be ignored but default debug information
         # will still be added
