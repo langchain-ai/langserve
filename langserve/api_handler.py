@@ -62,7 +62,7 @@ from langserve.schema import (
     PublicTraceLink,
     PublicTraceLinkCreateRequest,
 )
-from langserve.serialization import WellKnownLCSerializer
+from langserve.serialization import Serializer, WellKnownLCSerializer
 from langserve.validation import (
     BatchBaseResponse,
     BatchRequestShallowValidator,
@@ -536,6 +536,7 @@ class APIHandler:
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
         playground_type: Literal["default", "chat"] = "default",
         astream_events_version: Literal["v1", "v2"] = "v2",
+        serializer: Optional[Serializer] = None,
     ) -> None:
         """Create an API handler for the given runnable.
 
@@ -600,6 +601,8 @@ class APIHandler:
                 TODO: Introduce deprecation for this parameter to rename it
             astream_events_version: version of the stream events endpoint to use.
                 By default "v2".
+            serializer: optional serializer to use for serializing the output.
+                If not provided, the default serializer will be used.
         """
         if importlib.util.find_spec("sse_starlette") is None:
             raise ImportError(
@@ -638,7 +641,7 @@ class APIHandler:
             )
         self._include_callback_events = include_callback_events
         self._per_req_config_modifier = per_req_config_modifier
-        self._serializer = WellKnownLCSerializer()
+        self._serializer = serializer or WellKnownLCSerializer()
         self._enable_feedback_endpoint = enable_feedback_endpoint
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list

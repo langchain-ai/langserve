@@ -56,6 +56,7 @@ from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from langsmith.client import Client
 from langsmith.schemas import FeedbackIngestToken
+from orjson import orjson
 from pydantic import BaseModel, Field, __version__
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
@@ -244,13 +245,17 @@ async def get_async_test_client(
 
 @asynccontextmanager
 async def get_async_remote_runnable(
-    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
+    server: FastAPI,
+    *,
+    path: Optional[str] = None,
+    raise_app_exceptions: bool = True,
+    **kwargs: Any,
 ) -> RemoteRunnable:
     """Get an async client."""
     url = "http://localhost:9999"
     if path:
         url += path
-    remote_runnable_client = RemoteRunnable(url=url)
+    remote_runnable_client = RemoteRunnable(url=url, **kwargs)
 
     async with get_async_test_client(
         server, path=path, raise_app_exceptions=raise_app_exceptions
@@ -2278,6 +2283,49 @@ async def test_uuid_serialization() -> None:
                 "enum": MySpecialEnum.A,
             }
         )
+
+
+async def test_custom_serialization() -> None:
+    """Test updating the config based on the raw request object."""
+    from langserve.serialization import Serializer
+
+    class CustomObject:
+        def __init__(self, x: int) -> None:
+            self.x = x
+
+        def __eq__(self, other) -> bool:
+            return self.x == other.x
+
+    class CustomSerializer(Serializer):
+        def dumps(self, obj: Any) -> bytes:
+            """Dump the given object as a JSON string."""
+            if isinstance(obj, CustomObject):
+                return orjson.dumps({"x": obj.x})
+            else:
+                return orjson.dumps(obj)
+
+        def loadd(self, obj: Any) -> Any:
+            """Load the given object."""
+            if isinstance(obj, bytes):
+                obj = obj.decode("utf-8")
+            if obj.get("x"):
+                return CustomObject(x=obj["x"])
+            return obj
+
+    def foo(x: int) -> Any:
+        """Add one to simulate a valid function."""
+        return CustomObject(x=5)
+
+    app = FastAPI()
+    server_runnable = RunnableLambda(foo)
+    add_routes(app, server_runnable, serializer=CustomSerializer())
+
+    async with get_async_remote_runnable(
+        app, raise_app_exceptions=True, serializer=CustomSerializer()
+    ) as runnable:
+        result = await runnable.ainvoke(5)
+        assert isinstance(result, CustomObject)
+        assert result == CustomObject(x=5)
 
 
 async def test_endpoint_configurations() -> None:

@@ -26,6 +26,7 @@ from langserve.api_handler import (
     TokenFeedbackConfig,
     _is_hosted,
 )
+from langserve.serialization import Serializer
 
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request, Response
@@ -263,6 +264,7 @@ def add_routes(
     dependencies: Optional[Sequence[Depends]] = None,
     playground_type: Literal["default", "chat"] = "default",
     astream_events_version: Literal["v1", "v2"] = "v2",
+    serializer: Optional[Serializer] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -383,6 +385,8 @@ def add_routes(
               which message types are supported etc.)
         astream_events_version: version of the stream events endpoint to use.
             By default "v2".
+        serializer: The serializer to use for serializing the output. If not provided,
+            the default serializer will be used.
     """  # noqa: E501
     if not isinstance(runnable, Runnable):
         raise TypeError(
@@ -447,6 +451,7 @@ def add_routes(
         stream_log_name_allow_list=stream_log_name_allow_list,
         playground_type=playground_type,
         astream_events_version=astream_events_version,
+        serializer=serializer,
     )
 
     namespace = path or ""
