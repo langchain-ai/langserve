@@ -157,9 +157,9 @@ def _decode_event_data(value: Any) -> Any:
 
 
 class Serializer(abc.ABC):
-    @abc.abstractmethod
     def dumpd(self, obj: Any) -> Any:
         """Convert the given object to a JSON serializable object."""
+        return orjson.loads(self.dumps(obj))
 
     @abc.abstractmethod
     def dumps(self, obj: Any) -> bytes:
@@ -169,16 +169,12 @@ class Serializer(abc.ABC):
     def loads(self, s: bytes) -> Any:
         """Load the given JSON string."""
 
-    @abc.abstractmethod
-    def loadd(self, obj: Any) -> Any:
-        """Load the given object."""
+    def loads(self, s: bytes) -> Any:
+        """Load the given JSON string."""
+        return self.loadd(orjson.loads(s))
 
 
 class WellKnownLCSerializer(Serializer):
-    def dumpd(self, obj: Any) -> Any:
-        """Convert the given object to a JSON serializable object."""
-        return orjson.loads(orjson.dumps(obj, default=default))
-
     def dumps(self, obj: Any) -> bytes:
         """Dump the given object as a JSON string."""
         return orjson.dumps(obj, default=default)
@@ -186,10 +182,6 @@ class WellKnownLCSerializer(Serializer):
     def loadd(self, obj: Any) -> Any:
         """Load the given object."""
         return _decode_lc_objects(obj)
-
-    def loads(self, s: bytes) -> Any:
-        """Load the given JSON string."""
-        return self.loadd(orjson.loads(s))
 
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:

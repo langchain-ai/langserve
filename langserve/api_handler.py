@@ -62,7 +62,7 @@ from langserve.schema import (
     PublicTraceLink,
     PublicTraceLinkCreateRequest,
 )
-from langserve.serialization import WellKnownLCSerializer, Serializer
+from langserve.serialization import Serializer, WellKnownLCSerializer
 from langserve.validation import (
     BatchBaseResponse,
     BatchRequestShallowValidator,
