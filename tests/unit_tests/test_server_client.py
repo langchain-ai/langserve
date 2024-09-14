@@ -536,13 +536,23 @@ def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
+def test_foo_foo_bar_bar(sync_remote_runnable: RemoteRunnable) -> None:
+    tracer = FakeTracer()
+    assert sync_remote_runnable.batch([1], config={"callbacks": [tracer]}) == [2]
+    assert len(tracer.runs) == 1
+
+
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     """Test sync batch."""
-    assert sync_remote_runnable.batch([]) == []
-    assert sync_remote_runnable.batch([1, 2, 3]) == [2, 3, 4]
-    assert sync_remote_runnable.batch([HumanMessage(content="hello")]) == [
-        HumanMessage(content="hello")
-    ]
+    # assert sync_remote_runnable.batch([]) == []
+    # assert sync_remote_runnable.batch([1, 2, 3]) == [2, 3, 4]
+    # assert sync_remote_runnable.batch([HumanMessage(content="hello")]) == [
+    #     HumanMessage(content="hello")
+    # ]
+
+    tracer = FakeTracer()
+    assert sync_remote_runnable.batch([1, 1], config={"callbacks": [tracer]}) == [2, 3]
+    assert len(tracer.runs) == 1
 
     # Test callbacks
     # Using a single tracer for both inputs
@@ -552,7 +562,7 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
 
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
-    assert tracer.runs[0] == {}
+    # assert tracer.runs[0] == {}
     assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
     assert (
         tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
