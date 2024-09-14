@@ -442,7 +442,7 @@ class OnChainError(BaseModel):
 class OnToolStart(BaseModel):
     """On Tool Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     input_str: str
     run_id: UUID
     parent_run_id: Optional[UUID] = None
@@ -477,7 +477,7 @@ class OnToolError(BaseModel):
 class OnChatModelStart(BaseModel):
     """On Chat Model Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     messages: List[List[BaseMessage]]
     run_id: UUID
     parent_run_id: Optional[UUID] = None
@@ -490,7 +490,7 @@ class OnChatModelStart(BaseModel):
 class OnLLMStart(BaseModel):
     """On LLM Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     prompts: List[str]
     run_id: UUID
     parent_run_id: Optional[UUID] = None
@@ -529,7 +529,7 @@ class OnLLMEnd(BaseModel):
 class OnRetrieverStart(BaseModel):
     """On Retriever Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     query: str
     run_id: UUID
     parent_run_id: Optional[UUID] = None
