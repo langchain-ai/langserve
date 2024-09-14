@@ -536,26 +536,22 @@ def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
-def test_foo_foo_bar_bar(sync_remote_runnable: RemoteRunnable) -> None:
+def test_batch_tracer_with_single_input(sync_remote_runnable: RemoteRunnable) -> None:
+    """Test passing a single tracer to batch."""
     tracer = FakeTracer()
     assert sync_remote_runnable.batch([1], config={"callbacks": [tracer]}) == [2]
     assert len(tracer.runs) == 1
-    # Child run exists from server side (this fails)
-    assert len(tracer.runs[0].child_runs[0]) == 1  #
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
+    assert len(tracer.runs[0].child_runs) == 1
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
 
 
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     """Test sync batch."""
-    # assert sync_remote_runnable.batch([]) == []
-    # assert sync_remote_runnable.batch([1, 2, 3]) == [2, 3, 4]
-    # assert sync_remote_runnable.batch([HumanMessage(content="hello")]) == [
-    #     HumanMessage(content="hello")
-    # ]
-
-    tracer = FakeTracer()
-    assert sync_remote_runnable.batch([1, 1], config={"callbacks": [tracer]}) == [2, 3]
-    assert len(tracer.runs) == 1
+    assert sync_remote_runnable.batch([]) == []
+    assert sync_remote_runnable.batch([1, 2, 3]) == [2, 3, 4]
+    assert sync_remote_runnable.batch([HumanMessage(content="hello")]) == [
+        HumanMessage(content="hello")
+    ]
 
     # Test callbacks
     # Using a single tracer for both inputs
@@ -563,18 +559,8 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     assert sync_remote_runnable.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
     assert len(tracer.runs) == 2
 
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    # assert tracer.runs[0] == {}
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
-
-    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer.runs[1].child_runs[0].name == "add_one_or_passthrough"
 
     # Verify that each tracer gets its own run
     tracer1 = FakeTracer()
@@ -586,17 +572,8 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     assert len(tracer2.runs) == 1
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
-    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
-
-    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
+    assert tracer1.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer2.runs[0].child_runs[0].name == "add_one_or_passthrough"
 
 
 async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
@@ -617,7 +594,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     # due to asyncio supporting contextvars starting from 3.11.
     # check the python version now
     if sys.version_info >= (3, 11):
-        assert len(tracer.runs) == 1, "Failed for python >= 3.11"
+        assert len(tracer.runs) == 2, "Failed for python >= 3.11"
         first_run = tracer.runs[0]
 
         remote_runnable_run = (
@@ -652,17 +629,9 @@ async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
         [1, 2], config={"callbacks": [tracer]}
     ) == [2, 3]
     assert len(tracer.runs) == 2
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
 
-    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer.runs[1].child_runs[0].name == "add_one_or_passthrough"
 
     # Verify that each tracer gets its own run
     tracer1 = FakeTracer()
@@ -672,19 +641,9 @@ async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
     ) == [2, 3]
     assert len(tracer1.runs) == 1
     assert len(tracer2.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
 
-    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
+    assert tracer1.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer2.runs[0].child_runs[0].name == "add_one_or_passthrough"
 
 
 async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
@@ -1202,6 +1161,7 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
                 {
                     "kwargs": {},
                     "outputs": 2,
+                    "metadata": None,
                     "parent_run_id": None,
                     "tags": [],
                     "run_id": None,
@@ -1264,6 +1224,7 @@ async def test_include_callback_events_batch() -> None:
                         "kwargs": {},
                         "outputs": 2,
                         "parent_run_id": None,
+                        "metadata": None,
                         "run_id": None,
                         "tags": [],
                         "type": "on_chain_end",
@@ -1288,6 +1249,7 @@ async def test_include_callback_events_batch() -> None:
                         "kwargs": {},
                         "outputs": 3,
                         "parent_run_id": None,
+                        "metadata": None,
                         "run_id": None,
                         "tags": [],
                         "type": "on_chain_end",

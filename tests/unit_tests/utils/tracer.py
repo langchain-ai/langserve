@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from langchain_core.tracers import BaseTracer
@@ -40,16 +40,16 @@ class FakeTracer(BaseTracer):
         )
 
     def _create_chain_run(
-            self,
-            serialized: Dict[str, Any],
-            inputs: Dict[str, Any],
-            run_id: UUID,
-            tags: Optional[List[str]] = None,
-            parent_run_id: Optional[UUID] = None,
-            metadata: Optional[Dict[str, Any]] = None,
-            run_type: Optional[str] = None,
-            name: Optional[str] = None,
-            **kwargs: Any,
+        self,
+        serialized: Dict[str, Any],
+        inputs: Dict[str, Any],
+        run_id: UUID,
+        tags: Optional[List[str]] = None,
+        parent_run_id: Optional[UUID] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        run_type: Optional[str] = None,
+        name: Optional[str] = None,
+        **kwargs: Any,
     ) -> Run:
         if name is None:
             # can't raise an exception from here, but can get a breakpoint
@@ -65,9 +65,7 @@ class FakeTracer(BaseTracer):
             run_type,
             name,
             **kwargs,
-
         )
-
 
     def _persist_run(self, run: Run) -> None:
         """Persist a run."""

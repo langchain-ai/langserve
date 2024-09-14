@@ -445,7 +445,14 @@ async def ahandle_callbacks(
         if event["parent_run_id"] is None:  # How do we make sure it's None!?
             event["parent_run_id"] = callback_manager.run_id
 
-        event_data = {key: value for key, value in event.items() if key != "type"}
+        event_data = {
+            key: value
+            for key, value in event.items()
+            if key != "type" and key != "kwargs"
+        }
+
+        if "kwargs" in event:
+            event_data.update(event["kwargs"])
 
         await ahandle_event(
             # Unpacking like this may not work
@@ -467,7 +474,14 @@ def handle_callbacks(
         if event["parent_run_id"] is None:  # How do we make sure it's None!?
             event["parent_run_id"] = callback_manager.run_id
 
-        event_data = {key: value for key, value in event.items() if key != "type"}
+        event_data = {
+            key: value
+            for key, value in event.items()
+            if key != "type" and key != "kwargs"
+        }
+
+        if "kwargs" in event:
+            event_data.update(event["kwargs"])
 
         handle_event(
             # Unpacking like this may not work
