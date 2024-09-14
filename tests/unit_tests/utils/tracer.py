@@ -53,7 +53,8 @@ class FakeTracer(BaseTracer):
     ) -> Run:
         if name is None:
             # can't raise an exception from here, but can get a breakpoint
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
+            pass
         return super()._create_chain_run(
             serialized,
             inputs,

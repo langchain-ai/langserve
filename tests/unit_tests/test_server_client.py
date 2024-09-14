@@ -540,6 +540,9 @@ def test_foo_foo_bar_bar(sync_remote_runnable: RemoteRunnable) -> None:
     tracer = FakeTracer()
     assert sync_remote_runnable.batch([1], config={"callbacks": [tracer]}) == [2]
     assert len(tracer.runs) == 1
+    # Child run exists from server side (this fails)
+    assert len(tracer.runs[0].child_runs[0]) == 1  #
+    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
 
 
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
