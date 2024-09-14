@@ -48,7 +48,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_chat_model_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         messages: List[List[BaseMessage]],
         *,
         run_id: UUID,
@@ -73,7 +73,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_chain_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         inputs: Dict[str, Any],
         *,
         run_id: UUID,
@@ -138,7 +138,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_retriever_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         query: str,
         *,
         run_id: UUID,
@@ -202,7 +202,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_tool_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         input_str: str,
         *,
         run_id: UUID,
@@ -306,7 +306,7 @@ class AsyncEventAggregatorCallback(AsyncCallbackHandler):
 
     async def on_llm_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: Optional[Dict[str, Any]],
         prompts: List[str],
         *,
         run_id: UUID,
@@ -445,7 +445,14 @@ async def ahandle_callbacks(
         if event["parent_run_id"] is None:  # How do we make sure it's None!?
             event["parent_run_id"] = callback_manager.run_id
 
-        event_data = {key: value for key, value in event.items() if key != "type"}
+        event_data = {
+            key: value
+            for key, value in event.items()
+            if key != "type" and key != "kwargs"
+        }
+
+        if "kwargs" in event:
+            event_data.update(event["kwargs"])
 
         await ahandle_event(
             # Unpacking like this may not work
@@ -467,7 +474,14 @@ def handle_callbacks(
         if event["parent_run_id"] is None:  # How do we make sure it's None!?
             event["parent_run_id"] = callback_manager.run_id
 
-        event_data = {key: value for key, value in event.items() if key != "type"}
+        event_data = {
+            key: value
+            for key, value in event.items()
+            if key != "type" and key != "kwargs"
+        }
+
+        if "kwargs" in event:
+            event_data.update(event["kwargs"])
 
         handle_event(
             # Unpacking like this may not work
