@@ -161,26 +161,44 @@ class Serializer(abc.ABC):
         """Convert the given object to a JSON serializable object."""
         return orjson.loads(self.dumps(obj))
 
-    @abc.abstractmethod
-    def dumps(self, obj: Any) -> bytes:
-        """Dump the given object as a JSON string."""
-
-    @abc.abstractmethod
-    def loads(self, s: bytes) -> Any:
-        """Load the given JSON string."""
-
     def loads(self, s: bytes) -> Any:
         """Load the given JSON string."""
         return self.loadd(orjson.loads(s))
 
+    @abc.abstractmethod
+    def dumps(self, obj: Any) -> bytes:
+        """Dump the given object to a JSON byte string."""
+
+    @abc.abstractmethod
+    def loadd(self, s: bytes) -> Any:
+        """Given a python object, load it into a well known object.
+
+        The obj represents content that was json loaded from a string, but
+        not yet validated or converted into a well known object.
+        """
+
 
 class WellKnownLCSerializer(Serializer):
+    """A pre-defined serializer for well known LangChain objects.
+
+    This is the default serialized used by LangServe for serializing and
+    de-serializing well known LangChain objects.
+
+    If you need to extend the serialization capabilities for your own application,
+    feel free to create a new instance of the Serializer class and implement
+    the abstract methods dumps and loadd.
+    """
+
     def dumps(self, obj: Any) -> bytes:
-        """Dump the given object as a JSON string."""
+        """Dump the given object to a JSON byte string."""
         return orjson.dumps(obj, default=default)
 
     def loadd(self, obj: Any) -> Any:
-        """Load the given object."""
+        """Given a python object, load it into a well known object.
+
+        The obj represents content that was json loaded from a string, but
+        not yet validated or converted into a well known object.
+        """
         return _decode_lc_objects(obj)
 
 

@@ -2293,26 +2293,28 @@ async def test_custom_serialization() -> None:
         def __init__(self, x: int) -> None:
             self.x = x
 
-    class CustomSerializer(Serializer):
-        def dumpd(self, obj: Any) -> Any:
-            """Convert the given object to a JSON serializable object."""
-            return orjson.loads(orjson.dumps(obj))
+        def __eq__(self, other) -> bool:
+            return self.x == other.x
 
+    class CustomSerializer(Serializer):
         def dumps(self, obj: Any) -> bytes:
             """Dump the given object as a JSON string."""
-            return orjson.dumps(obj)
+            if isinstance(obj, CustomObject):
+                return orjson.dumps({"x": obj.x})
+            else:
+                return orjson.dumps(obj)
 
         def loadd(self, obj: Any) -> Any:
             """Load the given object."""
-            raise NotImplementedError()
-
-        def loads(self, s: bytes) -> Any:
-            """Load the given JSON string."""
-            return orjson.loads(s)
+            if isinstance(obj, bytes):
+                obj = obj.decode("utf-8")
+            if obj.get("x"):
+                return CustomObject(x=obj["x"])
+            return obj
 
     def foo(x: int) -> Any:
         """Add one to simulate a valid function."""
-        return 2
+        return CustomObject(x=5)
 
     app = FastAPI()
     server_runnable = RunnableLambda(foo)
@@ -2322,7 +2324,8 @@ async def test_custom_serialization() -> None:
         app, raise_app_exceptions=True, serializer=CustomSerializer()
     ) as runnable:
         result = await runnable.ainvoke(5)
-        assert result == {}
+        assert isinstance(result, CustomObject)
+        assert result == CustomObject(x=5)
 
 
 async def test_endpoint_configurations() -> None:
