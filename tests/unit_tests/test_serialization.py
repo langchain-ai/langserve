@@ -189,9 +189,3 @@ def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
     """
     lc_serializer = WellKnownLCSerializer()
     assert lc_serializer.dumpd(obj) == expected
-
-
-@pytest.mark.xfail(reason="0.3")
-def test_fail_03() -> None:
-    """This test will fail on purposes. It contains a TODO list for 0.3 release."""
-    assert "CHatGeneration_Deserialized correct" == "UNcomment test above"

@@ -1,8 +1,9 @@
 """Adapted from https://github.com/florimondmanca/httpx-sse"""
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any, AsyncIterator, Iterator, List, Optional, TypedDict
+from typing import Any, AsyncIterator, Iterator, List, Optional
 
 import httpx
+from typing_extensions import TypedDict
 
 
 class ServerSentEvent(TypedDict):

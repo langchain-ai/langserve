@@ -396,27 +396,29 @@ class StreamEventsParameters(BaseModel):
 # status code and a message.
 
 
-class OnChainStart(BaseModel):
-    """On Chain Start Callback Event."""
+class BaseCallback(BaseModel):
+    """Base class for all callback events."""
 
-    serialized: Dict[str, Any]
-    inputs: Any
     run_id: UUID
     parent_run_id: Optional[UUID] = None
     tags: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
-    kwargs: Any = None
+
+
+class OnChainStart(BaseCallback):
+    """On Chain Start Callback Event."""
+
+    serialized: Optional[Dict[str, Any]] = None
+    inputs: Any
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_chain_start"] = "on_chain_start"
 
 
-class OnChainEnd(BaseModel):
+class OnChainEnd(BaseCallback):
     """On Chain End Callback Event."""
 
     outputs: Any
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_chain_end"] = "on_chain_end"
 
 
@@ -428,38 +430,35 @@ class Error(BaseModel):
     type: Literal["error"] = "error"
 
 
-class OnChainError(BaseModel):
+class OnChainError(BaseCallback):
     """On Chain Error Callback Event."""
 
     error: Error
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_chain_error"] = "on_chain_error"
 
 
-class OnToolStart(BaseModel):
+class OnToolStart(BaseCallback):
     """On Tool Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     input_str: str
     run_id: UUID
     parent_run_id: Optional[UUID] = None
     tags: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_tool_start"] = "on_tool_start"
 
 
-class OnToolEnd(BaseModel):
+class OnToolEnd(BaseCallback):
     """On Tool End Callback Event."""
 
     output: str
     run_id: UUID
     parent_run_id: Optional[UUID] = None
     tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_tool_end"] = "on_tool_end"
 
 
@@ -467,36 +466,29 @@ class OnToolError(BaseModel):
     """On Tool Error Callback Event."""
 
     error: Error
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_tool_error"] = "on_tool_error"
 
 
-class OnChatModelStart(BaseModel):
+class OnChatModelStart(BaseCallback):
     """On Chat Model Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     messages: List[List[BaseMessage]]
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_chat_model_start"] = "on_chat_model_start"
 
 
-class OnLLMStart(BaseModel):
+class OnLLMStart(BaseCallback):
     """On LLM Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     prompts: List[str]
     run_id: UUID
     parent_run_id: Optional[UUID] = None
     tags: Optional[List[str]] = None
     metadata: Optional[Dict[str, Any]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_llm_start"] = "on_llm_start"
 
 
@@ -515,49 +507,39 @@ class LLMResult(BaseModel):
     """List of metadata info for model call for each input."""
 
 
-class OnLLMEnd(BaseModel):
+class OnLLMEnd(BaseCallback):
     """On LLM End Callback Event."""
 
     response: LLMResult
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_llm_end"] = "on_llm_end"
 
 
-class OnRetrieverStart(BaseModel):
+class OnRetrieverStart(BaseCallback):
     """On Retriever Start Callback Event."""
 
-    serialized: Dict[str, Any]
+    serialized: Optional[Dict[str, Any]] = None
     query: str
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_retriever_start"] = "on_retriever_start"
 
 
-class OnRetrieverError(BaseModel):
+class OnRetrieverError(BaseCallback):
     """On Retriever Error Callback Event."""
 
     error: Error
     run_id: UUID
     parent_run_id: Optional[UUID] = None
     tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_retriever_error"] = "on_retriever_error"
 
 
-class OnRetrieverEnd(BaseModel):
+class OnRetrieverEnd(BaseCallback):
     """On Retriever End Callback Event."""
 
     documents: Sequence[Document]
-    run_id: UUID
-    parent_run_id: Optional[UUID] = None
-    tags: Optional[List[str]] = None
-    kwargs: Any = None
+    kwargs: Optional[Dict[str, Any]] = None
     type: Literal["on_retriever_end"] = "on_retriever_end"
 
 
