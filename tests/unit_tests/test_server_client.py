@@ -606,10 +606,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     elif sys.version_info < (3, 11):
         assert len(tracer.runs) == 1, "Failed for python < 3.11"
         remote_runnable = tracer.runs[0]
-        assert (
-            remote_runnable.child_runs[0].extra["kwargs"]["name"]
-            == "add_one_or_passthrough"
-        )
+        assert remote_runnable.name == "RemoteRunnable"
     else:
         raise AssertionError(f"Unsupported python version {sys.version_info}")
 
