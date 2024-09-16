@@ -48,9 +48,8 @@ be better suited for deploying LangGraph applications.
 ## Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
-- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not
-  support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360).
-  See section below for more details.
+- Versions of LangServe <= 0.2.0, will not generate OpenAPI docs properly when using Pydantic V2 as Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360).
+  See section below for more details. Either upgrade to LangServe>=0.3.0 or downgrade Pydantic to pydantic 1.
 
 ## Security
 
@@ -208,8 +207,9 @@ app.add_middleware(
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
 
-> ⚠️ If using pydantic v2, docs will not be generated for _invoke_, _batch_, _stream_,
+> ⚠️ If using LangServe <= 0.2.0 and pydantic v2, docs will not be generated for _invoke_, _batch_, _stream_,
 > _stream_log_. See [Pydantic](#pydantic) section below for more details.
+> To resolve please upgrade to LangServe 0.3.0.
 
 ```sh
 curl localhost:8000/docs
