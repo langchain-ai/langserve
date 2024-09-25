@@ -42,6 +42,7 @@ from langsmith import client as ls_client
 from langsmith.schemas import FeedbackIngestToken
 from langsmith.utils import tracing_is_enabled
 from pydantic import BaseModel, Field, RootModel, ValidationError, create_model
+from pydantic.v1 import BaseModel as BaseModelV1
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from typing_extensions import TypedDict
@@ -61,7 +62,7 @@ from langserve.schema import (
     PublicTraceLink,
     PublicTraceLinkCreateRequest,
 )
-from langserve.serialization import WellKnownLCSerializer
+from langserve.serialization import Serializer, WellKnownLCSerializer
 from langserve.validation import (
     BatchBaseResponse,
     BatchRequestShallowValidator,
@@ -186,11 +187,11 @@ async def _unpack_request_config(
     config_dicts = []
     for config in client_sent_configs:
         if isinstance(config, str):
-            config_dicts.append(model(**_config_from_hash(config)).dict())
+            config_dicts.append(model(**_config_from_hash(config)).model_dump())
         elif isinstance(config, BaseModel):
-            config_dicts.append(config.dict())
+            config_dicts.append(config.model_dump())
         elif isinstance(config, Mapping):
-            config_dicts.append(model(**config).dict())
+            config_dicts.append(model(**config).model_dump())
         else:
             raise TypeError(f"Expected a string, dict or BaseModel got {type(config)}")
     config = merge_configs(*config_dicts)
@@ -298,7 +299,7 @@ def _unpack_input(validated_model: BaseModel) -> Any:
         # This logic should be applied recursively to nested models.
         return {
             fieldname: _unpack_input(getattr(model, fieldname))
-            for fieldname in model.__fields__.keys()
+            for fieldname in model.model_fields.keys()
         }
 
     return model
@@ -330,6 +331,11 @@ def _replace_non_alphanumeric_with_underscores(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "_", s)
 
 
+def _schema_json(model: Type[BaseModel]) -> str:
+    """Return the JSON representation of the model schema."""
+    return json.dumps(model.model_json_schema(), sort_keys=True, indent=False)
+
+
 def _resolve_model(
     type_: Union[Type, BaseModel], default_name: str, namespace: str
 ) -> Type[BaseModel]:
@@ -339,13 +345,13 @@ def _resolve_model(
     else:
         model = _create_root_model(default_name, type_)
 
-    hash_ = model.schema_json()
+    hash_ = _schema_json(model)
 
     if model.__name__ in _SEEN_NAMES and hash_ not in _MODEL_REGISTRY:
         # If the model name has been seen before, but the model itself is different
         # generate a new name for the model.
         model_to_use = _rename_pydantic_model(model, namespace)
-        hash_ = model_to_use.schema_json()
+        hash_ = _schema_json(model_to_use)
     else:
         model_to_use = model
 
@@ -529,6 +535,8 @@ class APIHandler:
         per_req_config_modifier: Optional[PerRequestConfigModifier] = None,
         stream_log_name_allow_list: Optional[Sequence[str]] = None,
         playground_type: Literal["default", "chat"] = "default",
+        astream_events_version: Literal["v1", "v2"] = "v2",
+        serializer: Optional[Serializer] = None,
     ) -> None:
         """Create an API handler for the given runnable.
 
@@ -563,6 +571,7 @@ class APIHandler:
                 If true, the client will be able to show trace information
                 including events that occurred on the server side.
                 Be sure not to include any sensitive information in the callback events.
+                This is a **beta** API.
             enable_feedback_endpoint: Whether to enable an endpoint for logging feedback
                 to LangSmith. Disabled by default. If this flag is disabled or LangSmith
                 tracing is not enabled for the runnable, then 4xx errors will be thrown
@@ -590,6 +599,10 @@ class APIHandler:
                 If not provided, then all logs will be allowed to be streamed.
                 Use to also limit the events that can be streamed by the stream_events.
                 TODO: Introduce deprecation for this parameter to rename it
+            astream_events_version: version of the stream events endpoint to use.
+                By default "v2".
+            serializer: optional serializer to use for serializing the output.
+                If not provided, the default serializer will be used.
         """
         if importlib.util.find_spec("sse_starlette") is None:
             raise ImportError(
@@ -621,12 +634,18 @@ class APIHandler:
         # and when tracing information is logged, we'll be able to see
         # traces for the path /foo/bar.
         self._run_name = self._base_url
+        if include_callback_events:
+            warn_beta(
+                message="Including callback events in the response is in beta. "
+                "This API may change in the future."
+            )
         self._include_callback_events = include_callback_events
         self._per_req_config_modifier = per_req_config_modifier
-        self._serializer = WellKnownLCSerializer()
+        self._serializer = serializer or WellKnownLCSerializer()
         self._enable_feedback_endpoint = enable_feedback_endpoint
         self._enable_public_trace_link_endpoint = enable_public_trace_link_endpoint
         self._names_in_stream_allow_list = stream_log_name_allow_list
+        self._astream_events_version = astream_events_version
 
         if token_feedback_config:
             if len(token_feedback_config["key_configs"]) != 1:
@@ -666,15 +685,57 @@ class APIHandler:
 
         model_namespace = _replace_non_alphanumeric_with_underscores(path.strip("/"))
 
-        input_type_ = _resolve_model(
-            runnable.get_input_schema(), "Input", model_namespace
-        )
+        try:
+            input_type_ = _resolve_model(
+                runnable.get_input_schema(), "Input", model_namespace
+            )
+        except Exception as e:
+            # Attempt to surface a more informative user facing error
+            raise_original_error = True
+            try:
+                if isinstance(runnable.get_input_schema(), BaseModelV1):
+                    raise_original_error = False
+                    raise ValueError(
+                        "Found an input type which is a pydantic v1 model."
+                        "Please use pydantic.BaseModel rather than "
+                        "pydantic.v1.BaseModel."
+                    )
+            finally:  # noqa
+                if raise_original_error:
+                    print(
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the input type explicitly "
+                        "using the `with_types` method on the runnable.\n"
+                        "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
+                    )
+                    raise e
 
-        output_type_ = _resolve_model(
-            runnable.get_output_schema(),
-            "Output",
-            model_namespace,
-        )
+        try:
+            output_type_ = _resolve_model(
+                runnable.get_output_schema(),
+                "Output",
+                model_namespace,
+            )
+        except Exception as e:
+            # Attempt to surface a more informative user facing error
+            raise_original_error = True
+            try:
+                if isinstance(runnable.get_output_schema(), BaseModelV1):
+                    raise_original_error = False
+                    raise ValueError(
+                        "Found an output type which is a pydantic v1 model."
+                        "Please use pydantic.BaseModel rather than "
+                        "pydantic.v1.BaseModel."
+                    )
+            finally:  # noqa
+                if raise_original_error:
+                    print(
+                        "Encountered an error while resolving the inputs of "
+                        "the Runnable. Try specifying the output type explicitly "
+                        "using the `with_types` method on the runnable.\n"
+                        "See https://api.python.langchain.com/en/latest/runnables/langchain_core.runnables.base.Runnable.html "  # noqa: E501
+                    )
+                    raise e
 
         self._ConfigPayload = _add_namespace_to_model(
             model_namespace, runnable.config_schema(include=config_keys)
@@ -755,7 +816,7 @@ class APIHandler:
         except json.JSONDecodeError:
             raise RequestValidationError(errors=["Invalid JSON body"])
         try:
-            body = InvokeRequestShallowValidator.validate(body)
+            body = InvokeRequestShallowValidator.model_validate(body)
 
             # Merge the config from the path with the config from the body.
             user_provided_config = await _unpack_request_config(
@@ -777,7 +838,7 @@ class APIHandler:
             # This takes into account changes in the input type when
             # using configuration.
             schema = self._runnable.with_config(config).input_schema
-            input_ = schema.validate(body.input)
+            input_ = schema.model_validate(body.input)
             return config, _unpack_input(input_)
         except ValidationError as e:
             raise RequestValidationError(e.errors(), body=body)
@@ -887,7 +948,7 @@ class APIHandler:
             raise RequestValidationError(errors=["Invalid JSON body"])
 
         with _with_validation_error_translation():
-            body = BatchRequestShallowValidator.validate(body)
+            body = BatchRequestShallowValidator.model_validate(body)
             config = body.config
 
             # First unpack the config
@@ -938,7 +999,7 @@ class APIHandler:
 
         inputs = [
             _unpack_input(
-                self._runnable.with_config(config_).input_schema.validate(input_)
+                self._runnable.with_config(config_).input_schema.model_validate(input_)
             )
             for config_, input_ in zip(configs_, inputs_)
         ]
@@ -1338,7 +1399,7 @@ class APIHandler:
                     exclude_names=stream_events_request.exclude_names,
                     exclude_types=stream_events_request.exclude_types,
                     exclude_tags=stream_events_request.exclude_tags,
-                    version="v1",
+                    version=self._astream_events_version,
                 ):
                     if (
                         self._names_in_stream_allow_list is None
@@ -1407,7 +1468,7 @@ class APIHandler:
                 self._run_name, user_provided_config, request
             )
 
-        return self._runnable.get_input_schema(config).schema()
+        return self._runnable.get_input_schema(config).model_json_schema()
 
     async def output_schema(
         self,
@@ -1434,7 +1495,7 @@ class APIHandler:
             config = _update_config_with_defaults(
                 self._run_name, user_provided_config, request
             )
-        return self._runnable.get_output_schema(config).schema()
+        return self._runnable.get_output_schema(config).model_json_schema()
 
     async def config_schema(
         self,
@@ -1464,7 +1525,7 @@ class APIHandler:
         return (
             self._runnable.with_config(config)
             .config_schema(include=self._config_keys)
-            .schema()
+            .model_json_schema()
         )
 
     async def playground(

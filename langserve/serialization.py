@@ -29,15 +29,18 @@ from langchain_core.messages import (
     HumanMessageChunk,
     SystemMessage,
     SystemMessageChunk,
+    ToolMessage,
+    ToolMessageChunk,
 )
 from langchain_core.outputs import (
     ChatGeneration,
     ChatGenerationChunk,
     Generation,
+    LLMResult,
 )
 from langchain_core.prompt_values import ChatPromptValueConcrete
 from langchain_core.prompts.base import StringPromptValue
-from pydantic import BaseModel, Field, RootModel, ValidationError
+from pydantic import BaseModel, Discriminator, Field, RootModel, Tag, ValidationError
 
 from langserve.validation import CallbackEvent
 
@@ -50,33 +53,50 @@ def _log_error_message_once(error_message: str) -> None:
     logger.error(error_message)
 
 
+def _get_type(v: Any) -> str:
+    """Get the type associated with the object for serialization purposes."""
+    if isinstance(v, dict) and "type" in v:
+        return v["type"]
+    elif hasattr(v, "type"):
+        return v.type
+    else:
+        raise TypeError(
+            f"Expected either a dictionary with a 'type' key or an object "
+            f"with a 'type' attribute. Instead got type {type(v)}."
+        )
+
+
 # A well known LangChain object.
 # A pydantic model that defines what constitutes a well known LangChain object.
 # All well-known objects are allowed to be serialized and de-serialized.
+
 WellKnownLCObject = RootModel[
     Annotated[
         Union[
-            Document,
-            HumanMessage,
-            SystemMessage,
-            ChatMessage,
-            FunctionMessage,
-            AIMessage,
-            HumanMessageChunk,
-            SystemMessageChunk,
-            ChatMessageChunk,
-            FunctionMessageChunk,
-            AIMessageChunk,
-            StringPromptValue,
-            ChatPromptValueConcrete,
-            AgentAction,
-            AgentFinish,
-            AgentActionMessageLog,
-            ChatGeneration,
-            Generation,
-            ChatGenerationChunk,
+            Annotated[AIMessage, Tag(tag="ai")],
+            Annotated[HumanMessage, Tag(tag="human")],
+            Annotated[ChatMessage, Tag(tag="chat")],
+            Annotated[SystemMessage, Tag(tag="system")],
+            Annotated[FunctionMessage, Tag(tag="function")],
+            Annotated[ToolMessage, Tag(tag="tool")],
+            Annotated[AIMessageChunk, Tag(tag="AIMessageChunk")],
+            Annotated[HumanMessageChunk, Tag(tag="HumanMessageChunk")],
+            Annotated[ChatMessageChunk, Tag(tag="ChatMessageChunk")],
+            Annotated[SystemMessageChunk, Tag(tag="SystemMessageChunk")],
+            Annotated[FunctionMessageChunk, Tag(tag="FunctionMessageChunk")],
+            Annotated[ToolMessageChunk, Tag(tag="ToolMessageChunk")],
+            Annotated[Document, Tag(tag="Document")],
+            Annotated[StringPromptValue, Tag(tag="StringPromptValue")],
+            Annotated[ChatPromptValueConcrete, Tag(tag="ChatPromptValueConcrete")],
+            Annotated[AgentAction, Tag(tag="AgentAction")],
+            Annotated[AgentFinish, Tag(tag="AgentFinish")],
+            Annotated[AgentActionMessageLog, Tag(tag="AgentActionMessageLog")],
+            Annotated[ChatGeneration, Tag(tag="ChatGeneration")],
+            Annotated[Generation, Tag(tag="Generation")],
+            Annotated[ChatGenerationChunk, Tag(tag="ChatGenerationChunk")],
+            Annotated[LLMResult, Tag(tag="LLMResult")],
         ],
-        Field(discriminator="type"),
+        Field(discriminator=Discriminator(_get_type)),
     ]
 ]
 
@@ -84,7 +104,7 @@ WellKnownLCObject = RootModel[
 def default(obj) -> Any:
     """Default serialization for well known objects."""
     if isinstance(obj, BaseModel):
-        return obj.dict()
+        return obj.model_dump()
     return super().default(obj)
 
 
@@ -96,8 +116,6 @@ def _decode_lc_objects(value: Any) -> Any:
         try:
             obj = WellKnownLCObject.model_validate(v)
             parsed = obj.root
-            if set(parsed.dict()) != set(value):
-                raise ValueError("Invalid object")
             return parsed
         except (ValidationError, ValueError, TypeError):
             return v
@@ -121,11 +139,11 @@ def _decode_event_data(value: Any) -> Any:
     """Decode the event data from a JSON object representation."""
     if isinstance(value, dict):
         try:
-            obj = CallbackEvent.parse_obj(value)
+            obj = CallbackEvent.model_validate(value)
             return obj.root
         except ValidationError:
             try:
-                obj = WellKnownLCObject.parse_obj(value)
+                obj = WellKnownLCObject.model_validate(value)
                 return obj.root
             except ValidationError:
                 return {key: _decode_event_data(v) for key, v in value.items()}
@@ -139,44 +157,54 @@ def _decode_event_data(value: Any) -> Any:
 
 
 class Serializer(abc.ABC):
-    @abc.abstractmethod
     def dumpd(self, obj: Any) -> Any:
         """Convert the given object to a JSON serializable object."""
-
-    @abc.abstractmethod
-    def dumps(self, obj: Any) -> bytes:
-        """Dump the given object as a JSON string."""
-
-    @abc.abstractmethod
-    def loads(self, s: bytes) -> Any:
-        """Load the given JSON string."""
-
-    @abc.abstractmethod
-    def loadd(self, obj: Any) -> Any:
-        """Load the given object."""
-
-
-class WellKnownLCSerializer(Serializer):
-    def dumpd(self, obj: Any) -> Any:
-        """Convert the given object to a JSON serializable object."""
-        return orjson.loads(orjson.dumps(obj, default=default))
-
-    def dumps(self, obj: Any) -> bytes:
-        """Dump the given object as a JSON string."""
-        return orjson.dumps(obj, default=default)
-
-    def loadd(self, obj: Any) -> Any:
-        """Load the given object."""
-        return _decode_lc_objects(obj)
+        return orjson.loads(self.dumps(obj))
 
     def loads(self, s: bytes) -> Any:
         """Load the given JSON string."""
         return self.loadd(orjson.loads(s))
 
+    @abc.abstractmethod
+    def dumps(self, obj: Any) -> bytes:
+        """Dump the given object to a JSON byte string."""
+
+    @abc.abstractmethod
+    def loadd(self, s: bytes) -> Any:
+        """Given a python object, load it into a well known object.
+
+        The obj represents content that was json loaded from a string, but
+        not yet validated or converted into a well known object.
+        """
+
+
+class WellKnownLCSerializer(Serializer):
+    """A pre-defined serializer for well known LangChain objects.
+
+    This is the default serialized used by LangServe for serializing and
+    de-serializing well known LangChain objects.
+
+    If you need to extend the serialization capabilities for your own application,
+    feel free to create a new instance of the Serializer class and implement
+    the abstract methods dumps and loadd.
+    """
+
+    def dumps(self, obj: Any) -> bytes:
+        """Dump the given object to a JSON byte string."""
+        return orjson.dumps(obj, default=default)
+
+    def loadd(self, obj: Any) -> Any:
+        """Given a python object, load it into a well known object.
+
+        The obj represents content that was json loaded from a string, but
+        not yet validated or converted into a well known object.
+        """
+        return _decode_lc_objects(obj)
+
 
 def _project_top_level(model: BaseModel) -> Dict[str, Any]:
     """Project the top level of the model as dict."""
-    return {key: getattr(model, key) for key in model.__fields__}
+    return {key: getattr(model, key) for key in model.model_fields}
 
 
 def load_events(events: Any) -> List[Dict[str, Any]]:
@@ -207,7 +235,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
 
         # Then validate the event
         try:
-            full_event = CallbackEvent.parse_obj(decoded_event_data)
+            full_event = CallbackEvent.model_validate(decoded_event_data)
         except ValidationError as e:
             msg = f"Encountered an invalid event: {e}"
             if "type" in decoded_event_data:

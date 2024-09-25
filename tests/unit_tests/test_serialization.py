@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage, HumanMessageChunk, SystemMessage
+from langchain_core.outputs import ChatGeneration
 from pydantic import BaseModel
 
 from langserve.serialization import (
@@ -18,7 +19,7 @@ from langserve.serialization import (
 def test_document_serialization() -> None:
     """Simple test. Exhaustive tests follow below."""
     doc = Document(page_content="hello")
-    d = doc.dict()
+    d = doc.model_dump()
     WellKnownLCObject.model_validate(d)
 
 
@@ -48,8 +49,7 @@ def test_document_serialization() -> None:
             "numbers": [1, 2, 3],
             "boom": "Hello, world!",
         },
-        # Requires typing ChatGeneration with Anymessage
-        # [ChatGeneration(message=HumanMessage(content="Hello"))],
+        [ChatGeneration(message=HumanMessage(content="Hello"))],
     ],
 )
 def test_serialization(data: Any) -> None:
@@ -87,7 +87,7 @@ def _get_full_representation(data: Any) -> Any:
     elif isinstance(data, list):
         return [_get_full_representation(value) for value in data]
     elif isinstance(data, BaseModel):
-        return data.schema()
+        return data.model_json_schema()
     else:
         return data
 
@@ -189,10 +189,3 @@ def test_encoding_of_well_known_types(obj: Any, expected: str) -> None:
     """
     lc_serializer = WellKnownLCSerializer()
     assert lc_serializer.dumpd(obj) == expected
-
-
-@pytest.mark.xfail(reason="0.3")
-def test_fail_03() -> None:
-    """This test will fail on purposes. It contains a TODO list for 0.3 release."""
-    assert "LLMResult" == "WellKnocnLCOBject contains it"  # Requires type
-    assert "CHatGeneration_Deserialized correct" == "UNcomment test above"

@@ -40,7 +40,7 @@ in [LangChain.js](https://js.langchain.com/docs/ecosystem/langserve).
 
 ## ⚠️ LangGraph Compatibility
 
-LangServe is designed to primarily deploy simple Runnables and wok with well-known primitives in langchain-core.
+LangServe is designed to primarily deploy simple Runnables and work with well-known primitives in langchain-core.
 
 If you need a deployment option for LangGraph, you should instead be looking at [LangGraph Cloud (beta)](https://langchain-ai.github.io/langgraph/cloud/) which will
 be better suited for deploying LangGraph applications.
@@ -48,9 +48,8 @@ be better suited for deploying LangGraph applications.
 ## Limitations
 
 - Client callbacks are not yet supported for events that originate on the server
-- OpenAPI docs will not be generated when using Pydantic V2. Fast API does not
-  support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360).
-  See section below for more details.
+- Versions of LangServe <= 0.2.0, will not generate OpenAPI docs properly when using Pydantic V2 as Fast API does not support [mixing pydantic v1 and v2 namespaces](https://github.com/tiangolo/fastapi/issues/10360).
+  See section below for more details. Either upgrade to LangServe>=0.3.0 or downgrade Pydantic to pydantic 1.
 
 ## Security
 
@@ -208,8 +207,9 @@ app.add_middleware(
 
 If you've deployed the server above, you can view the generated OpenAPI docs using:
 
-> ⚠️ If using pydantic v2, docs will not be generated for _invoke_, _batch_, _stream_,
+> ⚠️ If using LangServe <= 0.2.0 and pydantic v2, docs will not be generated for _invoke_, _batch_, _stream_,
 > _stream_log_. See [Pydantic](#pydantic) section below for more details.
+> To resolve please upgrade to LangServe 0.3.0.
 
 ```sh
 curl localhost:8000/docs
@@ -380,7 +380,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2")
+chain = prompt | ChatAnthropic(model="claude-2.1")
 
 
 class InputChat(BaseModel):
@@ -472,7 +472,9 @@ gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthentic
 
 ## Pydantic
 
-LangServe provides support for Pydantic 2 with some limitations.
+LangServe>=0.3 fully supports Pydantic 2.
+
+If you're using an earlier version of LangServe (<= 0.2), then please note that support for Pydantic 2 has the following limitations:
 
 1. OpenAPI docs will not be generated for invoke/batch/stream/stream_log when using
    Pydantic V2. Fast API does not support [mixing pydantic v1 and v2 namespaces]. To fix this, use `pip install pydantic==1.10.17`.
@@ -772,7 +774,7 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-chain = prompt | ChatAnthropic(model="claude-2")
+chain = prompt | ChatAnthropic(model="claude-2.1")
 
 
 class MessageListInput(BaseModel):

@@ -6,11 +6,29 @@ import {
   schemaMatches,
   Paths,
   isControl,
+  JsonSchema,
 } from "@jsonforms/core";
 import { useStreamCallback } from "../useStreamCallback";
 import { isJsonSchemaExtra } from "../utils/schema";
 import { MessageFields, ChatMessageInput } from "./ChatMessageInput";
 import { useEffect } from "react";
+
+function checkItemSchema(schema: JsonSchema) {
+  const isObjectMessage =
+    schema.type === "object" &&
+    (schema.title?.endsWith("Message") ||
+      schema.title?.endsWith("MessageChunk"));
+
+  const isTupleMessage =
+    schema.type === "array" &&
+    schema.minItems === 2 &&
+    schema.maxItems === 2 &&
+    Array.isArray(schema.items) &&
+    schema.items.length === 2 &&
+    schema.items.every((schema) => schema.type === "string");
+
+  return isObjectMessage || isTupleMessage;
+}
 
 export const chatMessagesTester = rankWith(
   12,
@@ -34,22 +52,11 @@ export const chatMessagesTester = rankWith(
       }
 
       if ("anyOf" in schema.items && schema.items.anyOf != null) {
-        return schema.items.anyOf.every((schema) => {
-          const isObjectMessage =
-            schema.type === "object" &&
-            (schema.title?.endsWith("Message") ||
-              schema.title?.endsWith("MessageChunk"));
+        return schema.items.anyOf.every(checkItemSchema);
+      }
 
-          const isTupleMessage =
-            schema.type === "array" &&
-            schema.minItems === 2 &&
-            schema.maxItems === 2 &&
-            Array.isArray(schema.items) &&
-            schema.items.length === 2 &&
-            schema.items.every((schema) => schema.type === "string");
-
-          return isObjectMessage || isTupleMessage;
-        });
+      if ("oneOf" in schema.items && schema.items.oneOf != null) {
+        return schema.items.oneOf.every(checkItemSchema);
       }
 
       return false;
@@ -64,10 +71,14 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
     useEffect(() => {
       if (!isJsonSchemaExtra(props.schema)) return;
       if (props.schema.extra.widget.type !== "chat") return;
-      setTimeout(() => props.handleChange(props.path, [
-        ...data,
-        { content: "", type: "human" },
-      ]), 10);
+      setTimeout(
+        () =>
+          props.handleChange(props.path, [
+            ...data,
+            { content: "", type: "human" },
+          ]),
+        10
+      );
     }, []);
 
     useStreamCallback("onStart", () => {
@@ -81,7 +92,10 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
       if (props.schema.extra.widget.type !== "chat") return;
       if (aggregatedState?.final_output !== undefined) {
         const msgPath = Paths.compose(props.path, `${data.length - 1}`);
-        if ((aggregatedState.final_output as MessageFields)?.type === "AIMessageChunk") {
+        if (
+          (aggregatedState.final_output as MessageFields)?.type ===
+          "AIMessageChunk"
+        ) {
           props.handleChange(
             Paths.compose(msgPath, "content"),
             (aggregatedState.final_output as MessageFields)?.content
@@ -140,7 +154,7 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
                 props.path,
                 data.filter((_, i) => i !== index)
               );
-            }
+            };
             return (
               <ChatMessageInput
                 message={message}
@@ -148,7 +162,7 @@ export const ChatMessagesControlRenderer = withJsonFormsControlProps(
                 handleRemoval={handleChatMessageRemoval}
                 path={props.path}
                 key={index}
-                ></ChatMessageInput>
+              ></ChatMessageInput>
             );
           })}
         </div>

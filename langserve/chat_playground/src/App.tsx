@@ -30,6 +30,7 @@ export function App() {
   );
   const outputSchemaSupported = (
     outputDataSchema?.anyOf?.find((option) => option.properties?.type?.enum?.includes("ai")) ||
+    outputDataSchema?.oneOf?.find((option) => option.properties?.type?.enum?.includes("ai")) ||
     outputDataSchema?.type === "string"
   );
   const isSupported = isLoading || (inputSchemaSupported && outputSchemaSupported);

@@ -4,7 +4,6 @@ import datetime
 import json
 import sys
 import uuid
-from asyncio import AbstractEventLoop
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -57,6 +56,7 @@ from langchain_core.tracers import RunLog, RunLogPatch
 from langsmith import schemas as ls_schemas
 from langsmith.client import Client
 from langsmith.schemas import FeedbackIngestToken
+from orjson import orjson
 from pydantic import BaseModel, Field, __version__
 from pytest import MonkeyPatch
 from pytest_mock import MockerFixture
@@ -123,7 +123,20 @@ def _replace_run_id_in_stream_resp(streamed_resp: str) -> str:
     return streamed_resp.replace(uuid, "<REPLACED>")
 
 
-@pytest.fixture(scope="session")
+def _null_run_id_and_metadata_recursively(decoded_response: Any) -> None:
+    """Recursively traverse the object and delete any keys called run_id"""
+    if isinstance(decoded_response, dict):
+        for key, value in decoded_response.items():
+            if key in {"run_id", "__langserve_version"}:
+                decoded_response[key] = None
+            else:
+                _null_run_id_and_metadata_recursively(value)
+    elif isinstance(decoded_response, list):
+        for item in decoded_response:
+            _null_run_id_and_metadata_recursively(item)
+
+
+@pytest.fixture(scope="module")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop()
@@ -134,7 +147,7 @@ def event_loop():
 
 
 @pytest.fixture()
-def app(event_loop: AbstractEventLoop) -> FastAPI:
+def app() -> FastAPI:
     """A simple server that wraps a Runnable and exposes it as an API."""
 
     async def add_one_or_passthrough(
@@ -158,7 +171,7 @@ def app(event_loop: AbstractEventLoop) -> FastAPI:
 
 
 @pytest.fixture()
-def app_for_config(event_loop: AbstractEventLoop) -> FastAPI:
+def app_for_config() -> FastAPI:
     """A simple server that wraps a Runnable and exposes it as an API."""
 
     async def return_config(
@@ -223,7 +236,7 @@ async def get_async_test_client(
         app=server,
         raise_app_exceptions=raise_app_exceptions,
     )
-    async_client = AsyncClient(app=server, base_url=url, transport=transport)
+    async_client = AsyncClient(base_url=url, transport=transport)
     try:
         yield async_client
     finally:
@@ -232,13 +245,17 @@ async def get_async_test_client(
 
 @asynccontextmanager
 async def get_async_remote_runnable(
-    server: FastAPI, *, path: Optional[str] = None, raise_app_exceptions: bool = True
+    server: FastAPI,
+    *,
+    path: Optional[str] = None,
+    raise_app_exceptions: bool = True,
+    **kwargs: Any,
 ) -> RemoteRunnable:
     """Get an async client."""
     url = "http://localhost:9999"
     if path:
         url += path
-    remote_runnable_client = RemoteRunnable(url=url)
+    remote_runnable_client = RemoteRunnable(url=url, **kwargs)
 
     async with get_async_test_client(
         server, path=path, raise_app_exceptions=raise_app_exceptions
@@ -333,7 +350,7 @@ async def test_server_async(app: FastAPI) -> None:
     # test bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test invoke
-        response = await async_client.post("/invoke", data="bad json []")
+        response = await async_client.post("/invoke", content="bad json []")
         # Client side error bad json.
         assert response.status_code == 422
 
@@ -353,7 +370,7 @@ async def test_server_async(app: FastAPI) -> None:
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test invoke
         # Test bad batch requests
-        response = await async_client.post("/batch", data="bad json []")
+        response = await async_client.post("/batch", content="bad json []")
         # Client side error bad json.
         assert response.status_code == 422
 
@@ -378,7 +395,7 @@ async def test_server_async(app: FastAPI) -> None:
     # test stream bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
         # Test bad stream requests
-        response = await async_client.post("/stream", data="bad json []")
+        response = await async_client.post("/stream", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream", json={})
@@ -386,7 +403,7 @@ async def test_server_async(app: FastAPI) -> None:
 
     # test stream_log bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
-        response = await async_client.post("/stream_log", data="bad json []")
+        response = await async_client.post("/stream_log", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream_log", json={})
@@ -448,7 +465,7 @@ async def test_server_astream_events(app: FastAPI) -> None:
 
     # test stream_events with bad requests
     async with get_async_test_client(app, raise_app_exceptions=True) as async_client:
-        response = await async_client.post("/stream_events", data="bad json []")
+        response = await async_client.post("/stream_events", content="bad json []")
         assert response.status_code == 422
 
         response = await async_client.post("/stream_events", json={})
@@ -457,7 +474,10 @@ async def test_server_astream_events(app: FastAPI) -> None:
 
 async def test_server_bound_async(app_for_config: FastAPI) -> None:
     """Test the server directly via HTTP requests."""
-    async_client = AsyncClient(app=app_for_config, base_url="http://localhost:9999")
+    async_client = AsyncClient(
+        base_url="http://localhost:9999",
+        transport=httpx.ASGITransport(app=app_for_config),
+    )
     config_hash = LZString.compressToEncodedURIComponent(json.dumps({"tags": ["test"]}))
 
     # Test invoke
@@ -521,6 +541,15 @@ def test_invoke(sync_remote_runnable: RemoteRunnable) -> None:
     assert remote_runnable_run.child_runs[0].name == "add_one_or_passthrough"
 
 
+def test_batch_tracer_with_single_input(sync_remote_runnable: RemoteRunnable) -> None:
+    """Test passing a single tracer to batch."""
+    tracer = FakeTracer()
+    assert sync_remote_runnable.batch([1], config={"callbacks": [tracer]}) == [2]
+    assert len(tracer.runs) == 1
+    assert len(tracer.runs[0].child_runs) == 1
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
+
+
 def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     """Test sync batch."""
     assert sync_remote_runnable.batch([]) == []
@@ -534,17 +563,9 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     tracer = FakeTracer()
     assert sync_remote_runnable.batch([1, 2], config={"callbacks": [tracer]}) == [2, 3]
     assert len(tracer.runs) == 2
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
 
-    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer.runs[1].child_runs[0].name == "add_one_or_passthrough"
 
     # Verify that each tracer gets its own run
     tracer1 = FakeTracer()
@@ -556,17 +577,8 @@ def test_batch(sync_remote_runnable: RemoteRunnable) -> None:
     assert len(tracer2.runs) == 1
     # Light test to verify that we're picking up information about the server side
     # function being invoked via a callback.
-    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
-
-    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
+    assert tracer1.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer2.runs[0].child_runs[0].name == "add_one_or_passthrough"
 
 
 async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
@@ -599,10 +611,7 @@ async def test_ainvoke(async_remote_runnable: RemoteRunnable) -> None:
     elif sys.version_info < (3, 11):
         assert len(tracer.runs) == 1, "Failed for python < 3.11"
         remote_runnable = tracer.runs[0]
-        assert (
-            remote_runnable.child_runs[0].extra["kwargs"]["name"]
-            == "add_one_or_passthrough"
-        )
+        assert remote_runnable.name == "RemoteRunnable"
     else:
         raise AssertionError(f"Unsupported python version {sys.version_info}")
 
@@ -622,17 +631,9 @@ async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
         [1, 2], config={"callbacks": [tracer]}
     ) == [2, 3]
     assert len(tracer.runs) == 2
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[0].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
 
-    assert tracer.runs[1].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer.runs[1].child_runs[0].extra["kwargs"]["name"] == "add_one_or_passthrough"
-    )
+    assert tracer.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer.runs[1].child_runs[0].name == "add_one_or_passthrough"
 
     # Verify that each tracer gets its own run
     tracer1 = FakeTracer()
@@ -642,19 +643,9 @@ async def test_abatch(async_remote_runnable: RemoteRunnable) -> None:
     ) == [2, 3]
     assert len(tracer1.runs) == 1
     assert len(tracer2.runs) == 1
-    # Light test to verify that we're picking up information about the server side
-    # function being invoked via a callback.
-    assert tracer1.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer1.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
 
-    assert tracer2.runs[0].child_runs[0].name == "RunnableLambda"
-    assert (
-        tracer2.runs[0].child_runs[0].extra["kwargs"]["name"]
-        == "add_one_or_passthrough"
-    )
+    assert tracer1.runs[0].child_runs[0].name == "add_one_or_passthrough"
+    assert tracer2.runs[0].child_runs[0].name == "add_one_or_passthrough"
 
 
 async def test_astream(async_remote_runnable: RemoteRunnable) -> None:
@@ -851,7 +842,7 @@ async def test_streaming_with_errors() -> None:
         assert e.value.response.status_code == 500
 
 
-async def test_astream_log_allowlist(event_loop: AbstractEventLoop) -> None:
+async def test_astream_log_allowlist() -> None:
     """Test async stream with an allowlist."""
 
     async def add_one(x: int) -> int:
@@ -1032,7 +1023,7 @@ async def test_invoke_as_part_of_sequence_async(
     }
 
 
-async def test_multiple_runnables(event_loop: AbstractEventLoop) -> None:
+async def test_multiple_runnables() -> None:
     """Test serving multiple runnables."""
 
     async def add_one(x: int) -> int:
@@ -1105,7 +1096,9 @@ async def test_config_keys_validation(mocker: MockerFixture) -> None:
         input_type=int,
         config_keys=["metadata"],
     )
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         server_runnable_spy = mocker.spy(server_runnable, "ainvoke")
         response = await async_client.post(
             "/invoke",
@@ -1122,6 +1115,156 @@ async def test_config_keys_validation(mocker: MockerFixture) -> None:
         assert "__langserve_version" in config_seen["metadata"]
         assert "__langserve_endpoint" in config_seen["metadata"]
         assert config_seen["metadata"]["__langserve_endpoint"] == "invoke"
+
+
+async def test_include_callback_events(mocker: MockerFixture) -> None:
+    """This test should not use a RemoteRunnable.
+
+    Check if callback events are being sent back from the server.
+
+    Do so using the raw client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(app, server_runnable, input_type=int, include_callback_events=True)
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
+        response = await async_client.post("/invoke", json={"input": 1})
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        decoded_response = response.json()
+        # Remove any run_id from the response recursively
+        _null_run_id_and_metadata_recursively(decoded_response)
+        assert decoded_response == {
+            "callback_events": [
+                {
+                    "inputs": 1,
+                    "kwargs": {"name": "add_one", "run_type": None},
+                    "metadata": {
+                        "__langserve_endpoint": "invoke",
+                        "__langserve_version": None,
+                        "__useragent": "python-httpx/0.27.2",
+                    },
+                    "parent_run_id": None,
+                    "serialized": None,
+                    "run_id": None,
+                    "tags": [],
+                    "type": "on_chain_start",
+                },
+                {
+                    "kwargs": {},
+                    "outputs": 2,
+                    "metadata": None,
+                    "parent_run_id": None,
+                    "tags": [],
+                    "run_id": None,
+                    "type": "on_chain_end",
+                },
+            ],
+            "metadata": {
+                "feedback_tokens": [],
+                "run_id": None,
+            },
+            "output": 2,
+        }
+
+
+async def test_include_callback_events_batch() -> None:
+    """This test should not use a RemoteRunnable.
+
+    Check if callback events are being sent back from the server.
+
+    Do so using the raw client.
+    """
+
+    async def add_one(x: int) -> int:
+        """Add one to simulate a valid function"""
+        return x + 1
+
+    server_runnable = RunnableLambda(func=add_one)
+
+    app = FastAPI()
+    add_routes(app, server_runnable, input_type=int, include_callback_events=True)
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
+        response = await async_client.post("/batch", json={"inputs": [1, 2]})
+        # Config should be ignored but default debug information
+        # will still be added
+        assert response.status_code == 200
+        decoded_response = response.json()
+        # Remove any run_id from the response recursively
+        _null_run_id_and_metadata_recursively(decoded_response)
+        del decoded_response["metadata"]["run_ids"]
+        assert decoded_response == {
+            "callback_events": [
+                [
+                    {
+                        "inputs": 1,
+                        "kwargs": {"name": "add_one", "run_type": None},
+                        "metadata": {
+                            "__langserve_endpoint": "batch",
+                            "__langserve_version": None,
+                            "__useragent": "python-httpx/0.27.2",
+                        },
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "serialized": None,
+                        "tags": [],
+                        "type": "on_chain_start",
+                    },
+                    {
+                        "kwargs": {},
+                        "outputs": 2,
+                        "parent_run_id": None,
+                        "metadata": None,
+                        "run_id": None,
+                        "tags": [],
+                        "type": "on_chain_end",
+                    },
+                ],
+                [
+                    {
+                        "inputs": 2,
+                        "kwargs": {"name": "add_one", "run_type": None},
+                        "metadata": {
+                            "__langserve_endpoint": "batch",
+                            "__langserve_version": None,
+                            "__useragent": "python-httpx/0.27.2",
+                        },
+                        "parent_run_id": None,
+                        "run_id": None,
+                        "serialized": None,
+                        "tags": [],
+                        "type": "on_chain_start",
+                    },
+                    {
+                        "kwargs": {},
+                        "outputs": 3,
+                        "parent_run_id": None,
+                        "metadata": None,
+                        "run_id": None,
+                        "tags": [],
+                        "type": "on_chain_end",
+                    },
+                ],
+            ],
+            "metadata": {
+                "responses": [
+                    {"feedback_tokens": [], "run_id": None},
+                    {"feedback_tokens": [], "run_id": None},
+                ],
+            },
+            "output": [2, 3],
+        }
 
 
 async def test_input_validation(mocker: MockerFixture) -> None:
@@ -1154,7 +1297,7 @@ async def test_input_validation(mocker: MockerFixture) -> None:
             await runnable.abatch(["hello"])
 
 
-async def test_input_validation_with_lc_types(event_loop: AbstractEventLoop) -> None:
+async def test_input_validation_with_lc_types() -> None:
     """Test client side and server side exceptions."""
 
     app = FastAPI()
@@ -1247,9 +1390,7 @@ async def test_async_client_close() -> None:
     assert async_client.is_closed is True
 
 
-async def test_openapi_docs_with_identical_runnables(
-    event_loop: AbstractEventLoop, mocker: MockerFixture
-) -> None:
+async def test_openapi_docs_with_identical_runnables(mocker: MockerFixture) -> None:
     """Test client side and server side exceptions."""
 
     async def add_one(x: int) -> int:
@@ -1289,12 +1430,14 @@ async def test_openapi_docs_with_identical_runnables(
         config_keys=["tags"],
     )
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         response = await async_client.get("/openapi.json")
         assert response.status_code == 200
 
 
-async def test_configurable_runnables(event_loop: AbstractEventLoop) -> None:
+async def test_configurable_runnables() -> None:
     """Add tests for using langchain's configurable runnables"""
 
     template = PromptTemplate.from_template("say {name}").configurable_fields(
@@ -1384,7 +1527,7 @@ def test_rename_pydantic_model() -> None:
     assert Model.__name__ == "BarFoo"
 
 
-async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> None:
+async def test_input_config_output_schemas() -> None:
     """Test schemas returned for different configurations."""
     # TODO(Fix me): need to fix handling of global state -- we get problems
     # gives inconsistent results when running multiple tests / results
@@ -1423,7 +1566,9 @@ async def test_input_config_output_schemas(event_loop: AbstractEventLoop) -> Non
     )
     add_routes(app, template, path="/prompt_2", config_keys=["tags", "configurable"])
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as async_client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as async_client:
         # input schema
         response = await async_client.get("/add_one/input_schema")
         assert response.json() == {"title": "add_one_input", "type": "integer"}
@@ -1574,7 +1719,9 @@ async def test_input_schema_typed_dict() -> None:
     app = FastAPI()
     add_routes(app, runnable_lambda, input_type=InputType, config_keys=["tags"])
 
-    async with AsyncClient(app=app, base_url="http://localhost:9999") as client:
+    async with AsyncClient(
+        base_url="http://localhost:9999", transport=httpx.ASGITransport(app=app)
+    ) as client:
         res = await client.get("/input_schema")
         if PYDANTIC_VERSION < (2, 9):
             assert res.json() == {
@@ -1742,7 +1889,7 @@ async def test_server_side_error() -> None:
         #     assert e.response.text == "Internal Server Error"
 
 
-def test_server_side_error_sync(event_loop: AbstractEventLoop) -> None:
+def test_server_side_error_sync() -> None:
     """Test server side error handling."""
 
     app = FastAPI()
@@ -1971,7 +2118,7 @@ async def test_enforce_trailing_slash_in_client() -> None:
     assert r.url == "nosuchurl/"
 
 
-async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> None:
+async def test_per_request_config_modifier() -> None:
     """Test updating the config based on the raw request object."""
 
     async def add_one(x: int) -> int:
@@ -2014,9 +2161,7 @@ async def test_per_request_config_modifier(event_loop: AbstractEventLoop) -> Non
         assert response.json()["output"] == 2
 
 
-async def test_per_request_config_modifier_endpoints(
-    event_loop: AbstractEventLoop,
-) -> None:
+async def test_per_request_config_modifier_endpoints() -> None:
     """Verify that per request modifier is only applied for the expected endpoints."""
 
     # this test verifies that per request modifier is only
@@ -2086,7 +2231,7 @@ async def test_per_request_config_modifier_endpoints(
                 assert response.status_code != 500
 
 
-async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
+async def test_uuid_serialization() -> None:
     """Test updating the config based on the raw request object."""
     import datetime
 
@@ -2138,6 +2283,49 @@ async def test_uuid_serialization(event_loop: AbstractEventLoop) -> None:
                 "enum": MySpecialEnum.A,
             }
         )
+
+
+async def test_custom_serialization() -> None:
+    """Test updating the config based on the raw request object."""
+    from langserve.serialization import Serializer
+
+    class CustomObject:
+        def __init__(self, x: int) -> None:
+            self.x = x
+
+        def __eq__(self, other) -> bool:
+            return self.x == other.x
+
+    class CustomSerializer(Serializer):
+        def dumps(self, obj: Any) -> bytes:
+            """Dump the given object as a JSON string."""
+            if isinstance(obj, CustomObject):
+                return orjson.dumps({"x": obj.x})
+            else:
+                return orjson.dumps(obj)
+
+        def loadd(self, obj: Any) -> Any:
+            """Load the given object."""
+            if isinstance(obj, bytes):
+                obj = obj.decode("utf-8")
+            if obj.get("x"):
+                return CustomObject(x=obj["x"])
+            return obj
+
+    def foo(x: int) -> Any:
+        """Add one to simulate a valid function."""
+        return CustomObject(x=5)
+
+    app = FastAPI()
+    server_runnable = RunnableLambda(foo)
+    add_routes(app, server_runnable, serializer=CustomSerializer())
+
+    async with get_async_remote_runnable(
+        app, raise_app_exceptions=True, serializer=CustomSerializer()
+    ) as runnable:
+        result = await runnable.ainvoke(5)
+        assert isinstance(result, CustomObject)
+        assert result == CustomObject(x=5)
 
 
 async def test_endpoint_configurations() -> None:
@@ -2300,7 +2488,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         # test client side error
         with pytest.raises(httpx.HTTPStatusError) as cb:
             # Invalid input type (expected string but got int)
-            async for _ in runnable.astream_events("foo", version="v1"):
+            async for _ in runnable.astream_events("foo", version="v2"):
                 pass
 
         # Verify that this is a 422 error
@@ -2309,7 +2497,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         with pytest.raises(httpx.HTTPStatusError) as cb:
             # Invalid input type (expected string but got int)
             # include names should not be a list of lists
-            async for _ in runnable.astream_events(1, include_names=[[]], version="v1"):
+            async for _ in runnable.astream_events(1, include_names=[[]], version="v2"):
                 pass
 
         # Verify that this is a 422 error
@@ -2318,7 +2506,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
         # Test good requests
         events = []
 
-        async for event in runnable.astream_events(1, version="v1"):
+        async for event in runnable.astream_events(1, version="v2"):
             events.append(event)
 
         # validate events
@@ -2331,6 +2519,7 @@ async def test_astream_events_simple(async_remote_runnable: RemoteRunnable) -> N
                 assert not k.startswith("__")
             assert "metadata" in event
             del event["metadata"]
+            event["parent_ids"] = []
 
         assert events == [
             {
@@ -2410,6 +2599,7 @@ def _clean_up_events(events: List[Dict[str, Any]]) -> None:
             assert not k.startswith("__")
         assert "metadata" in event
         del event["metadata"]
+        event["parent_ids"] = []
 
 
 async def test_astream_events_with_serialization(
@@ -2482,7 +2672,7 @@ async def test_astream_events_with_serialization(
         app, raise_app_exceptions=False, path="/doc_types"
     ) as runnable:
         # Test good requests
-        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        events = [event async for event in runnable.astream_events("foo", version="v2")]
         _clean_up_events(events)
 
         assert events == [
@@ -2572,7 +2762,7 @@ async def test_astream_events_with_serialization(
         app, raise_app_exceptions=False, path="/get_pets"
     ) as runnable:
         # Test good requests
-        events = [event async for event in runnable.astream_events("foo", version="v1")]
+        events = [event async for event in runnable.astream_events("foo", version="v2")]
         _clean_up_events(events)
         assert events == [
             {
@@ -2607,7 +2797,7 @@ async def test_astream_events_with_serialization(
     ) as runnable:
         # Test good requests
         with pytest.raises(httpx.HTTPStatusError) as cb:
-            async for event in runnable.astream_events("foo", version="v1"):
+            async for event in runnable.astream_events("foo", version="v2"):
                 pass
         assert cb.value.response.status_code == 500
 
@@ -2635,7 +2825,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
         events = [
             event
             async for event in runnable.astream_events(
-                {"question": "hello"}, version="v1"
+                {"question": "hello"}, version="v2"
             )
         ]
         _clean_up_events(events)
@@ -2669,6 +2859,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
                             {
                                 "additional_kwargs": {},
                                 "content": "hello",
+                                "example": False,
                                 "name": None,
                                 "response_metadata": {},
                                 "type": "human",
@@ -2843,24 +3034,16 @@ async def test_astream_events_with_prompt_model_parser_chain(
                         ]
                     },
                     "output": {
-                        "generations": [
-                            [
-                                {
-                                    "generation_info": None,
-                                    "message": {
-                                        "additional_kwargs": {},
-                                        "content": "Hello World!",
-                                        "name": None,
-                                        "response_metadata": {},
-                                        "type": "AIMessageChunk",
-                                    },
-                                    "text": "Hello World!",
-                                    "type": "ChatGenerationChunk",
-                                }
-                            ]
-                        ],
-                        "llm_output": None,
-                        "run": None,
+                        "additional_kwargs": {},
+                        "content": "Hello World!",
+                        "example": False,
+                        "invalid_tool_calls": [],
+                        "name": None,
+                        "response_metadata": {},
+                        "tool_call_chunks": [],
+                        "tool_calls": [],
+                        "type": "AIMessageChunk",
+                        "usage_metadata": None,
                     },
                 },
                 "event": "on_chat_model_end",

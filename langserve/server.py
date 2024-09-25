@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+import warnings
 import weakref
 from typing import (
     Any,
@@ -25,6 +26,7 @@ from langserve.api_handler import (
     TokenFeedbackConfig,
     _is_hosted,
 )
+from langserve.serialization import Serializer
 
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request, Response
@@ -201,37 +203,43 @@ def _register_path_for_app(
 def _setup_global_app_handlers(
     app: Union[FastAPI, APIRouter], endpoint_configuration: _EndpointConfiguration
 ) -> None:
-    @app.on_event("startup")
-    async def startup_event():
-        LANGSERVE = r"""
- __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
-|  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
-|  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
-|  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
-|  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
-|_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
-"""  # noqa: E501
+    with warnings.catch_warnings():
+        # We are using deprecated functionality here.
+        # We should re-write to use lifetime events at some point, and yielding
+        # an APIRouter instance to the caller.
+        warnings.filterwarnings(
+            "ignore",
+            "[\\s.]*on_event is deprecated[\\s.]*",
+            category=DeprecationWarning,
+        )
 
-        def green(text: str) -> str:
-            """Return the given text in green."""
-            return "\x1b[1;32;40m" + text + "\x1b[0m"
+        @app.on_event("startup")
+        async def startup_event():
+            LANGSERVE = r"""
+     __          ___      .__   __.   _______      _______. _______ .______     ____    ____  _______
+    |  |        /   \     |  \ |  |  /  _____|    /       ||   ____||   _  \    \   \  /   / |   ____|
+    |  |       /  ^  \    |   \|  | |  |  __     |   (----`|  |__   |  |_)  |    \   \/   /  |  |__
+    |  |      /  /_\  \   |  . `  | |  | |_ |     \   \    |   __|  |      /      \      /   |   __|
+    |  `----./  _____  \  |  |\   | |  |__| | .----)   |   |  |____ |  |\  \----.  \    /    |  |____
+    |_______/__/     \__\ |__| \__|  \______| |_______/    |_______|| _| `._____|   \__/     |_______|
+    """  # noqa: E501
 
-        def orange(text: str) -> str:
-            """Return the given text in orange."""
-            return "\x1b[1;31;40m" + text + "\x1b[0m"
+            def green(text: str) -> str:
+                """Return the given text in green."""
+                return "\x1b[1;32;40m" + text + "\x1b[0m"
 
-        paths = _APP_TO_PATHS[app]
-        print(LANGSERVE)
-        for path in paths:
-            if endpoint_configuration.is_playground_enabled:
-                print(
-                    f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" is '
-                    f"live at:"
-                )
-                print(f'{green("LANGSERVE:")}  │')
-                print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
-                print(f'{green("LANGSERVE:")}')
-        print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+            paths = _APP_TO_PATHS[app]
+            print(LANGSERVE)
+            for path in paths:
+                if endpoint_configuration.is_playground_enabled:
+                    print(
+                        f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" '
+                        f'is live at:'
+                    )
+                    print(f'{green("LANGSERVE:")}  │')
+                    print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
+                    print(f'{green("LANGSERVE:")}')
+            print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
 
 
 # PUBLIC API
@@ -255,6 +263,8 @@ def add_routes(
     enabled_endpoints: Optional[Sequence[EndpointName]] = None,
     dependencies: Optional[Sequence[Depends]] = None,
     playground_type: Literal["default", "chat"] = "default",
+    astream_events_version: Literal["v1", "v2"] = "v2",
+    serializer: Optional[Serializer] = None,
 ) -> None:
     """Register the routes on the given FastAPI app or APIRouter.
 
@@ -373,14 +383,18 @@ def add_routes(
             - chat: UX is optimized for chat-like interactions. Please review
               the README in langserve for more details about constraints (e.g.,
               which message types are supported etc.)
+        astream_events_version: version of the stream events endpoint to use.
+            By default "v2".
+        serializer: The serializer to use for serializing the output. If not provided,
+            the default serializer will be used.
     """  # noqa: E501
     if not isinstance(runnable, Runnable):
         raise TypeError(
             f"Expected a Runnable, got {type(runnable)}. "
-            f"The second argument to add_routes should be a Runnable instance."
-            f"add_route(app, runnable, ...) is the correct usage."
-            f"Please make sure that you are using a runnable which is an instance of "
-            f"langchain_core.runnables.Runnable."
+            "The second argument to add_routes should be a Runnable instance."
+            "add_route(app, runnable, ...) is the correct usage."
+            "Please make sure that you are using a runnable which is an instance of "
+            "langchain_core.runnables.Runnable."
         )
 
     endpoint_configuration = _EndpointConfiguration(
@@ -436,7 +450,10 @@ def add_routes(
         per_req_config_modifier=per_req_config_modifier,
         stream_log_name_allow_list=stream_log_name_allow_list,
         playground_type=playground_type,
+        astream_events_version=astream_events_version,
+        serializer=serializer,
     )
+
     namespace = path or ""
 
     route_tags = [path.strip("/")] if path else None

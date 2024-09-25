@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from langchain_core.tracers import BaseTracer
@@ -37,6 +37,34 @@ class FakeTracer(BaseTracer):
                 "execution_order": None,
                 "child_execution_order": None,
             }
+        )
+
+    def _create_chain_run(
+        self,
+        serialized: Dict[str, Any],
+        inputs: Dict[str, Any],
+        run_id: UUID,
+        tags: Optional[List[str]] = None,
+        parent_run_id: Optional[UUID] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        run_type: Optional[str] = None,
+        name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Run:
+        if name is None:
+            # can't raise an exception from here, but can get a breakpoint
+            # import pdb; pdb.set_trace()
+            pass
+        return super()._create_chain_run(
+            serialized,
+            inputs,
+            run_id,
+            tags,
+            parent_run_id,
+            metadata,
+            run_type,
+            name,
+            **kwargs,
         )
 
     def _persist_run(self, run: Run) -> None:
