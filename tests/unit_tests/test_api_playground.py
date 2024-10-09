@@ -50,6 +50,10 @@ async def test_serve_playground_with_api_router() -> None:
     ) as client:
         response = await client.get("/langserve_runnables/chat/playground/index.html")
         assert response.status_code == 200
+        assert (
+            'src="/langserve_runnables/chat/playground/assets/'
+            in response.content.decode()
+        ), "html should contain reference to valid playground assets path"
 
 
 async def test_serve_playground_with_api_router_in_api_router() -> None:
@@ -74,6 +78,9 @@ async def test_serve_playground_with_api_router_in_api_router() -> None:
     ) as client:
         response = await client.get("/parent/bar/foo/playground/index.html")
         assert response.status_code == 200
+        assert (
+            'src="/parent/bar/foo/playground/assets/' in response.content.decode()
+        ), "html should contain reference to valid playground assets path"
 
 
 async def test_root_path_on_playground() -> None:
