@@ -7,6 +7,14 @@
 
 ## Overview
 
+> [!WARNING]
+> We recommend using LangGraph Platform rather than LangServe for new projects.
+> 
+> Please see the [LangGraph Platform Migration Guide](migration.md) for more information.
+> 
+> We will continue to accept bug fixes for LangServe from the community; however, we
+> will not be accepting new feature contributions.
+
 [LangServe](https://github.com/langchain-ai/langserve) helps developers
 deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expression_language/)
 as a REST API.
