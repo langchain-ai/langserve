@@ -5,6 +5,15 @@
 [![Open Issues](https://img.shields.io/github/issues-raw/langchain-ai/langserve)](https://github.com/langchain-ai/langserve/issues)
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
+> [!WARNING]
+> We recommend using LangGraph Platform rather than LangServe for new projects.
+>
+> Please see the [LangGraph Platform Migration Guide](MIGRATION.md) for more information.
+>
+> We will continue to accept bug fixes for LangServe from the community; however, we
+> will not be accepting new feature contributions.
+
+
 ## Overview
 
 [LangServe](https://github.com/langchain-ai/langserve) helps developers
