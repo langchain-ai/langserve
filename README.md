@@ -8,7 +8,7 @@
 > [!WARNING]
 > We recommend using LangGraph Platform rather than LangServe for new projects.
 >
-> Please see the [LangGraph Platform Migration Guide](migration.md) for more information.
+> Please see the [LangGraph Platform Migration Guide](MIGRATION.md) for more information.
 >
 > We will continue to accept bug fixes for LangServe from the community; however, we
 > will not be accepting new feature contributions.
