@@ -127,7 +127,7 @@ graph.name = "New Graph"  # This defines the custom name in LangSmith
 
 This option is recommended if you want to take advantage of more advanced features in LangGraph Platform.
 
-#### Memory
+#### Memory (alternative to `RunnableWithMessageHistory`)
 
 For example, LangGraph comes with built-in persistence that is more general than LangChain's `RunnableWithMessageHistory`.
 
