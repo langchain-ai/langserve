@@ -120,12 +120,7 @@ poetry run langchain serve --port=8100
 
 ## Examples
 
-Get your LangServe instance started quickly with
-[LangChain Templates](https://github.com/langchain-ai/langchain/blob/master/templates/README.md).
-
-For more examples, see the templates
-[index](https://github.com/langchain-ai/langchain/blob/master/templates/docs/INDEX.md)
-or the [examples](https://github.com/langchain-ai/langserve/tree/main/examples)
+Get your LangServe instances started quickly with the [examples](https://github.com/langchain-ai/langserve/tree/main/examples)
 directory.
 
 | Description                                                                                                                                                                                                                                                        | Links                                                                                                                                                                                                                               |
