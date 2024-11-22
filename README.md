@@ -17,7 +17,7 @@
 ## Overview
 
 [LangServe](https://github.com/langchain-ai/langserve) helps developers
-deploy `LangChain` [runnables and chains](https://python.langchain.com/docs/expression_language/)
+deploy `LangChain` [runnables and chains](https://python.langchain.com/v0.2/docs/how_to/#langchain-expression-language-lcel)
 as a REST API.
 
 This library is integrated with [FastAPI](https://fastapi.tiangolo.com/) and
@@ -127,13 +127,13 @@ directory.
 | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **LLMs** Minimal example that reserves OpenAI and Anthropic chat models. Uses async, supports batching and streaming.                                                                                                                                              | [server](https://github.com/langchain-ai/langserve/tree/main/examples/llm/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/llm/client.ipynb)                                                       |
 | **Retriever** Simple server that exposes a retriever as a runnable.                                                                                                                                                                                                | [server](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/retrieval/client.ipynb)                                           |
-| **Conversational Retriever** A [Conversational Retriever](https://python.langchain.com/docs/expression_language/cookbook/retrieval#conversational-retrieval-chain) exposed via LangServe                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/client.ipynb) |
+| **Conversational Retriever** A Conversational Retriever exposed via LangServe                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/conversational_retrieval_chain/client.ipynb) |
 | **Agent** without **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                                            | [server](https://github.com/langchain-ai/langserve/tree/main/examples/agent/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/agent/client.ipynb)                                                   |
 | **Agent** with **conversation history** based on [OpenAI tools](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent)                                                                                                               | [server](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/server.py), [client](https://github.com/langchain-ai/langserve/blob/main/examples/agent_with_history/client.ipynb)                         |
-| [RunnableWithMessageHistory](https://python.langchain.com/docs/expression_language/how_to/message_history) to implement chat persisted on backend, keyed off a `session_id` supplied by client.                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/client.ipynb)                   |
-| [RunnableWithMessageHistory](https://python.langchain.com/docs/expression_language/how_to/message_history) to implement chat persisted on backend, keyed off a `conversation_id` supplied by client, and `user_id` (see Auth for implementing `user_id` properly). | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/client.ipynb) |
-| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) to create a retriever that supports run time configuration of the index name.                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/client.ipynb)                 |
-| [Configurable Runnable](https://python.langchain.com/docs/expression_language/how_to/configure) that shows configurable fields and configurable alternatives.                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/client.ipynb)                         |
+| [RunnableWithMessageHistory](https://python.langchain.com/v0.2/docs/how_to/message_history/) to implement chat persisted on backend, keyed off a `session_id` supplied by client.                                                                    | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence/client.ipynb)                   |
+| [RunnableWithMessageHistory](https://python.langchain.com/v0.2/docs/how_to/message_history/) to implement chat persisted on backend, keyed off a `conversation_id` supplied by client, and `user_id` (see Auth for implementing `user_id` properly). | [server](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/chat_with_persistence_and_user/client.ipynb) |
+| [Configurable Runnable](https://python.langchain.com/v0.2/docs/how_to/configure/) to create a retriever that supports run time configuration of the index name.                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_retrieval/client.ipynb)                 |
+| [Configurable Runnable](https://python.langchain.com/v0.2/docs/how_to/configure/) that shows configurable fields and configurable alternatives.                                                                                                      | [server](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/configurable_chain/client.ipynb)                         |
 | **APIHandler** Shows how to use `APIHandler` instead of `add_routes`. This provides more flexibility for developers to define endpoints. Works well with all FastAPI patterns, but takes a bit more effort.                                                        | [server](https://github.com/langchain-ai/langserve/tree/main/examples/api_handler_examples/server.py)                                                                                                                               |
 | **LCEL Example** Example that uses LCEL to manipulate a dictionary input.                                                                                                                                                                                          | [server](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/server.py), [client](https://github.com/langchain-ai/langserve/tree/main/examples/passthrough_dict/client.ipynb)                             |
 | **Auth** with `add_routes`: Simple authentication that can be applied across all endpoints associated with app. (Not useful on its own for implementing per user logic.)                                                                                           | [server](https://github.com/langchain-ai/langserve/tree/main/examples/auth/global_deps/server.py)                                                                                                                                   |
@@ -331,14 +331,14 @@ adds of these endpoints to the server:
 - `GET /my_runnable/config_schema` - json schema for config of the runnable
 
 These endpoints match
-the [LangChain Expression Language interface](https://python.langchain.com/docs/expression_language/interface) --
+the [LangChain Expression Language interface](https://python.langchain.com/v0.2/docs/how_to/lcel_cheatsheet/) --
 please reference this documentation for more details.
 
 ## Playground
 
 You can find a playground page for your runnable at `/my_runnable/playground/`. This
 exposes a simple UI
-to [configure](https://python.langchain.com/docs/expression_language/how_to/configure)
+to [configure](https://python.langchain.com/v0.2/docs/how_to/configure/)
 and invoke your runnable with streaming output and intermediate steps.
 
 <p align="center">
@@ -427,7 +427,7 @@ for demos or testing.
 ## Legacy Chains
 
 LangServe works with both Runnables (constructed
-via [LangChain Expression Language](https://python.langchain.com/docs/expression_language/))
+via [LangChain Expression Language](https://python.langchain.com/v0.2/docs/how_to/#langchain-expression-language-lcel))
 and legacy chains (inheriting from `Chain`).
 However, some of the input schemas for legacy chains may be incomplete/incorrect,
 leading to errors.
