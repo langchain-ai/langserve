@@ -1556,11 +1556,27 @@ class APIHandler:
                 self._run_name, user_provided_config, request
             )
 
+        # Fetching the playground URL using information in the route
+        # to support a case when the APIRouter is nested inside another
+        # APIRouter.
+        # In this case the prefix attribute of the APIRouter is not enough
+        # to get the correct playground URL.
+        route = request.scope["route"]
+        suffix = "/{file_path:path}"
+        route_path = route.path
+        full_suffix = "/playground" + suffix
+
+        if not route_path.endswith(full_suffix):
+            raise AssertionError(
+                f"Expected route to end with " f"'{full_suffix}'. Got: {route.path}"
+            )
+
+        # path without the suffix
         playground_url = (
             request.scope.get("root_path", "").rstrip("/")
-            + self._base_url
-            + "/playground"
+            + route_path[: -len(f"{suffix}")]
         )
+
         feedback_enabled = tracing_is_enabled() and self._enable_feedback_endpoint
         public_trace_link_enabled = (
             tracing_is_enabled() and self._enable_public_trace_link_endpoint
