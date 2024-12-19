@@ -50,8 +50,10 @@ from langserve.server_sent_events import aconnect_sse, connect_sse
 logger = logging.getLogger(__name__)
 
 import typing
-if typing.TYPE_CHECKING: # We simply follow the way httpx do
+
+if typing.TYPE_CHECKING:  # We simply follow the way httpx do
     import ssl
+
 
 def _is_json_serializable(obj: Any) -> bool:
     """Return True if the object is json serializable."""
