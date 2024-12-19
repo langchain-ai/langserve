@@ -21,7 +21,7 @@ from typing import (
 from urllib.parse import urljoin
 
 import httpx
-from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes, VerifyTypes
+from httpx._types import AuthTypes, CertTypes, CookieTypes, HeaderTypes
 from langchain_core.callbacks import (
     AsyncCallbackManagerForChainRun,
     CallbackManagerForChainRun,
@@ -48,6 +48,11 @@ from langserve.serialization import (
 from langserve.server_sent_events import aconnect_sse, connect_sse
 
 logger = logging.getLogger(__name__)
+
+import typing
+
+if typing.TYPE_CHECKING:  # We simply follow the way httpx do
+    import ssl
 
 
 def _is_json_serializable(obj: Any) -> bool:
@@ -281,7 +286,7 @@ class RemoteRunnable(Runnable[Input, Output]):
         auth: Optional[AuthTypes] = None,
         headers: Optional[HeaderTypes] = None,
         cookies: Optional[CookieTypes] = None,
-        verify: VerifyTypes = True,
+        verify: ssl.SSLContext | str | bool = True,
         cert: Optional[CertTypes] = None,
         client_kwargs: Optional[Dict[str, Any]] = None,
         use_server_callback_events: bool = True,
