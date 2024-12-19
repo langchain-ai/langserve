@@ -8,6 +8,7 @@ import weakref
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Dict,
@@ -49,9 +50,8 @@ from langserve.server_sent_events import aconnect_sse, connect_sse
 
 logger = logging.getLogger(__name__)
 
-import typing
-
-if typing.TYPE_CHECKING:  # We simply follow the way httpx do
+if TYPE_CHECKING:
+    # For type checking httpx types
     import ssl
 
 
