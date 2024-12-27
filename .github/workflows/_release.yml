@@ -7,6 +7,12 @@ on:
         required: true
         type: string
         description: "From which folder this pipeline executes"
+  workflow_dispatch:  # Allows to trigger the workflow manually in GitHub UI
+    inputs:
+      working-directory:
+        required: true
+        type: string
+        description: "From which folder this pipeline executes"
 
 env:
   POETRY_VERSION: "1.5.1"
