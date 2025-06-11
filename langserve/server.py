@@ -29,10 +29,11 @@ from langserve.api_handler import (
 from langserve.serialization import Serializer
 
 try:
-    from fastapi import APIRouter, Depends, FastAPI, Request, Response
+    from fastapi import APIRouter, Body, Depends, FastAPI, Request, Response
 except ImportError:
     # [server] extra not installed
     APIRouter = Depends = FastAPI = Request = Response = Any
+    Body = object
 
 # A function that that takes a config and a raw request
 # and updates the config based on the request.
@@ -795,7 +796,7 @@ def add_routes(
     if endpoint_configuration.is_batch_enabled:
 
         async def _batch_docs(
-            batch_request: Annotated[BatchRequest, BatchRequest],
+            batch_request: Annotated[BatchRequest, Body()],
             config_hash: str = "",
         ) -> BatchResponse:
             """Batch invoke the runnable with the given inputs and config."""

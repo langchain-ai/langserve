@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "langserve"
-version = "0.3.1"
+version = "0.3.2"
 description = ""
 readme = "README.md"
 authors = ["LangChain"]
@@ -21,7 +21,7 @@ pydantic = "^2.7"
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^3.6.1"
 fastapi = ">=0.90.1"
-sse-starlette = "^1.3.0"
+sse-starlette = ">=1.3.0"
 
 [tool.poetry.group.typing.dependencies]
 
