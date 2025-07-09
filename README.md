@@ -100,7 +100,7 @@ langchain app new my-app
 add_routes(app. NotImplemented)
 ```
 
-### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral etc).
+### 3. Use `poetry` to add 3rd party packages (e.g., langchain-openai, langchain-anthropic, langchain-mistral, etc).
 
 ```sh
 poetry add [package-name] // e.g `poetry add langchain-openai`
