@@ -29,10 +29,10 @@ from langserve.api_handler import (
 from langserve.serialization import Serializer
 
 try:
-    from fastapi import APIRouter, Depends, FastAPI, Request, Response, Body
+    from fastapi import APIRouter, Body, Depends, FastAPI, Request, Response
 except ImportError:
     # [server] extra not installed
-    APIRouter = Depends = FastAPI = Request = Response = Body = Any
+    APIRouter = Body = Depends = FastAPI = Request = Response = Any
 
 # A function that that takes a config and a raw request
 # and updates the config based on the request.
