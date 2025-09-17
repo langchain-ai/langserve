@@ -1151,7 +1151,7 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
                     "metadata": {
                         "__langserve_endpoint": "invoke",
                         "__langserve_version": None,
-                        "__useragent": "python-httpx/0.27.2",
+                        "__useragent": "python-httpx/0.28.1",
                     },
                     "parent_run_id": None,
                     "serialized": None,
@@ -1213,7 +1213,7 @@ async def test_include_callback_events_batch() -> None:
                         "metadata": {
                             "__langserve_endpoint": "batch",
                             "__langserve_version": None,
-                            "__useragent": "python-httpx/0.27.2",
+                            "__useragent": "python-httpx/0.28.1",
                         },
                         "parent_run_id": None,
                         "run_id": None,
@@ -1238,7 +1238,7 @@ async def test_include_callback_events_batch() -> None:
                         "metadata": {
                             "__langserve_endpoint": "batch",
                             "__langserve_version": None,
-                            "__useragent": "python-httpx/0.27.2",
+                            "__useragent": "python-httpx/0.28.1",
                         },
                         "parent_run_id": None,
                         "run_id": None,
