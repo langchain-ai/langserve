@@ -46,7 +46,12 @@
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.3",
     "typescript": "^5.0.2",
-    "vite": "^4.4.5",
+    "vite": "^4.5.2",
     "vite-plugin-svgr": "^4.1.0"
+  },
+  "resolutions": {
+    "braces": "^3.0.3",
+    "cross-spawn": "^7.0.5",
+    "rollup": "^3.29.5"
   }
 }
