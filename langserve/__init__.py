@@ -17,3 +17,5 @@ __all__ = [
     "__version__",
     "CustomUserType",
 ]
+
+some_revoked_key = "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"
