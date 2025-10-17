@@ -127,7 +127,7 @@ def _null_run_id_and_metadata_recursively(decoded_response: Any) -> None:
     """Recursively traverse the object and delete any keys called run_id"""
     if isinstance(decoded_response, dict):
         for key, value in decoded_response.items():
-            if key in {"run_id", "__langserve_version"}:
+            if key in {"run_id", "__langserve_version", "__useragent"}:
                 decoded_response[key] = None
             else:
                 _null_run_id_and_metadata_recursively(value)
@@ -1151,7 +1151,7 @@ async def test_include_callback_events(mocker: MockerFixture) -> None:
                     "metadata": {
                         "__langserve_endpoint": "invoke",
                         "__langserve_version": None,
-                        "__useragent": "python-httpx/0.27.2",
+                        "__useragent": None,
                     },
                     "parent_run_id": None,
                     "serialized": None,
@@ -1213,7 +1213,7 @@ async def test_include_callback_events_batch() -> None:
                         "metadata": {
                             "__langserve_endpoint": "batch",
                             "__langserve_version": None,
-                            "__useragent": "python-httpx/0.27.2",
+                            "__useragent": None,
                         },
                         "parent_run_id": None,
                         "run_id": None,
@@ -1238,7 +1238,7 @@ async def test_include_callback_events_batch() -> None:
                         "metadata": {
                             "__langserve_endpoint": "batch",
                             "__langserve_version": None,
-                            "__useragent": "python-httpx/0.27.2",
+                            "__useragent": None,
                         },
                         "parent_run_id": None,
                         "run_id": None,
@@ -3147,8 +3147,6 @@ async def test_path_dependencies() -> None:
             )
 
 
-# TODO(0.3): Fix in langchain-core and re-release for 0.3
-@pytest.mark.xfail(reason="Bug in AnyMessage in langchain-core.dev4")
 async def test_remote_configurable_remote_runnable() -> None:
     """Test that a configurable a client runnable that's configurable works.
 
