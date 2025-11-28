@@ -773,7 +773,7 @@ You can also specify a list of messages as your a parameter directly, as shown i
 ```python
 prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "You are a helpful assisstant named Cob."),
+        ("system", "You are a helpful assistant named Cob."),
         MessagesPlaceholder(variable_name="messages"),
     ]
 )
