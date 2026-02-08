@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/react": "^18.2.29",
     "prettier": "^3.0.3",
-    "tsup": "^7.2.0",
+    "tsup": "^8.3.5",
     "typescript": "^5.2.2"
   },
   "peerDependencies": {
