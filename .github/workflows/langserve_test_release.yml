@@ -4,10 +4,16 @@ name: Test Release
 on:
   workflow_dispatch:  # Allows to trigger the workflow manually in GitHub UI
 
+permissions:
+  contents: read
+
 jobs:
   release:
     uses:
       ./.github/workflows/_test_release.yml
     with:
       working-directory: .
+    permissions:
+      # Trusted publishing to TestPyPI
+      id-token: write
     secrets: inherit
