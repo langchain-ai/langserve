@@ -16,6 +16,7 @@ Models are created with a namespace to avoid name collisions when hosting
 multiple runnables. When present the name collisions prevent fastapi from
 generating OpenAPI specs.
 """
+
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 from uuid import UUID
 
@@ -271,8 +272,7 @@ def create_invoke_response_model(
             Field(
                 ...,
                 description=(
-                    "Metadata about the response that may be useful to "
-                    "specific clients"
+                    "Metadata about the response that may be useful to specific clients"
                 ),
             ),
         ),

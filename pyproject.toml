@@ -53,16 +53,18 @@ server = ["sse-starlette", "fastapi"]
 all = ["sse-starlette", "fastapi"]
 
 [tool.ruff]
+# Same as Black.
+line-length = 88
+extend-exclude = ["examples"]
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle
     "F",  # pyflakes
     "I",  # isort
 ]
 
-# Same as Black.
-line-length = 88
-
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 # TODO(Team): Temporary to make isort work with examples.
 # examples assume langserve is available as a 3rd party package
 # For simplicity we'll define it as first party for now can update later.
