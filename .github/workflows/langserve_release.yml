@@ -4,11 +4,18 @@ name: Release
 on:
   workflow_dispatch:  # Allows to trigger the workflow manually in GitHub UI
 
+permissions:
+  contents: read
+
 jobs:
   release:
     uses:
       ./.github/workflows/_release.yml
     with:
       working-directory: .
-    permissions: write-all
+    permissions:
+      # Trusted publishing to PyPI
+      id-token: write
+      # Creating GitHub releases
+      contents: write
     secrets: inherit
