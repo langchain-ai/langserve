@@ -10,6 +10,7 @@ By default, exceptions are serialized as a generic exception without
 any information about the exception. This is done to prevent leaking
 sensitive information from the server to the client.
 """
+
 import abc
 import logging
 from functools import lru_cache
@@ -239,7 +240,7 @@ def load_events(events: Any) -> List[Dict[str, Any]]:
         except ValidationError as e:
             msg = f"Encountered an invalid event: {e}"
             if "type" in decoded_event_data:
-                msg += f' of type {repr(decoded_event_data["type"])}'
+                msg += f" of type {repr(decoded_event_data['type'])}"
             _log_error_message_once(msg)
             continue
 

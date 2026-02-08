@@ -1,4 +1,5 @@
 """Adapted from https://github.com/florimondmanca/httpx-sse"""
+
 from contextlib import asynccontextmanager, contextmanager
 from typing import Any, AsyncIterator, Iterator, List, Optional
 

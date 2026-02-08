@@ -5,6 +5,7 @@ This code contains integration for langchain runnables with FastAPI.
 The main entry point is the `add_routes` function which adds the routes to an existing
 FastAPI app or APIRouter.
 """
+
 import warnings
 import weakref
 from typing import (
@@ -151,9 +152,8 @@ class _EndpointConfiguration:
         else:
             enabled_endpoints_ = set(name.lower() for name in enabled_endpoints)
             if enabled_endpoints_ - KNOWN_ENDPOINTS:
-                raise ValueError(
-                    f"Got unknown endpoint names: {enabled_endpoints_- KNOWN_ENDPOINTS}"
-                )
+                unknown = enabled_endpoints_ - KNOWN_ENDPOINTS
+                raise ValueError(f"Got unknown endpoint names: {unknown}")
             is_invoke_enabled = "invoke" in enabled_endpoints_
             is_batch_enabled = "batch" in enabled_endpoints_
             is_stream_enabled = "stream" in enabled_endpoints_
@@ -234,12 +234,12 @@ def _setup_global_app_handlers(
                 if endpoint_configuration.is_playground_enabled:
                     print(
                         f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" '
-                        f'is live at:'
+                        f"is live at:"
                     )
-                    print(f'{green("LANGSERVE:")}  │')
-                    print(f'{green("LANGSERVE:")}  └──> {path}/playground/')
-                    print(f'{green("LANGSERVE:")}')
-            print(f'{green("LANGSERVE:")} See all available routes at {app.docs_url}/')
+                    print(f"{green('LANGSERVE:')}  │")
+                    print(f"{green('LANGSERVE:')}  └──> {path}/playground/")
+                    print(f"{green('LANGSERVE:')}")
+            print(f"{green('LANGSERVE:')} See all available routes at {app.docs_url}/")
 
 
 # PUBLIC API
