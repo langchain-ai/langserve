@@ -115,7 +115,7 @@ jobs:
           poetry install --with dev,lint,test,typing
 
       - name: Restore black cache
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         env:
           CACHE_BASE: black-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python-version }}-${{ inputs.working-directory }}-${{ hashFiles(format('{0}/poetry.lock', env.WORKDIR)) }}
           SEGMENT_DOWNLOAD_TIMEOUT_MIN: "1"
@@ -128,7 +128,7 @@ jobs:
             ${{ env.CACHE_BASE }}-
 
       - name: Get .mypy_cache to speed up mypy
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MIN: "2"
         with:
