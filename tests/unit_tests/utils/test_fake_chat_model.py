@@ -56,18 +56,14 @@ async def test_generic_fake_chat_model_stream() -> None:
         ]
     )
     model = GenericFakeChatModel(messages=infinite_cycle)
-    chunks = _filter_final_empty_chunk(
-        [chunk async for chunk in model.astream("meow")]
-    )
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
         _AnyIdAIMessageChunk(content="goodbye"),
     ]
 
-    chunks = _filter_final_empty_chunk(
-        [chunk for chunk in model.stream("meow")]
-    )
+    chunks = _filter_final_empty_chunk([chunk for chunk in model.stream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
@@ -78,9 +74,7 @@ async def test_generic_fake_chat_model_stream() -> None:
     # Relying on insertion order of the additional kwargs dict
     message = AIMessage(content="", additional_kwargs={"foo": 42, "bar": 24}, id="1")
     model = GenericFakeChatModel(messages=cycle([message]))
-    chunks = _filter_final_empty_chunk(
-        [chunk async for chunk in model.astream("meow")]
-    )
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="", additional_kwargs={"foo": 42}),
         _AnyIdAIMessageChunk(content="", additional_kwargs={"bar": 24}),
@@ -97,9 +91,7 @@ async def test_generic_fake_chat_model_stream() -> None:
         },
     )
     model = GenericFakeChatModel(messages=cycle([message]))
-    chunks = _filter_final_empty_chunk(
-        [chunk async for chunk in model.astream("meow")]
-    )
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
 
     assert chunks == [
         _AnyIdAIMessageChunk(

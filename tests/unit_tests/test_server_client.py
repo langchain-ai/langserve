@@ -2850,9 +2850,7 @@ async def test_astream_events_with_prompt_model_parser_chain(
 
         # Verify content chunks were streamed
         stream_chunks = [
-            e["data"]["chunk"]
-            for e in dumped
-            if e["event"] == "on_chain_stream"
+            e["data"]["chunk"] for e in dumped if e["event"] == "on_chain_stream"
         ]
         # Filter out empty final chunk if present (langchain-core 1.x)
         content_chunks = [c for c in stream_chunks if c != ""]
