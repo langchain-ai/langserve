@@ -52,6 +52,7 @@
   "resolutions": {
     "braces": "^3.0.3",
     "cross-spawn": "^7.0.5",
-    "rollup": "^3.29.5"
+    "rollup": "^3.30.0",
+    "ajv": "^8.18.0"
   }
 }

@@ -36,6 +36,18 @@ async def test_generic_fake_chat_model_ainvoke() -> None:
     assert response == _AnyIdAIMessage(content="hello")
 
 
+def _filter_final_empty_chunk(chunks: list) -> list:
+    """Filter out the final empty sentinel chunk emitted by langchain-core 1.x.
+
+    langchain-core 1.x emits an extra empty AIMessageChunk with
+    chunk_position='last' at the end of streams. Strip it for backward-compat
+    assertions.
+    """
+    if chunks and chunks[-1].content == "" and not chunks[-1].additional_kwargs:
+        return chunks[:-1]
+    return chunks
+
+
 async def test_generic_fake_chat_model_stream() -> None:
     """Test streaming."""
     infinite_cycle = cycle(
@@ -44,14 +56,14 @@ async def test_generic_fake_chat_model_stream() -> None:
         ]
     )
     model = GenericFakeChatModel(messages=infinite_cycle)
-    chunks = [chunk async for chunk in model.astream("meow")]
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
         _AnyIdAIMessageChunk(content="goodbye"),
     ]
 
-    chunks = [chunk for chunk in model.stream("meow")]
+    chunks = _filter_final_empty_chunk([chunk for chunk in model.stream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
@@ -62,7 +74,7 @@ async def test_generic_fake_chat_model_stream() -> None:
     # Relying on insertion order of the additional kwargs dict
     message = AIMessage(content="", additional_kwargs={"foo": 42, "bar": 24}, id="1")
     model = GenericFakeChatModel(messages=cycle([message]))
-    chunks = [chunk async for chunk in model.astream("meow")]
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
     assert chunks == [
         _AnyIdAIMessageChunk(content="", additional_kwargs={"foo": 42}),
         _AnyIdAIMessageChunk(content="", additional_kwargs={"bar": 24}),
@@ -79,7 +91,7 @@ async def test_generic_fake_chat_model_stream() -> None:
         },
     )
     model = GenericFakeChatModel(messages=cycle([message]))
-    chunks = [chunk async for chunk in model.astream("meow")]
+    chunks = _filter_final_empty_chunk([chunk async for chunk in model.astream("meow")])
 
     assert chunks == [
         _AnyIdAIMessageChunk(
@@ -131,7 +143,8 @@ async def test_generic_fake_chat_model_astream_log() -> None:
         log_patch async for log_patch in model.astream_log("meow", diff=False)
     ]
     final = log_patches[-1]
-    assert final.state["streamed_output"] == [
+    streamed = _filter_final_empty_chunk(final.state["streamed_output"])
+    assert streamed == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
         _AnyIdAIMessageChunk(content="goodbye"),
@@ -180,10 +193,14 @@ async def test_callback_handlers() -> None:
     model = GenericFakeChatModel(messages=infinite_cycle)
     tokens: List[str] = []
     # New model
-    results = list(model.stream("meow", {"callbacks": [MyCustomAsyncHandler(tokens)]}))
+    results = _filter_final_empty_chunk(
+        list(model.stream("meow", {"callbacks": [MyCustomAsyncHandler(tokens)]}))
+    )
     assert results == [
         _AnyIdAIMessageChunk(content="hello"),
         _AnyIdAIMessageChunk(content=" "),
         _AnyIdAIMessageChunk(content="goodbye"),
     ]
-    assert tokens == ["hello", " ", "goodbye"]
+    # Filter empty token from final sentinel chunk if present
+    content_tokens = [t for t in tokens if t]
+    assert content_tokens == ["hello", " ", "goodbye"]
