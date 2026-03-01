@@ -816,6 +816,7 @@ class APIHandler:
         except json.JSONDecodeError:
             raise RequestValidationError(errors=["Invalid JSON body"])
         try:
+            context = body.get("context", {})
             body = InvokeRequestShallowValidator.model_validate(body)
 
             # Merge the config from the path with the config from the body.
@@ -839,7 +840,7 @@ class APIHandler:
             # using configuration.
             schema = self._runnable.with_config(config).input_schema
             input_ = schema.model_validate(body.input)
-            return config, _unpack_input(input_)
+            return config, _unpack_input(input_), context
         except ValidationError as e:
             raise RequestValidationError(e.errors(), body=body)
 
@@ -862,7 +863,7 @@ class APIHandler:
         """
         # We do not use the InvokeRequest model here since configurable runnables
         # have dynamic schema -- so the validation below is a bit more involved.
-        config, input_ = await self._get_config_and_input(
+        config, input_, context = await self._get_config_and_input(
             request,
             config_hash,
             endpoint="invoke",
@@ -876,6 +877,7 @@ class APIHandler:
         invoke_coro = self._runnable.ainvoke(
             input_,
             config=config,
+            context=context,
         )
 
         feedback_key: Optional[str]
@@ -1146,7 +1148,7 @@ class APIHandler:
         """
         run_id = None
         try:
-            config, input_ = await self._get_config_and_input(
+            config, input_, context = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream",
@@ -1184,6 +1186,7 @@ class APIHandler:
                 async for chunk in self._runnable.astream(
                     input_,
                     config=config_w_callbacks,
+                    context=context,
                 ):
                     # Send a metadata event as soon as possible
                     if not has_sent_metadata:
@@ -1234,7 +1237,7 @@ class APIHandler:
         It's attached to _stream_log_docs endpoint.
         """
         try:
-            config, input_ = await self._get_config_and_input(
+            config, input_, context = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream_log",
@@ -1277,6 +1280,7 @@ class APIHandler:
                 async for chunk in self._runnable.astream_log(
                     input_,
                     config=config,
+                    context=context,
                     diff=True,
                     include_names=stream_log_request.include_names,
                     include_types=stream_log_request.include_types,
@@ -1343,7 +1347,7 @@ class APIHandler:
         """Stream events from the runnable."""
         run_id = None
         try:
-            config, input_ = await self._get_config_and_input(
+            config, input_, context = await self._get_config_and_input(
                 request,
                 config_hash,
                 endpoint="stream_events",
@@ -1393,6 +1397,7 @@ class APIHandler:
                 async for event in self._runnable.astream_events(
                     input_,
                     config=config,
+                    context=context,
                     include_names=stream_events_request.include_names,
                     include_types=stream_events_request.include_types,
                     include_tags=stream_events_request.include_tags,
