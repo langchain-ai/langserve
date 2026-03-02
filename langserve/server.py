@@ -49,6 +49,7 @@ _APP_SEEN = weakref.WeakSet()
 # An APP can have multiple runnables registered with it.
 # There are multiple APPs as it's common to use APIRouter in larger
 # FastAPI applications.
+# Maps app to a dict of path -> endpoint configuration.
 _APP_TO_PATHS = weakref.WeakKeyDictionary()
 
 
@@ -194,10 +195,10 @@ def _register_path_for_app(
                 f"A runnable already exists at path: {path}. If adding "
                 f"multiple runnables make sure they have different paths."
             )
-        seen_paths.add(path)
+        seen_paths[path] = endpoint_configuration
     else:
         _setup_global_app_handlers(app, endpoint_configuration)
-        _APP_TO_PATHS[app] = {path}
+        _APP_TO_PATHS[app] = {path: endpoint_configuration}
 
 
 def _setup_global_app_handlers(
@@ -230,8 +231,8 @@ def _setup_global_app_handlers(
 
             paths = _APP_TO_PATHS[app]
             print(LANGSERVE)
-            for path in paths:
-                if endpoint_configuration.is_playground_enabled:
+            for path, endpoint_config in paths.items():
+                if endpoint_config.is_playground_enabled:
                     print(
                         f'{green("LANGSERVE:")} Playground for chain "{path or ""}/" '
                         f"is live at:"
