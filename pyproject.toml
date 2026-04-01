@@ -34,7 +34,7 @@ pytest = "^9.0.2"
 pytest-cov = "^7.1.0"
 pytest-asyncio = "^0.21.1"
 pytest-mock = "^3.11.1"
-pytest-socket = "^0.6.0"
+pytest-socket = "^0.7.0"
 pytest-watch = "^4.2.0"
 pytest-timeout = "^2.2.0"
 
