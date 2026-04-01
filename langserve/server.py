@@ -750,7 +750,7 @@ def add_routes(
     #######################################
     # Documentation variants of end points.
     #######################################
-    # At the moment, we only support pydantic 1.x for documentation
+    # Prepare models for FastAPI docs (compatible with Pydantic v1 and v2)
     InvokeRequest = api_handler.InvokeRequest
     InvokeResponse = api_handler.InvokeResponse
     BatchRequest = api_handler.BatchRequest
@@ -758,6 +758,35 @@ def add_routes(
     StreamRequest = api_handler.StreamRequest
     StreamLogRequest = api_handler.StreamLogRequest
     StreamEventsRequest = api_handler.StreamEventsRequest
+
+    # In Pydantic v2, dynamically created models may require model_rebuild()
+    # to resolve forward refs before being used by FastAPI's TypeAdapter.
+    def _rebuild_model(m):
+        try:
+            rebuild = getattr(m, "model_rebuild", None)
+            if callable(rebuild):
+                rebuild(recursive=True)
+                return
+        except Exception:
+            pass
+        # Fallback for Pydantic v1
+        try:
+            upd = getattr(m, "update_forward_refs", None)
+            if callable(upd):
+                upd()
+        except Exception:
+            pass
+
+    for _m in (
+        InvokeRequest,
+        InvokeResponse,
+        BatchRequest,
+        BatchResponse,
+        StreamRequest,
+        StreamLogRequest,
+        StreamEventsRequest,
+    ):
+        _rebuild_model(_m)
 
     if endpoint_configuration.is_invoke_enabled:
 
