@@ -6,6 +6,7 @@ to be considered private and subject to change without notice.
 
 from langserve.api_handler import APIHandler
 from langserve.client import RemoteRunnable
+from langserve.dns_aid import DnsAidConfig, DnsAidRouteConfig, dns_aid_lifespan, with_dns_aid
 from langserve.schema import CustomUserType
 from langserve.server import add_routes
 from langserve.version import __version__
@@ -14,6 +15,10 @@ __all__ = [
     "RemoteRunnable",
     "APIHandler",
     "add_routes",
+    "DnsAidConfig",
+    "DnsAidRouteConfig",
+    "dns_aid_lifespan",
+    "with_dns_aid",
     "__version__",
     "CustomUserType",
 ]
