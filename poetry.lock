@@ -1461,14 +1461,14 @@ test = ["jupyter-server (>=2.0.0)", "pytest (>=7.0)", "pytest-jupyter[server] (>
 
 [[package]]
 name = "jupyterlab"
-version = "4.5.3"
+version = "4.5.6"
 description = "JupyterLab computational environment"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "jupyterlab-4.5.3-py3-none-any.whl", hash = "sha256:63c9f3a48de72ba00df766ad6eed416394f5bb883829f11eeff0872302520ba7"},
-    {file = "jupyterlab-4.5.3.tar.gz", hash = "sha256:4a159f71067cb38e4a82e86a42de8e7e926f384d7f2291964f282282096d27e8"},
+    {file = "jupyterlab-4.5.6-py3-none-any.whl", hash = "sha256:d6b3dac883aa4d9993348e0f8e95b24624f75099aed64eab6a4351a9cdd1e580"},
+    {file = "jupyterlab-4.5.6.tar.gz", hash = "sha256:642fe2cfe7f0f5922a8a558ba7a0d246c7bc133b708dfe43f7b3a826d163cf42"},
 ]
 
 [package.dependencies]
@@ -4067,4 +4067,4 @@ server = ["fastapi", "sse-starlette"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "df4e04d4499405ad4f725be1c86f0f543c31c6cc19f57187eed165b5288b3900"
+content-hash = "e3451e506e42b511da2b942cfdf349995a8cab53cf608dcf9b0d70767e38fee6"
