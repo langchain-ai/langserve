@@ -466,6 +466,22 @@ You can deploy to GCP Cloud Run using the following command:
 gcloud run deploy [your-service-name] --source . --port 8001 --allow-unauthenticated --region us-central1 --set-env-vars=OPENAI_API_KEY=your_key
 ```
 
+### Deploy using Infrastructure as Code
+
+#### Pulumi
+
+You can deploy your LangServe server with [Pulumi](https://www.pulumi.com/) using your preferred general purpose language. Below are some quickstart
+examples for deploying LangServe to different cloud providers.
+
+These examples are a good starting point for your own infrastructure as code (IaC) projects. You can easily modify them to suit your needs.
+
+| Cloud | Language   | Repository                                                            | Quickstart                                                                                                                                                  |
+| ----- | ---------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AWS   | dotnet     | https://github.com/pulumi/examples/tree/master/aws-cs-langserve       | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/aws-cs-langserve)     |
+| AWS   | golang     | https://github.com/pulumi/examples/tree/master/aws-go-langserve       | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/aws-go-langserve)     |
+| AWS   | python     | https://github.com/pulumi/examples/tree/master/aws-py-langserve       | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/aws-py-langserve)     |
+| AWS   | typescript | https://github.com/pulumi/examples/tree/master/aws-ts-langserve       | [![Deploy](https://get.pulumi.com/new/button.svg)](https://app.pulumi.com/new?template=https://github.com/pulumi/examples/tree/master/aws-ts-langserve)     |
+
 ### Community Contributed
 
 #### Deploy to Railway
