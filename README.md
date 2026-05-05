@@ -6,6 +6,8 @@
 [![](https://dcbadge.vercel.app/api/server/6adMQxSpJS?compact=true&style=flat)](https://discord.com/channels/1038097195422978059/1170024642245832774)
 
 > [!WARNING]
+> **DEPRECATED** This project has been deprecated since Nov 18, 2024 (https://github.com/langchain-ai/langserve/issues/791).
+> 
 > We recommend using LangGraph Platform rather than LangServe for new projects.
 >
 > Please see the [LangGraph Platform Migration Guide](./MIGRATION.md) for more information.
